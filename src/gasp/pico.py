@@ -92,10 +92,21 @@ def perform_pico_analysis(input: PicoInput) -> PicoOutput:
     count_json = results["count"]
     active_warps_json = results["active"]
 
-    return PicoOutput(
-        uncoalesced_count=parse_total_cost(ua_json),
-        bank_conflict_count=parse_total_cost(bc_json),
-        active_threads=parse_total_cost(active_warps_json),
-        memory_accesses_count=parse_total_cost(count_json),
-        error=False,
-    )
+    try:
+        return PicoOutput(
+            uncoalesced_count=parse_total_cost(ua_json),
+            bank_conflict_count=parse_total_cost(bc_json),
+            active_threads=parse_total_cost(active_warps_json),
+            memory_accesses_count=parse_total_cost(count_json),
+            error=False,
+        )
+    except ValueError as e:
+        # symbolic cost, e.g. a loop bounded by a kernel argument Pico wasn't given
+        logger.warning(f"pico returned a non-numeric cost: {e}")
+        return PicoOutput(
+            uncoalesced_count=0,
+            bank_conflict_count=0,
+            active_threads=0,
+            memory_accesses_count=0,
+            error=True,
+        )
