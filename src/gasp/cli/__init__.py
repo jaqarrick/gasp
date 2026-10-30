@@ -15,6 +15,7 @@ from gasp.occupancy import OccupancyInput, calculate_occupancy
 from gasp.parser import get_parser
 from gasp.pico import PicoInput, perform_pico_analysis
 from gasp.predict import PredictionInput, predict
+from gasp.profiler import ProfileInput, profile_kernel
 
 from .constants import (
     DEFAULT_BLOCK_SIZE,
@@ -75,8 +76,25 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help='Extra flags passed to nvcc, e.g. "--use_fast_math -Xptxas -dlcm=cg"',
     )
+    parser.add_argument(
+        "--run",
+        action="store_true",
+        help="Compile and run the program under ncu with one thread and with the "
+        "full launch, and compare the measured speedup with the prediction",
+    )
+    parser.add_argument(
+        "--program-args",
+        default=None,
+        help='Arguments passed to the program when run with --run, e.g. "1000000"',
+    )
 
     return parser
+
+
+def relative_error(predicted: float, measured: float) -> str:
+    if measured == 0:
+        return "n/a"
+    return f"{(predicted - measured) / measured * 100:+.1f}%"
 
 
 def main() -> None:
@@ -93,6 +111,7 @@ def main() -> None:
     loop_iterations = args.loop_iterations
     include_dirs = args.include_dir
     nvcc_flags = shlex.split(args.nvcc_flags) if args.nvcc_flags else []
+    program_args = shlex.split(args.program_args) if args.program_args else []
 
     logger = Logger(verbose)
     logger.info("Verbose mode enabled")
@@ -291,6 +310,50 @@ def main() -> None:
             ["T_one_thread (cycles)", f"{prediction.t_one_thread:.0f}"],
             ["Speedup", f"{prediction.speedup:.2f}"],
         ],
+    )
+
+    if not args.run:
+        return
+
+    measured = profile_kernel(
+        ProfileInput(
+            input_file=input_file,
+            arch=arch,
+            kernel_name=kernel_name.rstrip(":"),
+            block_size=block_size,
+            grid_size=grid_size,
+            program_args=program_args,
+            include_dirs=include_dirs,
+            extra_flags=nvcc_flags,
+            logger=logger,
+        )
+    )
+    logger.table(
+        "Predicted vs Measured",
+        ["Parameter", "Predicted", "Measured", "Error"],
+        [
+            [
+                "T_one_thread (cycles)",
+                f"{prediction.t_one_thread:.0f}",
+                f"{measured.serial.cycles:.0f}",
+                relative_error(prediction.t_one_thread, measured.serial.cycles),
+            ],
+            [
+                "T_GPU (cycles)",
+                f"{prediction.t_gpu:.0f}",
+                f"{measured.parallel.cycles:.0f}",
+                relative_error(prediction.t_gpu, measured.parallel.cycles),
+            ],
+            [
+                "Speedup",
+                f"{prediction.speedup:.2f}",
+                f"{measured.speedup:.2f}",
+                relative_error(prediction.speedup, measured.speedup),
+            ],
+            ["One-thread duration (ns)", "", f"{measured.serial.duration_ns:.0f}", ""],
+            ["Full-run duration (ns)", "", f"{measured.parallel.duration_ns:.0f}", ""],
+        ],
+        force=True,
     )
 
 

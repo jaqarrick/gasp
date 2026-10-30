@@ -63,6 +63,7 @@ def make_parser(arch, logger, cfg=None):
 @pytest.mark.parametrize(
     "arch, parser_cls",
     [
+        ("sm_75", BracketSASSParser),
         ("sm_80", BracketSASSParser),
         ("sm_86", BracketSASSParser),
         ("sm_89", BracketSASSParser),
@@ -80,7 +81,7 @@ def test_ldcu_only_in_sm100_table(logger):
     assert "LDCU" not in make_parser("sm_90", logger).opcode_table
 
 
-@pytest.mark.parametrize("arch", ["sm_70", "sm_75", "compute_80", "80"])
+@pytest.mark.parametrize("arch", ["sm_70", "compute_80", "80"])
 def test_get_parser_rejects_unsupported_arch(arch, logger):
     with pytest.raises(SystemExit):
         make_parser(arch, logger)

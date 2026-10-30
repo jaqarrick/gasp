@@ -110,13 +110,13 @@ class SASSParser(ABC):
         dest_registers.update(dst)
         src_registers.update(src)
 
-        self.logger.info(
-            f"opcode:         {base_opcode}\n"
-            f"  category:     {op_category!s}\n"
-            f"  predicate:    {predicate}\n"
-            f"  src_registers:  {src_registers}\n"
-            f"  dest_registers: {dest_registers}"
-        )
+        # self.logger.info(
+        #     f"opcode:         {base_opcode}\n"
+        #     f"  category:     {op_category!s}\n"
+        #     f"  predicate:    {predicate}\n"
+        #     f"  src_registers:  {src_registers}\n"
+        #     f"  dest_registers: {dest_registers}"
+        # )
 
         return SASSInstruction(
             opcode=base_opcode,

@@ -8,4 +8,5 @@ GPU_TO_ARCH: dict[str, str] = {
     "l40": "sm_89",
     "v100": "sm_70",
     "t4": "sm_75",
+    "rtx2080ti": "sm_75",
 }

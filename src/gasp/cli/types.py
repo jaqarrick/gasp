@@ -13,3 +13,5 @@ class Args:
     loop_iterations: int | None
     include_dir: list[str]
     nvcc_flags: str | None
+    run: bool
+    program_args: str | None

@@ -31,5 +31,5 @@ class Logger:
         for row in rows:
             t.add_row(*row)
 
-        if self.verbose:
+        if self.verbose or force:
             self.out.print(t)

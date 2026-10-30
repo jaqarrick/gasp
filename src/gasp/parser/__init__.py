@@ -21,6 +21,9 @@ def get_parser(
     elif arch in ("sm_80", "sm_86", "sm_87", "sm_88", "sm_89"):
         opcode_table = {**common_ops, **sm80_ops}
         return BracketSASSParser(cfg, kernel_name, opcode_table, logger)
+    elif arch == "sm_75":
+        # temporary, for sims runs on a Turing card
+        return BracketSASSParser(cfg, kernel_name, common_ops, logger)
     elif arch.startswith("sm_"):
         logger.error(f"SASS Parser: {arch} is not supported at this time")
         sys.exit(1)
