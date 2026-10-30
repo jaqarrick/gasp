@@ -63,7 +63,8 @@ class SASSParser(ABC):
                 continue
 
             # strip DOT record port prefixes: {<entry>, |<exit0>, }
-            line = re.sub(r"^[{|](<[^>]*>)?\s*", "", line)
+            # a one-instruction block has both: {<entry>|<exit0> EXIT
+            line = re.sub(r"^(?:[{|](<[^>]*>)?\s*)+", "", line)
 
             # trailing ;
             line = line.rstrip(";").strip()

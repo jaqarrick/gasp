@@ -600,3 +600,28 @@ def test_parse_sgemm_cfg(arch, logger):
     assert parsed_ffma == expected_ffma > 0
 
     logger.warning.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _trim_raw_instruction — DOT record ports
+# ---------------------------------------------------------------------------
+
+TRIM_CASES = [
+    pytest.param(
+        r"{<entry>\ \ MOV\ R1,\ c\[0x0\]\[0x28\]\ ;\l|<exit0>\ \ EXIT\ ;\l}",
+        ["MOV R1, c[0x0][0x28]", "EXIT"],
+        id="entry-and-exit-lines",
+    ),
+    # a block whose only instruction is EXIT has both ports on one line
+    # (sm_75 grid-stride vecadd_stride.cu loop exit)
+    pytest.param(
+        r"{<entry>|<exit0>\ \ EXIT\ ;\l}",
+        ["EXIT"],
+        id="entry-and-exit-same-line",
+    ),
+]
+
+
+@pytest.mark.parametrize("label, expected", TRIM_CASES)
+def test_trim_raw_instruction_strips_ports(label, expected, logger):
+    assert make_parser("sm_80", logger)._trim_raw_instruction(label) == expected
