@@ -6,6 +6,8 @@ class Args:
     input: str
     gpu: str | None
     verbose: bool
+    log_traces: set[str] | None
+    trace_file: str | None
     profile: str | None
     block_size: int | None
     grid_size: int | None

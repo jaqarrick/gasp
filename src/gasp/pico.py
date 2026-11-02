@@ -50,6 +50,7 @@ def run_pico(i: PicoInput, cmd: str, results: dict) -> None:
     if params:
         path += ["-p", *params]
     path += ["--json", i.input_file]
+    i.logger.trace("pico", f"command: {' '.join(path)}")
 
     result = subprocess.run(
         path,
@@ -60,6 +61,7 @@ def run_pico(i: PicoInput, cmd: str, results: dict) -> None:
     if result.returncode != 0:
         i.logger.error(f"pico failed:\n{result.stderr}")
         sys.exit(1)
+    i.logger.trace("pico", f"{cmd} result: {result.stdout.strip()}")
     results[cmd] = result.stdout
 
 

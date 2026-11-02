@@ -12,6 +12,17 @@ from .descriptor import DescriptorSASSParser
 def get_parser(
     cfg: ControlFlowGraph, kernel_name: str, arch: str, logger: Logger
 ) -> SASSParser:
+    parser = _select_parser(cfg, kernel_name, arch, logger)
+    logger.trace(
+        "sass",
+        f"{arch}: {type(parser).__name__} with {len(parser.opcode_table)} opcodes",
+    )
+    return parser
+
+
+def _select_parser(
+    cfg: ControlFlowGraph, kernel_name: str, arch: str, logger: Logger
+) -> SASSParser:
     if arch in ("sm_100", "sm_100a", "sm_103", "sm_103a"):
         opcode_table = {**common_ops, **sm100_ops}
         return DescriptorSASSParser(cfg, kernel_name, opcode_table, logger)

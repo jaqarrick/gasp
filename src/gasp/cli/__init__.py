@@ -5,12 +5,12 @@ import shlex
 import sys
 
 from gasp import __version__
-from gasp.cfg import gen_cfg_from_raw
+from gasp.cfg import format_cfg, gen_cfg_from_raw
 from gasp.common.constants import GPU_TO_ARCH
 from gasp.cuda_toolkit import CUDAExtractor
 from gasp.dependency import analyze
 from gasp.gpuperf.types import HardwareParameters, LaunchParameters
-from gasp.logger import Logger
+from gasp.logger import DEFAULT_TRACE_FILE, TRACE_MODULES, Logger
 from gasp.occupancy import OccupancyInput, calculate_occupancy
 from gasp.parser import get_parser
 from gasp.pico import PicoInput, perform_pico_analysis
@@ -34,6 +34,27 @@ def cu_file(path: str) -> str:
     return path
 
 
+def trace_modules(value: str) -> set[str]:
+    modules = {m.strip().lower() for m in value.split(",") if m.strip()}
+    valid = {*TRACE_MODULES, "all"}
+    unknown = modules - valid
+    if not modules or unknown:
+        raise argparse.ArgumentTypeError(
+            f"unknown trace module(s) {', '.join(sorted(unknown)) or repr(value)}, "
+            f"expected a comma-separated list of: {', '.join(sorted(valid))}"
+        )
+    return modules
+
+
+def resolve_traces(
+    log_traces: set[str] | None, trace_file: str | None
+) -> tuple[set[str] | None, str]:
+    # --trace-file on its own traces every module
+    if log_traces is None and trace_file is not None:
+        log_traces = {"all"}
+    return log_traces, trace_file or DEFAULT_TRACE_FILE
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="gasp", description="GASP: GPU Analytical Static Predictor"
@@ -46,6 +67,23 @@ def build_parser() -> argparse.ArgumentParser:
         "--version", action="version", version=f"%(prog)s {__version__}"
     )
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument(
+        "--log-traces",
+        type=trace_modules,
+        nargs="?",
+        const={"all"},
+        default=None,
+        metavar="MODULES",
+        help="Write traces to the trace file, optionally only for a "
+        f"comma-separated list of modules ({', '.join(TRACE_MODULES)}). "
+        "Defaults to all",
+    )
+    parser.add_argument(
+        "--trace-file",
+        default=None,
+        help=f"File traces are written to (default: ./{DEFAULT_TRACE_FILE}). "
+        "Implies --log-traces all if --log-traces is not given",
+    )
     parser.add_argument("input", type=cu_file, metavar="FILE", help="path to .cu file")
 
     parser.add_argument(
@@ -113,7 +151,8 @@ def main() -> None:
     nvcc_flags = shlex.split(args.nvcc_flags) if args.nvcc_flags else []
     program_args = shlex.split(args.program_args) if args.program_args else []
 
-    logger = Logger(verbose)
+    traces, trace_file = resolve_traces(args.log_traces, args.trace_file)
+    logger = Logger(verbose, traces=traces, trace_file=trace_file)
     logger.info("Verbose mode enabled")
 
     if block_size is None:
@@ -174,8 +213,7 @@ def main() -> None:
     resources = result["resources"]
 
     cfg = gen_cfg_from_raw(raw_cfg=result["raw_cfg"])
-    # print_cfg(cfg)
-    # print(result["resources"])
+    logger.trace("cfg", format_cfg(cfg))
     # {'_Z9addvectorPiS_S_i:': {'reg': 12, 'shared': 0, 'stack': 0, 'local': 0}}
     # for now we assume a single kernel
     kernel_name, kernel = next(iter(resources.items()))
@@ -210,6 +248,7 @@ def main() -> None:
             ["Num Reps", str(occupancy_results.num_reps)],
             ["MWP", f"{occupancy_results.mwp:.2f}"],
         ],
+        trace="occupancy",
     )
 
     pico_results = perform_pico_analysis(
@@ -237,6 +276,7 @@ def main() -> None:
                 ["Active Threads", str(pico_results.active_threads)],
                 ["Memory Access Count", str(pico_results.memory_accesses_count)],
             ],
+            trace="pico",
         )
 
     sass_parser = get_parser(cfg=cfg, kernel_name=kernel_name, arch=arch, logger=logger)
@@ -263,6 +303,7 @@ def main() -> None:
             ["SFU Insts", str(dependency_results.sfu_inst_count)],
             ["Sync Insts", str(dependency_results.sync_inst_count)],
         ],
+        trace="dependency",
     )
 
     prediction = predict(
@@ -310,6 +351,7 @@ def main() -> None:
             ["T_one_thread (cycles)", f"{prediction.t_one_thread:.0f}"],
             ["Speedup", f"{prediction.speedup:.2f}"],
         ],
+        trace="predict",
     )
 
     if not args.run:
@@ -354,6 +396,7 @@ def main() -> None:
             ["Full-run duration (ns)", "", f"{measured.parallel.duration_ns:.0f}", ""],
         ],
         force=True,
+        trace="profiler",
     )
 
 

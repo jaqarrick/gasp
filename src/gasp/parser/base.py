@@ -45,10 +45,31 @@ class SASSParser(ABC):
     def parse(self) -> dict[str, list[SASSInstruction]]:
         nodes = self.cfg.nodes
         result: dict[str, list[SASSInstruction]] = {}
+        self.logger.trace("sass", f"=== kernel {self.kernel} ===")
         for node_id, node in nodes.items():
             raw_instructions = self._trim_raw_instruction(node.label)
-            result[node_id] = [self._parse_instruction(raw) for raw in raw_instructions]
+            self.logger.trace(
+                "sass", f"node {node_id}: {len(raw_instructions)} instruction(s)"
+            )
+            parsed = []
+            for raw in raw_instructions:
+                inst = self._parse_instruction(raw)
+                self._trace_instruction(raw, inst)
+                parsed.append(inst)
+            result[node_id] = parsed
         return result
+
+    def _trace_instruction(self, raw: str, inst: SASSInstruction) -> None:
+        if not self.logger.trace_enabled("sass"):
+            return
+        src = ", ".join(sorted(inst.src_registers)) or "-"
+        dst = ", ".join(sorted(inst.dest_registers)) or "-"
+        self.logger.trace(
+            "sass",
+            f"  {raw}\n"
+            f"      opcode={inst.opcode} category={inst.category!s} "
+            f"predicate={inst.predicate or '-'} src=[{src}] dst=[{dst}]",
+        )
 
     def _trim_raw_instruction(self, label: str) -> list[str]:
         raw = label.replace("\\l", "\n")
@@ -110,14 +131,6 @@ class SASSParser(ABC):
 
         dest_registers.update(dst)
         src_registers.update(src)
-
-        # self.logger.info(
-        #     f"opcode:         {base_opcode}\n"
-        #     f"  category:     {op_category!s}\n"
-        #     f"  predicate:    {predicate}\n"
-        #     f"  src_registers:  {src_registers}\n"
-        #     f"  dest_registers: {dest_registers}"
-        # )
 
         return SASSInstruction(
             opcode=base_opcode,
