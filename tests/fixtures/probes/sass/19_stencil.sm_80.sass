@@ -1,0 +1,764 @@
+	.headerflags	@"EF_CUDA_TEXMODE_UNIFIED EF_CUDA_64BIT_ADDRESS EF_CUDA_SM80 EF_CUDA_VIRTUAL_SM(EF_CUDA_SM80)"
+	.elftype	@"ET_EXEC"
+
+
+//--------------------- .debug_frame              --------------------------
+	.section	.debug_frame,"",@progbits
+.debug_frame:
+        /*0000*/ 	.byte	0xff, 0xff, 0xff, 0xff, 0x24, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff
+        /*0010*/ 	.byte	0xff, 0xff, 0xff, 0xff, 0x03, 0x00, 0x04, 0x7c, 0xff, 0xff, 0xff, 0xff, 0x0f, 0x0c, 0x81, 0x80
+        /*0020*/ 	.byte	0x80, 0x28, 0x00, 0x08, 0xff, 0x81, 0x80, 0x28, 0x08, 0x81, 0x80, 0x80, 0x28, 0x00, 0x00, 0x00
+        /*0030*/ 	.byte	0xff, 0xff, 0xff, 0xff, 0x34, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        /*0040*/ 	.byte	0x00, 0x00, 0x00, 0x00
+        /*0044*/ 	.dword	_Z13jacobi_sharedPfPKfii
+        /*004c*/ 	.byte	0x80, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x04, 0x00, 0x00, 0x00, 0x04, 0x58, 0x00
+        /*005c*/ 	.byte	0x00, 0x00, 0x0c, 0x81, 0x80, 0x80, 0x28, 0x00, 0x04, 0x0c, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00
+        /*006c*/ 	.byte	0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0x24, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        /*007c*/ 	.byte	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x03, 0x00, 0x04, 0x7c, 0xff, 0xff, 0xff, 0xff
+        /*008c*/ 	.byte	0x0f, 0x0c, 0x81, 0x80, 0x80, 0x28, 0x00, 0x08, 0xff, 0x81, 0x80, 0x28, 0x08, 0x81, 0x80, 0x80
+        /*009c*/ 	.byte	0x28, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0x34, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        /*00ac*/ 	.byte	0x70, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        /*00b4*/ 	.dword	_Z13jacobi_globalPfPKfii
+        /*00bc*/ 	.byte	0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x04, 0x00, 0x00, 0x00, 0x04, 0x3c, 0x00
+        /*00cc*/ 	.byte	0x00, 0x00, 0x0c, 0x81, 0x80, 0x80, 0x28, 0x00, 0x04, 0x4c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        /*00dc*/ 	.byte	0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0x24, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        /*00ec*/ 	.byte	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x03, 0x00, 0x04, 0x7c, 0xff, 0xff, 0xff, 0xff
+        /*00fc*/ 	.byte	0x0f, 0x0c, 0x81, 0x80, 0x80, 0x28, 0x00, 0x08, 0xff, 0x81, 0x80, 0x28, 0x08, 0x81, 0x80, 0x80
+        /*010c*/ 	.byte	0x28, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0x34, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        /*011c*/ 	.byte	0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        /*0124*/ 	.dword	_Z10stencil_1dPfPKfi
+        /*012c*/ 	.byte	0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x04, 0x00, 0x00, 0x00, 0x04, 0x20, 0x00
+        /*013c*/ 	.byte	0x00, 0x00, 0x0c, 0x81, 0x80, 0x80, 0x28, 0x00, 0x04, 0x2c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        /*014c*/ 	.byte	0x00, 0x00, 0x00, 0x00
+
+
+//--------------------- .nv.info                  --------------------------
+	.section	.nv.info,"",@"SHT_CUDA_INFO"
+	.align	4
+
+
+	//----- nvinfo : EIATTR_REGCOUNT
+	.align		4
+        /*0000*/ 	.byte	0x04, 0x2f
+        /*0002*/ 	.short	(.L_1 - .L_0)
+	.align		4
+.L_0:
+        /*0004*/ 	.word	index@(_Z10stencil_1dPfPKfi)
+        /*0008*/ 	.word	0x0000000c
+
+
+	//----- nvinfo : EIATTR_FRAME_SIZE
+	.align		4
+.L_1:
+        /*000c*/ 	.byte	0x04, 0x11
+        /*000e*/ 	.short	(.L_3 - .L_2)
+	.align		4
+.L_2:
+        /*0010*/ 	.word	index@(_Z10stencil_1dPfPKfi)
+        /*0014*/ 	.word	0x00000000
+
+
+	//----- nvinfo : EIATTR_REGCOUNT
+	.align		4
+.L_3:
+        /*0018*/ 	.byte	0x04, 0x2f
+        /*001a*/ 	.short	(.L_5 - .L_4)
+	.align		4
+.L_4:
+        /*001c*/ 	.word	index@(_Z13jacobi_globalPfPKfii)
+        /*0020*/ 	.word	0x0000000e
+
+
+	//----- nvinfo : EIATTR_FRAME_SIZE
+	.align		4
+.L_5:
+        /*0024*/ 	.byte	0x04, 0x11
+        /*0026*/ 	.short	(.L_7 - .L_6)
+	.align		4
+.L_6:
+        /*0028*/ 	.word	index@(_Z13jacobi_globalPfPKfii)
+        /*002c*/ 	.word	0x00000000
+
+
+	//----- nvinfo : EIATTR_REGCOUNT
+	.align		4
+.L_7:
+        /*0030*/ 	.byte	0x04, 0x2f
+        /*0032*/ 	.short	(.L_9 - .L_8)
+	.align		4
+.L_8:
+        /*0034*/ 	.word	index@(_Z13jacobi_sharedPfPKfii)
+        /*0038*/ 	.word	0x00000010
+
+
+	//----- nvinfo : EIATTR_FRAME_SIZE
+	.align		4
+.L_9:
+        /*003c*/ 	.byte	0x04, 0x11
+        /*003e*/ 	.short	(.L_11 - .L_10)
+	.align		4
+.L_10:
+        /*0040*/ 	.word	index@(_Z13jacobi_sharedPfPKfii)
+        /*0044*/ 	.word	0x00000000
+
+
+	//----- nvinfo : EIATTR_MIN_STACK_SIZE
+	.align		4
+.L_11:
+        /*0048*/ 	.byte	0x04, 0x12
+        /*004a*/ 	.short	(.L_13 - .L_12)
+	.align		4
+.L_12:
+        /*004c*/ 	.word	index@(_Z13jacobi_sharedPfPKfii)
+        /*0050*/ 	.word	0x00000000
+
+
+	//----- nvinfo : EIATTR_MIN_STACK_SIZE
+	.align		4
+.L_13:
+        /*0054*/ 	.byte	0x04, 0x12
+        /*0056*/ 	.short	(.L_15 - .L_14)
+	.align		4
+.L_14:
+        /*0058*/ 	.word	index@(_Z13jacobi_globalPfPKfii)
+        /*005c*/ 	.word	0x00000000
+
+
+	//----- nvinfo : EIATTR_MIN_STACK_SIZE
+	.align		4
+.L_15:
+        /*0060*/ 	.byte	0x04, 0x12
+        /*0062*/ 	.short	(.L_17 - .L_16)
+	.align		4
+.L_16:
+        /*0064*/ 	.word	index@(_Z10stencil_1dPfPKfi)
+        /*0068*/ 	.word	0x00000000
+.L_17:
+
+
+//--------------------- .nv.info._Z13jacobi_sharedPfPKfii --------------------------
+	.section	.nv.info._Z13jacobi_sharedPfPKfii,"",@"SHT_CUDA_INFO"
+	.sectionflags	@""
+	.align	4
+
+
+	//----- nvinfo : EIATTR_CUDA_API_VERSION
+	.align		4
+        /*0000*/ 	.byte	0x04, 0x37
+        /*0002*/ 	.short	(.L_19 - .L_18)
+.L_18:
+        /*0004*/ 	.word	0x00000080
+
+
+	//----- nvinfo : EIATTR_SW2861232_WAR
+	.align		4
+.L_19:
+        /*0008*/ 	.byte	0x01, 0x35
+	.zero		2
+
+
+	//----- nvinfo : EIATTR_PARAM_CBANK
+	.align		4
+        /*000c*/ 	.byte	0x04, 0x0a
+        /*000e*/ 	.short	(.L_21 - .L_20)
+	.align		4
+.L_20:
+        /*0010*/ 	.word	index@(.nv.constant0._Z13jacobi_sharedPfPKfii)
+        /*0014*/ 	.short	0x0160
+        /*0016*/ 	.short	0x0018
+
+
+	//----- nvinfo : EIATTR_CBANK_PARAM_SIZE
+	.align		4
+.L_21:
+        /*0018*/ 	.byte	0x03, 0x19
+        /*001a*/ 	.short	0x0018
+
+
+	//----- nvinfo : EIATTR_KPARAM_INFO
+	.align		4
+        /*001c*/ 	.byte	0x04, 0x17
+        /*001e*/ 	.short	(.L_23 - .L_22)
+.L_22:
+        /*0020*/ 	.word	0x00000000
+        /*0024*/ 	.short	0x0003
+        /*0026*/ 	.short	0x0014
+        /*0028*/ 	.byte	0x00, 0xf0, 0x11, 0x00
+
+
+	//----- nvinfo : EIATTR_KPARAM_INFO
+	.align		4
+.L_23:
+        /*002c*/ 	.byte	0x04, 0x17
+        /*002e*/ 	.short	(.L_25 - .L_24)
+.L_24:
+        /*0030*/ 	.word	0x00000000
+        /*0034*/ 	.short	0x0002
+        /*0036*/ 	.short	0x0010
+        /*0038*/ 	.byte	0x00, 0xf0, 0x11, 0x00
+
+
+	//----- nvinfo : EIATTR_KPARAM_INFO
+	.align		4
+.L_25:
+        /*003c*/ 	.byte	0x04, 0x17
+        /*003e*/ 	.short	(.L_27 - .L_26)
+.L_26:
+        /*0040*/ 	.word	0x00000000
+        /*0044*/ 	.short	0x0001
+        /*0046*/ 	.short	0x0008
+        /*0048*/ 	.byte	0x00, 0xf0, 0x21, 0x00
+
+
+	//----- nvinfo : EIATTR_KPARAM_INFO
+	.align		4
+.L_27:
+        /*004c*/ 	.byte	0x04, 0x17
+        /*004e*/ 	.short	(.L_29 - .L_28)
+.L_28:
+        /*0050*/ 	.word	0x00000000
+        /*0054*/ 	.short	0x0000
+        /*0056*/ 	.short	0x0000
+        /*0058*/ 	.byte	0x00, 0xf0, 0x21, 0x00
+
+
+	//----- nvinfo : EIATTR_MAXREG_COUNT
+	.align		4
+.L_29:
+        /*005c*/ 	.byte	0x03, 0x1b
+        /*005e*/ 	.short	0x00ff
+
+
+	//----- nvinfo : EIATTR_EXIT_INSTR_OFFSETS
+	.align		4
+        /*0060*/ 	.byte	0x04, 0x1c
+        /*0062*/ 	.short	(.L_31 - .L_30)
+
+
+	//   ....[0]....
+.L_30:
+        /*0064*/ 	.word	0x000004f0
+
+
+	//   ....[1]....
+        /*0068*/ 	.word	0x000005a0
+
+
+	//----- nvinfo : EIATTR_CRS_STACK_SIZE
+	.align		4
+.L_31:
+        /*006c*/ 	.byte	0x04, 0x1e
+        /*006e*/ 	.short	(.L_33 - .L_32)
+.L_32:
+        /*0070*/ 	.word	0x00000000
+.L_33:
+
+
+//--------------------- .nv.info._Z13jacobi_globalPfPKfii --------------------------
+	.section	.nv.info._Z13jacobi_globalPfPKfii,"",@"SHT_CUDA_INFO"
+	.sectionflags	@""
+	.align	4
+
+
+	//----- nvinfo : EIATTR_CUDA_API_VERSION
+	.align		4
+        /*0000*/ 	.byte	0x04, 0x37
+        /*0002*/ 	.short	(.L_35 - .L_34)
+.L_34:
+        /*0004*/ 	.word	0x00000080
+
+
+	//----- nvinfo : EIATTR_SW2861232_WAR
+	.align		4
+.L_35:
+        /*0008*/ 	.byte	0x01, 0x35
+	.zero		2
+
+
+	//----- nvinfo : EIATTR_PARAM_CBANK
+	.align		4
+        /*000c*/ 	.byte	0x04, 0x0a
+        /*000e*/ 	.short	(.L_37 - .L_36)
+	.align		4
+.L_36:
+        /*0010*/ 	.word	index@(.nv.constant0._Z13jacobi_globalPfPKfii)
+        /*0014*/ 	.short	0x0160
+        /*0016*/ 	.short	0x0018
+
+
+	//----- nvinfo : EIATTR_CBANK_PARAM_SIZE
+	.align		4
+.L_37:
+        /*0018*/ 	.byte	0x03, 0x19
+        /*001a*/ 	.short	0x0018
+
+
+	//----- nvinfo : EIATTR_KPARAM_INFO
+	.align		4
+        /*001c*/ 	.byte	0x04, 0x17
+        /*001e*/ 	.short	(.L_39 - .L_38)
+.L_38:
+        /*0020*/ 	.word	0x00000000
+        /*0024*/ 	.short	0x0003
+        /*0026*/ 	.short	0x0014
+        /*0028*/ 	.byte	0x00, 0xf0, 0x11, 0x00
+
+
+	//----- nvinfo : EIATTR_KPARAM_INFO
+	.align		4
+.L_39:
+        /*002c*/ 	.byte	0x04, 0x17
+        /*002e*/ 	.short	(.L_41 - .L_40)
+.L_40:
+        /*0030*/ 	.word	0x00000000
+        /*0034*/ 	.short	0x0002
+        /*0036*/ 	.short	0x0010
+        /*0038*/ 	.byte	0x00, 0xf0, 0x11, 0x00
+
+
+	//----- nvinfo : EIATTR_KPARAM_INFO
+	.align		4
+.L_41:
+        /*003c*/ 	.byte	0x04, 0x17
+        /*003e*/ 	.short	(.L_43 - .L_42)
+.L_42:
+        /*0040*/ 	.word	0x00000000
+        /*0044*/ 	.short	0x0001
+        /*0046*/ 	.short	0x0008
+        /*0048*/ 	.byte	0x00, 0xf0, 0x21, 0x00
+
+
+	//----- nvinfo : EIATTR_KPARAM_INFO
+	.align		4
+.L_43:
+        /*004c*/ 	.byte	0x04, 0x17
+        /*004e*/ 	.short	(.L_45 - .L_44)
+.L_44:
+        /*0050*/ 	.word	0x00000000
+        /*0054*/ 	.short	0x0000
+        /*0056*/ 	.short	0x0000
+        /*0058*/ 	.byte	0x00, 0xf0, 0x21, 0x00
+
+
+	//----- nvinfo : EIATTR_MAXREG_COUNT
+	.align		4
+.L_45:
+        /*005c*/ 	.byte	0x03, 0x1b
+        /*005e*/ 	.short	0x00ff
+
+
+	//----- nvinfo : EIATTR_EXIT_INSTR_OFFSETS
+	.align		4
+        /*0060*/ 	.byte	0x04, 0x1c
+        /*0062*/ 	.short	(.L_47 - .L_46)
+
+
+	//   ....[0]....
+.L_46:
+        /*0064*/ 	.word	0x000000f0
+
+
+	//   ....[1]....
+        /*0068*/ 	.word	0x00000230
+.L_47:
+
+
+//--------------------- .nv.info._Z10stencil_1dPfPKfi --------------------------
+	.section	.nv.info._Z10stencil_1dPfPKfi,"",@"SHT_CUDA_INFO"
+	.sectionflags	@""
+	.align	4
+
+
+	//----- nvinfo : EIATTR_CUDA_API_VERSION
+	.align		4
+        /*0000*/ 	.byte	0x04, 0x37
+        /*0002*/ 	.short	(.L_49 - .L_48)
+.L_48:
+        /*0004*/ 	.word	0x00000080
+
+
+	//----- nvinfo : EIATTR_SW2861232_WAR
+	.align		4
+.L_49:
+        /*0008*/ 	.byte	0x01, 0x35
+	.zero		2
+
+
+	//----- nvinfo : EIATTR_PARAM_CBANK
+	.align		4
+        /*000c*/ 	.byte	0x04, 0x0a
+        /*000e*/ 	.short	(.L_51 - .L_50)
+	.align		4
+.L_50:
+        /*0010*/ 	.word	index@(.nv.constant0._Z10stencil_1dPfPKfi)
+        /*0014*/ 	.short	0x0160
+        /*0016*/ 	.short	0x0014
+
+
+	//----- nvinfo : EIATTR_CBANK_PARAM_SIZE
+	.align		4
+.L_51:
+        /*0018*/ 	.byte	0x03, 0x19
+        /*001a*/ 	.short	0x0014
+
+
+	//----- nvinfo : EIATTR_KPARAM_INFO
+	.align		4
+        /*001c*/ 	.byte	0x04, 0x17
+        /*001e*/ 	.short	(.L_53 - .L_52)
+.L_52:
+        /*0020*/ 	.word	0x00000000
+        /*0024*/ 	.short	0x0002
+        /*0026*/ 	.short	0x0010
+        /*0028*/ 	.byte	0x00, 0xf0, 0x11, 0x00
+
+
+	//----- nvinfo : EIATTR_KPARAM_INFO
+	.align		4
+.L_53:
+        /*002c*/ 	.byte	0x04, 0x17
+        /*002e*/ 	.short	(.L_55 - .L_54)
+.L_54:
+        /*0030*/ 	.word	0x00000000
+        /*0034*/ 	.short	0x0001
+        /*0036*/ 	.short	0x0008
+        /*0038*/ 	.byte	0x00, 0xf0, 0x21, 0x00
+
+
+	//----- nvinfo : EIATTR_KPARAM_INFO
+	.align		4
+.L_55:
+        /*003c*/ 	.byte	0x04, 0x17
+        /*003e*/ 	.short	(.L_57 - .L_56)
+.L_56:
+        /*0040*/ 	.word	0x00000000
+        /*0044*/ 	.short	0x0000
+        /*0046*/ 	.short	0x0000
+        /*0048*/ 	.byte	0x00, 0xf0, 0x21, 0x00
+
+
+	//----- nvinfo : EIATTR_MAXREG_COUNT
+	.align		4
+.L_57:
+        /*004c*/ 	.byte	0x03, 0x1b
+        /*004e*/ 	.short	0x00ff
+
+
+	//----- nvinfo : EIATTR_EXIT_INSTR_OFFSETS
+	.align		4
+        /*0050*/ 	.byte	0x04, 0x1c
+        /*0052*/ 	.short	(.L_59 - .L_58)
+
+
+	//   ....[0]....
+.L_58:
+        /*0054*/ 	.word	0x00000080
+
+
+	//   ....[1]....
+        /*0058*/ 	.word	0x00000140
+.L_59:
+
+
+//--------------------- .nv.callgraph             --------------------------
+	.section	.nv.callgraph,"",@"SHT_CUDA_CALLGRAPH"
+	.align	4
+	.sectionentsize	8
+	.align		4
+        /*0000*/ 	.word	0x00000000
+	.align		4
+        /*0004*/ 	.word	0xffffffff
+	.align		4
+        /*0008*/ 	.word	0x00000000
+	.align		4
+        /*000c*/ 	.word	0xfffffffe
+	.align		4
+        /*0010*/ 	.word	0x00000000
+	.align		4
+        /*0014*/ 	.word	0xfffffffd
+	.align		4
+        /*0018*/ 	.word	0x00000000
+	.align		4
+        /*001c*/ 	.word	0xfffffffc
+
+
+//--------------------- .nv.rel.action            --------------------------
+	.section	.nv.rel.action,"",@"SHT_CUDA_RELOCINFO"
+	.align	8
+	.sectionentsize	8
+        /*0000*/ 	.byte	0x73, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0x25, 0x00, 0x05, 0x36
+
+
+//--------------------- .nv.constant0._Z13jacobi_sharedPfPKfii --------------------------
+	.section	.nv.constant0._Z13jacobi_sharedPfPKfii,"a",@progbits
+	.sectionflags	@""
+	.align	4
+.nv.constant0._Z13jacobi_sharedPfPKfii:
+	.zero		376
+
+
+//--------------------- .nv.constant0._Z13jacobi_globalPfPKfii --------------------------
+	.section	.nv.constant0._Z13jacobi_globalPfPKfii,"a",@progbits
+	.sectionflags	@""
+	.align	4
+.nv.constant0._Z13jacobi_globalPfPKfii:
+	.zero		376
+
+
+//--------------------- .nv.constant0._Z10stencil_1dPfPKfi --------------------------
+	.section	.nv.constant0._Z10stencil_1dPfPKfi,"a",@progbits
+	.sectionflags	@""
+	.align	4
+.nv.constant0._Z10stencil_1dPfPKfi:
+	.zero		372
+
+
+//--------------------- .text._Z13jacobi_sharedPfPKfii --------------------------
+	.section	.text._Z13jacobi_sharedPfPKfii,"ax",@progbits
+	.sectionflags	@"SHF_BARRIERS=1"
+	.sectioninfo	@"SHI_REGISTERS=16"
+	.align	128
+        .global         _Z13jacobi_sharedPfPKfii
+        .type           _Z13jacobi_sharedPfPKfii,@function
+        .size           _Z13jacobi_sharedPfPKfii,(.L_x_19 - _Z13jacobi_sharedPfPKfii)
+        .other          _Z13jacobi_sharedPfPKfii,@"STO_CUDA_ENTRY STV_DEFAULT"
+_Z13jacobi_sharedPfPKfii:
+.text._Z13jacobi_sharedPfPKfii:
+        /*0000*/                   IMAD.MOV.U32 R1, RZ, RZ, c[0x0][0x28] ;
+        /*0010*/                   S2R R12, SR_TID.Y ;
+        /*0020*/                   IMAD.MOV.U32 R3, RZ, RZ, 0x4 ;
+        /*0030*/                   ULDC.64 UR8, c[0x0][0x118] ;
+        /*0040*/                   IMAD.MOV.U32 R8, RZ, RZ, RZ ;
+        /*0050*/                   S2R R7, SR_CTAID.Y ;
+        /*0060*/                   S2R R11, SR_TID.X ;
+        /*0070*/                   S2R R6, SR_CTAID.X ;
+        /*0080*/                   IMAD R7, R7, 0x8, R12 ;
+        /*0090*/                   ISETP.GE.AND P0, PT, R7, c[0x0][0x174], PT ;
+        /*00a0*/                   IMAD R6, R6, 0x20, R11 ;
+        /*00b0*/                   IMAD R0, R7, c[0x0][0x170], R6 ;
+        /*00c0*/                   ISETP.LT.AND P0, PT, R6, c[0x0][0x170], !P0 ;
+        /*00d0*/                   IMAD.WIDE R4, R0, R3, c[0x0][0x168] ;
+        /*00e0*/               @P0 LDG.E R8, [R4.64] ;
+        /*00f0*/                   IADD3 R2, R11.reuse, 0x1, RZ ;
+        /*0100*/                   IMAD R9, R12, 0x88, RZ ;
+        /*0110*/                   ISETP.NE.AND P1, PT, R11, RZ, PT ;
+        /*0120*/                   BSSY B0, `(.L_x_0) ;
+        /*0130*/                   SHF.L.U32 R10, R2, 0x2, RZ ;
+        /*0140*/                   IMAD.IADD R13, R9, 0x1, R10 ;
+        /*0150*/                   STS [R13+0x88], R8 ;
+        /*0160*/               @P1 BRA `(.L_x_1) ;
+        /*0170*/                   ISETP.LT.OR P1, PT, R6, 0x1, !P0 ;
+        /*0180*/                   BSSY B1, `(.L_x_2) ;
+        /*0190*/                   IMAD.MOV.U32 R8, RZ, RZ, RZ ;
+        /*01a0*/               @P1 BRA `(.L_x_3) ;
+        /*01b0*/                   LDG.E R8, [R4.64+-0x4] ;
+.L_x_3:
+        /*01c0*/                   BSYNC B1 ;
+.L_x_2:
+        /*01d0*/                   STS [R9+0x88], R8 ;
+.L_x_1:
+        /*01e0*/                   BSYNC B0 ;
+.L_x_0:
+        /*01f0*/                   ISETP.NE.AND P1, PT, R11, 0x1f, PT ;
+        /*0200*/                   BSSY B0, `(.L_x_4) ;
+        /*0210*/               @P1 BRA `(.L_x_5) ;
+        /*0220*/                   IADD3 R8, R6, 0x1, RZ ;
+        /*0230*/                   BSSY B1, `(.L_x_6) ;
+        /*0240*/                   ISETP.GE.OR P1, PT, R8, c[0x0][0x170], !P0 ;
+        /*0250*/                   IMAD.MOV.U32 R8, RZ, RZ, RZ ;
+        /*0260*/               @P1 BRA `(.L_x_7) ;
+        /*0270*/                   LDG.E R8, [R4.64+0x4] ;
+.L_x_7:
+        /*0280*/                   BSYNC B1 ;
+.L_x_6:
+        /*0290*/                   STS [R9+0x10c], R8 ;
+.L_x_5:
+        /*02a0*/                   BSYNC B0 ;
+.L_x_4:
+        /*02b0*/                   ISETP.NE.AND P1, PT, R12, RZ, PT ;
+        /*02c0*/                   BSSY B0, `(.L_x_8) ;
+        /*02d0*/               @P1 BRA `(.L_x_9) ;
+        /*02e0*/                   ISETP.LT.OR P1, PT, R7, 0x1, !P0 ;
+        /*02f0*/                   BSSY B1, `(.L_x_10) ;
+        /*0300*/                   HFMA2.MMA R5, -RZ, RZ, 0, 0 ;
+        /*0310*/               @P1 BRA `(.L_x_11) ;
+        /*0320*/                   IADD3 R4, R0, -c[0x0][0x170], RZ ;
+        /*0330*/                   IMAD.WIDE R4, R4, R3, c[0x0][0x168] ;
+        /*0340*/                   LDG.E R5, [R4.64] ;
+.L_x_11:
+        /*0350*/                   BSYNC B1 ;
+.L_x_10:
+        /*0360*/                   STS [R2.X4], R5 ;
+.L_x_9:
+        /*0370*/                   BSYNC B0 ;
+.L_x_8:
+        /*0380*/                   ISETP.NE.AND P1, PT, R12, 0x7, PT ;
+        /*0390*/                   BSSY B0, `(.L_x_12) ;
+        /*03a0*/               @P1 BRA `(.L_x_13) ;
+        /*03b0*/                   IADD3 R4, R7, 0x1, RZ ;
+        /*03c0*/                   BSSY B1, `(.L_x_14) ;
+        /*03d0*/                   IMAD.MOV.U32 R5, RZ, RZ, RZ ;
+        /*03e0*/                   ISETP.GE.OR P0, PT, R4, c[0x0][0x174], !P0 ;
+        /*03f0*/               @P0 BRA `(.L_x_15) ;
+        /*0400*/                   IADD3 R4, R0, c[0x0][0x170], RZ ;
+        /*0410*/                   IMAD.WIDE R4, R4, R3, c[0x0][0x168] ;
+        /*0420*/                   LDG.E R5, [R4.64] ;
+.L_x_15:
+        /*0430*/                   BSYNC B1 ;
+.L_x_14:
+        /*0440*/                   STS [R2.X4+0x4c8], R5 ;
+.L_x_13:
+        /*0450*/                   BSYNC B0 ;
+.L_x_12:
+        /*0460*/                   UMOV UR5, 0x1 ;
+        /*0470*/                   BAR.SYNC.DEFER_BLOCKING 0x0 ;
+        /*0480*/                   ISETP.GE.AND P0, PT, R7, 0x1, PT ;
+        /*0490*/                   ISETP.LT.OR P0, PT, R6, 0x1, !P0 ;
+        /*04a0*/                   ULDC.64 UR6, c[0x0][0x170] ;
+        /*04b0*/                   UIADD3 UR4, -UR5, UR6, URZ ;
+        /*04c0*/                   UIADD3 UR5, -UR5, UR7, URZ ;
+        /*04d0*/                   ISETP.GE.OR P0, PT, R6, UR4, P0 ;
+        /*04e0*/                   ISETP.GE.OR P0, PT, R7, UR5, P0 ;
+        /*04f0*/               @P0 EXIT ;
+        /*0500*/                   LDS R2, [R13+0x8c] ;
+        /*0510*/                   LDS R5, [R13+0x84] ;
+        /*0520*/                   LDS R7, [R13] ;
+        /*0530*/                   LDS R9, [R13+0x110] ;
+        /*0540*/                   FADD R2, R2, R5 ;
+        /*0550*/                   FADD R2, R2, R7 ;
+        /*0560*/                   FADD R9, R2, R9 ;
+        /*0570*/                   IMAD.WIDE R2, R0, R3, c[0x0][0x160] ;
+        /*0580*/                   FMUL R9, R9, 0.25 ;
+        /*0590*/                   STG.E [R2.64], R9 ;
+        /*05a0*/                   EXIT ;
+.L_x_16:
+        /*05b0*/                   BRA `(.L_x_16);
+        /*05c0*/                   NOP;
+        /*05d0*/                   NOP;
+        /*05e0*/                   NOP;
+        /*05f0*/                   NOP;
+        /*0600*/                   NOP;
+        /*0610*/                   NOP;
+        /*0620*/                   NOP;
+        /*0630*/                   NOP;
+        /*0640*/                   NOP;
+        /*0650*/                   NOP;
+        /*0660*/                   NOP;
+        /*0670*/                   NOP;
+.L_x_19:
+
+
+//--------------------- .text._Z13jacobi_globalPfPKfii --------------------------
+	.section	.text._Z13jacobi_globalPfPKfii,"ax",@progbits
+	.sectioninfo	@"SHI_REGISTERS=14"
+	.align	128
+        .global         _Z13jacobi_globalPfPKfii
+        .type           _Z13jacobi_globalPfPKfii,@function
+        .size           _Z13jacobi_globalPfPKfii,(.L_x_20 - _Z13jacobi_globalPfPKfii)
+        .other          _Z13jacobi_globalPfPKfii,@"STO_CUDA_ENTRY STV_DEFAULT"
+_Z13jacobi_globalPfPKfii:
+.text._Z13jacobi_globalPfPKfii:
+        /*0000*/                   MOV R1, c[0x0][0x28] ;
+        /*0010*/                   S2R R3, SR_CTAID.Y ;
+        /*0020*/                   UMOV UR5, 0x1 ;
+        /*0030*/                   ULDC.64 UR6, c[0x0][0x170] ;
+        /*0040*/                   S2R R2, SR_TID.Y ;
+        /*0050*/                   UIADD3 UR4, -UR5, UR6, URZ ;
+        /*0060*/                   UIADD3 UR5, -UR5, UR7, URZ ;
+        /*0070*/                   S2R R0, SR_CTAID.X ;
+        /*0080*/                   S2R R5, SR_TID.X ;
+        /*0090*/                   IMAD R3, R3, c[0x0][0x4], R2 ;
+        /*00a0*/                   ISETP.GE.AND P0, PT, R3, 0x1, PT ;
+        /*00b0*/                   IMAD R0, R0, c[0x0][0x0], R5 ;
+        /*00c0*/                   ISETP.LT.OR P0, PT, R0, 0x1, !P0 ;
+        /*00d0*/                   ISETP.GE.OR P0, PT, R0, UR4, P0 ;
+        /*00e0*/                   ISETP.GE.OR P0, PT, R3, UR5, P0 ;
+        /*00f0*/               @P0 EXIT ;
+        /*0100*/                   IMAD R0, R3, c[0x0][0x170], R0 ;
+        /*0110*/                   HFMA2.MMA R11, -RZ, RZ, 0, 2.384185791015625e-07 ;
+        /*0120*/                   ULDC.64 UR4, c[0x0][0x118] ;
+        /*0130*/                   IADD3 R2, R0.reuse, -0x1, RZ ;
+        /*0140*/                   IADD3 R4, R0.reuse, -c[0x0][0x170], RZ ;
+        /*0150*/                   IADD3 R6, R0, c[0x0][0x170], RZ ;
+        /*0160*/                   IMAD.WIDE R2, R2, R11, c[0x0][0x168] ;
+        /*0170*/                   IMAD.WIDE R4, R4, R11.reuse, c[0x0][0x168] ;
+        /*0180*/                   LDG.E R8, [R2.64+0x8] ;
+        /*0190*/                   LDG.E R9, [R2.64] ;
+        /*01a0*/                   IMAD.WIDE R6, R6, R11, c[0x0][0x168] ;
+        /*01b0*/                   LDG.E R5, [R4.64] ;
+        /*01c0*/                   LDG.E R7, [R6.64] ;
+        /*01d0*/                   FADD R8, R8, R9 ;
+        /*01e0*/                   FADD R8, R8, R5 ;
+        /*01f0*/                   FADD R10, R8, R7 ;
+        /*0200*/                   IMAD.WIDE R8, R0, R11, c[0x0][0x160] ;
+        /*0210*/                   FMUL R11, R10, 0.25 ;
+        /*0220*/                   STG.E [R8.64], R11 ;
+        /*0230*/                   EXIT ;
+.L_x_17:
+        /*0240*/                   BRA `(.L_x_17);
+        /*0250*/                   NOP;
+        /*0260*/                   NOP;
+        /*0270*/                   NOP;
+        /*0280*/                   NOP;
+        /*0290*/                   NOP;
+        /*02a0*/                   NOP;
+        /*02b0*/                   NOP;
+        /*02c0*/                   NOP;
+        /*02d0*/                   NOP;
+        /*02e0*/                   NOP;
+        /*02f0*/                   NOP;
+.L_x_20:
+
+
+//--------------------- .text._Z10stencil_1dPfPKfi --------------------------
+	.section	.text._Z10stencil_1dPfPKfi,"ax",@progbits
+	.sectioninfo	@"SHI_REGISTERS=12"
+	.align	128
+        .global         _Z10stencil_1dPfPKfi
+        .type           _Z10stencil_1dPfPKfi,@function
+        .size           _Z10stencil_1dPfPKfi,(.L_x_21 - _Z10stencil_1dPfPKfi)
+        .other          _Z10stencil_1dPfPKfi,@"STO_CUDA_ENTRY STV_DEFAULT"
+_Z10stencil_1dPfPKfi:
+.text._Z10stencil_1dPfPKfi:
+        /*0000*/                   MOV R1, c[0x0][0x28] ;
+        /*0010*/                   S2R R4, SR_CTAID.X ;
+        /*0020*/                   ULDC UR4, c[0x0][0x170] ;
+        /*0030*/                   UIADD3 UR4, UR4, -0x1, URZ ;
+        /*0040*/                   S2R R3, SR_TID.X ;
+        /*0050*/                   IMAD R4, R4, c[0x0][0x0], R3 ;
+        /*0060*/                   ISETP.GE.AND P0, PT, R4, UR4, PT ;
+        /*0070*/                   ISETP.LT.OR P0, PT, R4, 0x1, P0 ;
+        /*0080*/               @P0 EXIT ;
+        /*0090*/                   HFMA2.MMA R9, -RZ, RZ, 0, 2.384185791015625e-07 ;
+        /*00a0*/                   ULDC.64 UR4, c[0x0][0x118] ;
+        /*00b0*/                   IMAD.WIDE R2, R4, R9, c[0x0][0x168] ;
+        /*00c0*/                   LDG.E R5, [R2.64] ;
+        /*00d0*/                   LDG.E R0, [R2.64+-0x4] ;
+        /*00e0*/                   LDG.E R7, [R2.64+0x4] ;
+        /*00f0*/                   FMUL R5, R5, 0.5 ;
+        /*0100*/                   FFMA R0, R0, 0.25, R5 ;
+        /*0110*/                   IMAD.WIDE R4, R4, R9, c[0x0][0x160] ;
+        /*0120*/                   FFMA R7, R7, 0.25, R0 ;
+        /*0130*/                   STG.E [R4.64], R7 ;
+        /*0140*/                   EXIT ;
+.L_x_18:
+        /*0150*/                   BRA `(.L_x_18);
+        /*0160*/                   NOP;
+        /*0170*/                   NOP;
+        /*0180*/                   NOP;
+        /*0190*/                   NOP;
+        /*01a0*/                   NOP;
+        /*01b0*/                   NOP;
+        /*01c0*/                   NOP;
+        /*01d0*/                   NOP;
+        /*01e0*/                   NOP;
+        /*01f0*/                   NOP;
+.L_x_21:
+
+
+//--------------------- .nv.shared._Z13jacobi_sharedPfPKfii --------------------------
+	.section	.nv.shared._Z13jacobi_sharedPfPKfii,"aw",@nobits
+	.sectionflags	@""
+	.align	4
+.nv.shared._Z13jacobi_sharedPfPKfii:
+	.zero		1360
