@@ -146,6 +146,9 @@ def analyze(
             node_iterations[node] *= ni
 
     logger.info(f"Dependency analysis: {len(loops)} loop(s) detected")
+    logger.trace("dependency", f"back edges: {back_edges or '-'}")
+    for head, loop_nodes in loops.items():
+        logger.trace("dependency", f"loop {head}: {sorted(loop_nodes)}")
 
     ilps = {}
     mlps = {}
@@ -163,6 +166,11 @@ def analyze(
         ilps[node_id] = ilp
         mlps[node_id] = mlp
         latencies[node_id] = total_latency
+        logger.trace(
+            "dependency",
+            f"node {node_id}: {len(node)} inst(s) x{node_iterations[node_id]} "
+            f"ilp={ilp:.2f} mlp={mlp:.2f} latency={total_latency:.0f}",
+        )
 
         # instructions by category
         node_iter_count = node_iterations[node_id]

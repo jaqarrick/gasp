@@ -112,6 +112,9 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         cache_hit_ratio=0.0,
     )
 
+    logger.trace("predict", f"kernel parameters: {k}")
+    logger.trace("predict", f"occupancy parameters: {o}")
+
     model = GPUPerf(k, o, l, h, logger)
     t_exec = model.predict_total_exec_time_cycles()
     t_gpu = t_exec + h.launch_overhead

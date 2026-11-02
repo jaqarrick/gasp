@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from gasp.cfg import CFGEdge, gen_cfg_from_raw
+from gasp.cfg import CFGEdge, format_cfg, gen_cfg_from_raw, print_cfg
 
 # raw cfg file to compare against
 FIXTURE = Path(__file__).parent / "fixtures" / "cfg" / "vecadd.bbcfg.dot"
@@ -87,3 +87,16 @@ this is not valid nvdisasm output
 
     with pytest.raises(ValueError, match="unrecognized"):
         gen_cfg_from_raw(raw_cfg)
+
+
+def test_format_cfg_lists_nodes_and_edges(capsys):
+    graph = gen_cfg_from_raw(FIXTURE.read_text())
+    text = format_cfg(graph)
+
+    assert text.startswith("=== CFG: 2 nodes, 1 edges ===\n")
+    assert "[_Z6vecaddPfS_S_i]" in text
+    assert "[BB0]" in text
+    assert "  _Z6vecaddPfS_S_i:exit0 -> BB0:entry  [style=solid]" in text
+
+    print_cfg(graph)
+    assert capsys.readouterr().out == text + "\n"

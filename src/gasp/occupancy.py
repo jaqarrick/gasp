@@ -66,6 +66,13 @@ def calculate_occupancy(input: OccupancyInput, logger: Logger) -> OccupancyOutpu
 
     mwp = min(input.dram_latency_cycles / input.departure_delay_cycles, N)
 
+    logger.trace(
+        "occupancy",
+        f"warps/block={warps_per_block} "
+        f"block limits: registers={max_blocks_by_reg} shared={max_blocks_by_smem} "
+        f"warps={max_blocks_by_warps} hw={input.max_blocks_per_sm} "
+        f"-> blocks/SM={blocks_per_sm}",
+    )
     logger.info("Occupancy calculations completed")
     return OccupancyOutput(
         active_warps_per_sm=N,

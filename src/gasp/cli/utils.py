@@ -13,6 +13,8 @@ GPU_PROFILES = {
     "b200": PROFILES_DIR / "b200.placeholder.json",
     "h100": PROFILES_DIR / "h100.placeholder.json",
     "a100": PROFILES_DIR / "a100.placeholder.json",
+    # temporary, for cims runs on a Turing card
+    "rtx2080ti": PROFILES_DIR / "rtx2080ti.placeholder.json",
 }
 
 
