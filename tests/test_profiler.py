@@ -11,8 +11,11 @@ from gasp.profiler import (
     METRICS,
     ProfileInput,
     build_executable,
+    dump_kernel_text,
+    extract_sass_instructions,
     parse_ncu_csv,
     run_ncu,
+    run_ncu_report,
 )
 
 PROFILE_CSV = Path("benchmarks/custom/vecadd.turing.N1000000.profile.csv")
@@ -27,7 +30,9 @@ NCU_PREAMBLE = (
 
 @pytest.fixture
 def logger():
-    return MagicMock(spec=["info", "error", "warning"])
+    logger = MagicMock(spec=["info", "error", "warning", "trace", "trace_enabled"])
+    logger.trace_enabled.return_value = False
+    return logger
 
 
 @pytest.fixture
@@ -110,3 +115,82 @@ def test_run_ncu_command(profile_input, logger):
     assert metrics == METRICS
     assert DURATION_METRIC in metrics and CYCLES_METRIC in metrics
     assert cmd[-2:] == ["/tmp/parallel", "1000000"]
+
+
+CUOBJDUMP_SASS = """\
+
+Fatbin elf code:
+================
+arch = sm_75
+code version = [1,7]
+
+\tcode for sm_75
+\t\tFunction : _Z13vecadd_stridePfS_S_i
+\t.headerflags\t@"EF_CUDA_SM75 EF_CUDA_VIRTUAL_SM(EF_CUDA_SM75)"
+        /*0000*/                   MOV R1, c[0x0][0x28] ;                        /* 0x00000a0000017a02 */
+                                                                                 /* 0x000fc40000000f00 */
+        /*0010*/                   S2R R6, SR_CTAID.X ;                          /* 0x0000000000067919 */
+                                                                                 /* 0x000e280000002500 */
+.L_x_0:
+        /*0020*/              @!P0 EXIT ;                                        /* 0x000000000000894d */
+                                                                                 /* 0x000fea0003800000 */
+\t\t..........
+"""
+
+
+def test_extract_sass_instructions_keeps_only_instructions():
+    assert extract_sass_instructions(CUOBJDUMP_SASS) == [
+        "/*0000*/ MOV R1, c[0x0][0x28] ;",
+        "/*0010*/ S2R R6, SR_CTAID.X ;",
+        "/*0020*/ @!P0 EXIT ;",
+    ]
+
+
+def test_dump_kernel_text_command(profile_input, logger):
+    with (
+        patch("gasp.profiler.shutil.which", return_value="/usr/bin/cuobjdump"),
+        patch(
+            "gasp.profiler.subprocess.run", return_value=completed(CUOBJDUMP_SASS)
+        ) as run,
+    ):
+        text = dump_kernel_text("/tmp/serial", profile_input.kernel_name, logger)
+
+    assert run.call_args.args[0] == [
+        "cuobjdump",
+        "-sass",
+        "-fun",
+        "_Z13vecadd_stridePfS_S_i",
+        "/tmp/serial",
+    ]
+    assert text.splitlines()[0] == "/*0000*/ MOV R1, c[0x0][0x28] ;"
+
+
+def test_dump_kernel_text_without_cuobjdump_warns(profile_input, logger):
+    with patch("gasp.profiler.shutil.which", return_value=None):
+        dump_kernel_text("/tmp/serial", profile_input.kernel_name, logger)
+
+    logger.warning.assert_called_once()
+
+
+def test_run_ncu_report_command(profile_input, logger):
+    with patch(
+        "gasp.profiler.subprocess.run", return_value=completed("Section: ...")
+    ) as run:
+        report = run_ncu_report(
+            "/tmp/parallel", ["1000000"], profile_input.kernel_name, logger
+        )
+
+    cmd = run.call_args.args[0]
+    assert report == "Section: ..."
+    assert cmd[cmd.index("--set") + 1] == "full"
+    assert "--csv" not in cmd
+    assert cmd[cmd.index("--kernel-name") + 1] == "_Z13vecadd_stridePfS_S_i"
+    assert cmd[-2:] == ["/tmp/parallel", "1000000"]
+
+
+def test_run_ncu_report_failure_does_not_exit(profile_input, logger):
+    with patch("gasp.profiler.subprocess.run", return_value=completed(returncode=1)):
+        report = run_ncu_report("/tmp/parallel", [], profile_input.kernel_name, logger)
+
+    assert report.startswith("ncu --set full failed")
+    logger.warning.assert_called_once()

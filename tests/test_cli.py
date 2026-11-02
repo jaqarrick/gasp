@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from gasp.cli import build_parser, resolve_traces
 from gasp.cli.utils import GPU_PROFILES, HardwareProfile, load_hardware_profile
 
 VALID_PROFILE = {
@@ -202,3 +203,45 @@ class TestLoadHardwareProfile:
         assert hp.warp_size == 32
         # profiled keys survive
         assert hp.launch_overhead_cycles == 5000
+
+
+# --log-traces / --trace-file
+
+VECADD = "benchmarks/custom/vecadd.cu"
+
+
+def parse(*argv):
+    return build_parser().parse_args(["--gpu", "b200", VECADD, *argv])
+
+
+def test_log_traces_defaults_to_off():
+    args = parse()
+    assert args.log_traces is None
+    assert resolve_traces(args.log_traces, args.trace_file) == (None, "traces.log")
+
+
+def test_log_traces_without_modules_is_all():
+    assert parse("--log-traces").log_traces == {"all"}
+
+
+def test_log_traces_comma_separated_modules():
+    assert parse("--log-traces", "cfg, SASS,profiler").log_traces == {
+        "cfg",
+        "sass",
+        "profiler",
+    }
+
+
+def test_log_traces_rejects_unknown_module():
+    with pytest.raises(SystemExit):
+        parse("--log-traces", "cfg,bogus")
+
+
+def test_trace_file_alone_implies_all():
+    args = parse("--trace-file", "out.log")
+    assert resolve_traces(args.log_traces, args.trace_file) == ({"all"}, "out.log")
+
+
+def test_trace_file_keeps_selected_modules():
+    args = parse("--log-traces", "cfg", "--trace-file", "out.log")
+    assert resolve_traces(args.log_traces, args.trace_file) == ({"cfg"}, "out.log")
