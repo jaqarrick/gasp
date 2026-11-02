@@ -6,13 +6,16 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from gasp.profiler import (
+    BLOCK_SIZE_METRIC,
     CYCLES_METRIC,
     DURATION_METRIC,
+    GRID_SIZE_METRIC,
     METRICS,
     ProfileInput,
     build_executable,
     dump_kernel_text,
     extract_sass_instructions,
+    measure,
     parse_ncu_csv,
     run_ncu,
     run_ncu_report,
@@ -194,3 +197,56 @@ def test_run_ncu_report_failure_does_not_exit(profile_input, logger):
 
     assert report.startswith("ncu --set full failed")
     logger.warning.assert_called_once()
+
+
+def launch_metrics(grid_size: int, block_size: int) -> dict[str, float]:
+    return {
+        DURATION_METRIC: 21824.0,
+        CYCLES_METRIC: 26325.0,
+        GRID_SIZE_METRIC: float(grid_size),
+        BLOCK_SIZE_METRIC: float(block_size),
+    }
+
+
+def test_measure_matching_launch(profile_input):
+    with (
+        patch("gasp.profiler.build_executable"),
+        patch("gasp.profiler.run_ncu", return_value=launch_metrics(1, 1)),
+    ):
+        m = measure(profile_input, 1, 1, "/tmp", "serial")
+
+    assert m.cycles == 26325.0
+    profile_input.logger.error.assert_not_called()
+
+
+def test_measure_program_ignoring_launch_config_exits(profile_input):
+    # vecadd.cu computes its own grid, so the one-thread build still launches 3907 blocks
+    with (
+        patch("gasp.profiler.build_executable"),
+        patch("gasp.profiler.run_ncu", return_value=launch_metrics(3907, 256)),
+        pytest.raises(SystemExit),
+    ):
+        measure(profile_input, 1, 1, "/tmp", "serial")
+
+    profile_input.logger.error.assert_called_once()
+
+
+def test_measure_grid_size_mismatch_exits(profile_input):
+    # --grid-size 512 while the program launches ceil(N / block)
+    with (
+        patch("gasp.profiler.build_executable"),
+        patch("gasp.profiler.run_ncu", return_value=launch_metrics(3907, 256)),
+        pytest.raises(SystemExit),
+    ):
+        measure(profile_input, 256, 512, "/tmp", "parallel")
+
+
+def test_measure_missing_launch_metric_exits(profile_input):
+    metrics = launch_metrics(1, 1)
+    del metrics[GRID_SIZE_METRIC]
+    with (
+        patch("gasp.profiler.build_executable"),
+        patch("gasp.profiler.run_ncu", return_value=metrics),
+        pytest.raises(SystemExit),
+    ):
+        measure(profile_input, 1, 1, "/tmp", "serial")

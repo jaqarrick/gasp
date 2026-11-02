@@ -14,6 +14,7 @@ from gasp.pico import PicoOutput
 
 # bytes per thread per memory instruction, for MWP_peak_bw
 WORD_BYTES = 4
+SECTORS_PER_LINE = 4  # for Pico <=> GPUPerf conversion
 
 
 @dataclass
@@ -40,6 +41,26 @@ class PredictionOutput:
     t_gpu: float
     t_one_thread: float
     speedup: float
+
+
+def get_average_trans_warp(p: PicoOutput, mem_inst_count: int) -> float:
+    """128-byte transactions per warp memory access, 1 = coalesced.
+
+    For now we output sectors per transaction
+    ua -> uncoalesced access count
+    count -> total memory inst per warp
+
+    So we return the average ua/count
+
+    PICO's output is in sectors
+    GPUPerf wants cache lines
+
+    4 sectors (32B)= 1 cache line (128B)
+    """
+    if p.error or mem_inst_count == 0 or p.memory_accesses_count == 0:
+        return 1.0
+    sectors_per_access = p.uncoalesced_count / p.memory_accesses_count
+    return max(1.0, sectors_per_access / SECTORS_PER_LINE)
 
 
 def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
@@ -72,14 +93,11 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
     mwp_peak_bw = h.dram_bandwidth / (bw_per_warp * occ.active_sms)
     itmlp = min(d.mlp * mwp_cp, mwp_peak_bw)
 
+    average_trans_warp = get_average_trans_warp(p, d.mem_inst_count)
     if p.error or d.mem_inst_count == 0:
-        average_trans_warp = 1.0
         uncoalesced_count = 0
         bank_conflict_count = 0
     else:
-        average_trans_warp = max(
-            1.0, p.uncoalesced_count / (d.mem_inst_count * occ.total_warps)
-        )
         uncoalesced_count = p.uncoalesced_count
         bank_conflict_count = p.bank_conflict_count
 
