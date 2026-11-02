@@ -14,9 +14,13 @@ REQUIRED: list[str] = ["nvcc", "ncu"]
 
 DURATION_METRIC = "gpu__time_duration.sum"
 CYCLES_METRIC = "sm__cycles_elapsed.max"
+GRID_SIZE_METRIC = "launch__grid_size"
+BLOCK_SIZE_METRIC = "launch__block_size"
 METRICS: list[str] = [
     DURATION_METRIC,
     CYCLES_METRIC,
+    GRID_SIZE_METRIC,
+    BLOCK_SIZE_METRIC,
     "smsp__inst_executed.sum",
     "smsp__inst_executed_op_global_ld.sum",
     "smsp__inst_executed_op_global_st.sum",
@@ -235,10 +239,26 @@ def measure(
     build_executable(i, block_size, grid_size, exe)
     i.logger.trace("profiler", f"=== {label}: {i.kernel_name} ===")
     metrics = run_ncu(exe, i.program_args, i.kernel_name, i.logger)
-    for required in (DURATION_METRIC, CYCLES_METRIC):
+    for required in (
+        DURATION_METRIC,
+        CYCLES_METRIC,
+        GRID_SIZE_METRIC,
+        BLOCK_SIZE_METRIC,
+    ):
         if required not in metrics:
             i.logger.error(f"ncu did not report {required} for {name} run")
             sys.exit(1)
+    # a program that ignores GASP_GRID_SIZE / GASP_BLOCK_SIZE launches its own config
+    launched_grid = int(metrics[GRID_SIZE_METRIC])
+    launched_block = int(metrics[BLOCK_SIZE_METRIC])
+    if (launched_grid, launched_block) != (grid_size, block_size):
+        i.logger.error(
+            f"{name} run launched <<<{launched_grid}, {launched_block}>>>, "
+            f"expected <<<{grid_size}, {block_size}>>>. The program must take its "
+            "launch config from GASP_GRID_SIZE / GASP_BLOCK_SIZE, and --grid-size / "
+            "--block-size must match it (see benchmarks/custom/README.md)"
+        )
+        sys.exit(1)
     if i.logger.trace_enabled("profiler"):
         trace_measurement(i, exe, label, metrics)
     return KernelMeasurement(
