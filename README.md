@@ -61,7 +61,7 @@ make docker-run ARGS="benchmarks/custom/vecadd.cu --gpu b200 --verbose"
 | `--problem_size` | Total elements                                      |
 | `--profile`      | Path to hardware profile JSON                            |
 | `--verbose`      | Verbose output                              |
-| `--log-traces`   | Write traces to the trace file; optional comma-separated modules (`cuda,cfg,sass,occupancy,pico,dependency,predict,profiler`), default `all` |
+| `--log-traces`   | Write traces to the trace file; optional comma-separated modules (`config,cuda,cfg,sass,occupancy,pico,dependency,predict,profiler`), default `all` |
 | `--trace-file`   | Trace file path (default `./traces.log`); implies `--log-traces all` |
 | `--help`         | Show usage                                   |
 | `--version`      | Show version                                             |

@@ -128,30 +128,52 @@ def test_mlp_no_loads():
 def test_no_loops(logger):
     nodes = ["entry", "a", "exit"]
     cfg = make_cfg(nodes, [("entry", "a"), ("a", "exit")])
-    out = analyze(cfg, one_inst_per_node(nodes), ni=10, latency=LATENCY, logger=logger)
+    out = analyze(
+        cfg,
+        one_inst_per_node(nodes),
+        loop_iterations=10,
+        latency=LATENCY,
+        logger=logger,
+    )
     assert out.total_inst_count == 3
 
 
 def test_self_loop(logger):
     nodes = ["entry", "body", "exit"]
     cfg = make_cfg(nodes, [("entry", "body"), ("body", "body"), ("body", "exit")])
-    out = analyze(cfg, one_inst_per_node(nodes), ni=10, latency=LATENCY, logger=logger)
+    out = analyze(
+        cfg,
+        one_inst_per_node(nodes),
+        loop_iterations=10,
+        latency=LATENCY,
+        logger=logger,
+    )
     assert out.total_inst_count == 1 + 10 + 1
 
 
-def test_loop_without_ni_raises(logger):
+def test_loop_without_loop_iterations_raises(logger):
     nodes = ["entry", "body", "exit"]
     cfg = make_cfg(nodes, [("entry", "body"), ("body", "body"), ("body", "exit")])
     with pytest.raises(LoopIterationsRequiredError) as exc:
-        analyze(cfg, one_inst_per_node(nodes), ni=None, latency=LATENCY, logger=logger)
+        analyze(
+            cfg,
+            one_inst_per_node(nodes),
+            loop_iterations=None,
+            latency=LATENCY,
+            logger=logger,
+        )
     assert exc.value.loop_headers == ["body"]
 
 
-def test_no_loops_without_ni(logger):
+def test_no_loops_without_loop_iterations(logger):
     nodes = ["entry", "a", "exit"]
     cfg = make_cfg(nodes, [("entry", "a"), ("a", "exit")])
     out = analyze(
-        cfg, one_inst_per_node(nodes), ni=None, latency=LATENCY, logger=logger
+        cfg,
+        one_inst_per_node(nodes),
+        loop_iterations=None,
+        latency=LATENCY,
+        logger=logger,
     )
     assert out.total_inst_count == 3
 
@@ -163,7 +185,13 @@ def test_loop_body_spans_blocks(logger):
         nodes,
         [("entry", "head"), ("head", "body"), ("body", "head"), ("head", "exit")],
     )
-    out = analyze(cfg, one_inst_per_node(nodes), ni=10, latency=LATENCY, logger=logger)
+    out = analyze(
+        cfg,
+        one_inst_per_node(nodes),
+        loop_iterations=10,
+        latency=LATENCY,
+        logger=logger,
+    )
     assert out.total_inst_count == 1 + 10 + 10 + 1
 
 
@@ -180,7 +208,13 @@ def test_nested_loops_multiply(logger):
             ("latch", "exit"),
         ],
     )
-    out = analyze(cfg, one_inst_per_node(nodes), ni=10, latency=LATENCY, logger=logger)
+    out = analyze(
+        cfg,
+        one_inst_per_node(nodes),
+        loop_iterations=10,
+        latency=LATENCY,
+        logger=logger,
+    )
     assert out.total_inst_count == 1 + 10 + 100 + 10 + 1
 
 
@@ -198,7 +232,13 @@ def test_two_back_edges_same_header_count_once(logger):
             ("head", "exit"),
         ],
     )
-    out = analyze(cfg, one_inst_per_node(nodes), ni=10, latency=LATENCY, logger=logger)
+    out = analyze(
+        cfg,
+        one_inst_per_node(nodes),
+        loop_iterations=10,
+        latency=LATENCY,
+        logger=logger,
+    )
     assert out.total_inst_count == 1 + 10 + 10 + 10 + 1
 
 
@@ -206,7 +246,7 @@ def test_empty_block_skipped(logger):
     nodes = ["entry", "empty", "exit"]
     cfg = make_cfg(nodes, [("entry", "empty"), ("empty", "exit")])
     insts = {"entry": [ffma("R0")], "empty": [], "exit": [ffma("R1")]}
-    out = analyze(cfg, insts, ni=1, latency=LATENCY, logger=logger)
+    out = analyze(cfg, insts, loop_iterations=1, latency=LATENCY, logger=logger)
     assert out.total_inst_count == 2
 
 
@@ -224,7 +264,9 @@ def test_category_counts(logger):
         instr("BAR", OpCategory.BARRIER),
     ]
     cfg = make_cfg(["entry"], [])
-    out = analyze(cfg, {"entry": block}, ni=1, latency=LATENCY, logger=logger)
+    out = analyze(
+        cfg, {"entry": block}, loop_iterations=1, latency=LATENCY, logger=logger
+    )
     assert out.total_inst_count == 5
     # shared memory is on-chip: not in #mem_insts
     assert out.mem_inst_count == 2
@@ -239,7 +281,7 @@ def test_counts_and_latency_weighted_by_iterations(logger):
         "entry": [ffma("R0")],
         "body": [ldg("R1", "R2"), instr("MUFU", OpCategory.SFU, ["R1"], ["R3"])],
     }
-    out = analyze(cfg, insts, ni=5, latency=LATENCY, logger=logger)
+    out = analyze(cfg, insts, loop_iterations=5, latency=LATENCY, logger=logger)
     assert out.total_inst_count == 1 + 2 * 5
     assert out.mem_inst_count == 5
     assert out.sfu_inst_count == 5
@@ -247,21 +289,23 @@ def test_counts_and_latency_weighted_by_iterations(logger):
 
 
 def test_kernel_ilp_weighted_toward_loop(logger):
-    # entry ILP 1 (chain), loop body ILP 4 (independent); ni=100 pulls the
-    # kernel ILP toward 4
+    # entry ILP 1 (chain), loop body ILP 4 (independent); loop_iterations=100
+    # pulls the kernel ILP toward 4
     nodes = ["entry", "body"]
     cfg = make_cfg(nodes, [("entry", "body"), ("body", "body")])
     insts = {
         "entry": [ffma("R0"), ffma("R1", "R0"), ffma("R2", "R1"), ffma("R3", "R2")],
         "body": [ffma("R4"), ffma("R5"), ffma("R6"), ffma("R7")],
     }
-    out = analyze(cfg, insts, ni=100, latency=LATENCY, logger=logger)
+    out = analyze(cfg, insts, loop_iterations=100, latency=LATENCY, logger=logger)
     assert out.ilp == pytest.approx((1 * 1 + 4 * 100) / 101)
 
 
 def test_kernel_mlp_defaults_to_1_without_loads(logger):
     cfg = make_cfg(["entry"], [])
-    out = analyze(cfg, {"entry": [ffma("R0")]}, ni=1, latency=LATENCY, logger=logger)
+    out = analyze(
+        cfg, {"entry": [ffma("R0")]}, loop_iterations=1, latency=LATENCY, logger=logger
+    )
     assert out.mlp == 1
 
 
@@ -280,9 +324,9 @@ def test_vecadd_fixture(logger):
     cfg, insts = parse_fixture(
         CFG_DIR / "vecadd.bbcfg.dot", "_Z6vecaddPfS_S_i", "sm_80", logger
     )
-    out = analyze(cfg, insts, ni=10, latency=LATENCY, logger=logger)
+    out = analyze(cfg, insts, loop_iterations=10, latency=LATENCY, logger=logger)
 
-    # straight-line kernel: ni has no effect
+    # straight-line kernel: loop_iterations has no effect
     assert out.total_inst_count == 16
     # 2 LDG + 1 STG
     assert out.mem_inst_count == 3
@@ -310,7 +354,7 @@ def test_sgemm_fixture_loop_weighting(arch, logger):
         arch,
         logger,
     )
-    out = analyze(cfg, insts, ni=10, latency=LATENCY, logger=logger)
+    out = analyze(cfg, insts, loop_iterations=10, latency=LATENCY, logger=logger)
 
     iterations = SGEMM_ITERATIONS[arch]
     expected = sum(len(block) * iterations.get(n, 1) for n, block in insts.items())

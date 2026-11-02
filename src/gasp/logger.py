@@ -5,6 +5,7 @@ from rich.console import Console
 from rich.table import Table
 
 TRACE_MODULES: tuple[str, ...] = (
+    "config",
     "cuda",
     "cfg",
     "sass",

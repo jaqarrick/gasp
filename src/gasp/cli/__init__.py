@@ -154,6 +154,7 @@ def main() -> None:
     traces, trace_file = resolve_traces(args.log_traces, args.trace_file)
     logger = Logger(verbose, traces=traces, trace_file=trace_file)
     logger.info("Verbose mode enabled")
+    logger.trace("config", f"command: {shlex.join(sys.argv)}")
 
     if block_size is None:
         logger.info(
@@ -192,6 +193,7 @@ def main() -> None:
             ["Loop Iterations", str(loop_iterations or "Not provided")],
             ["Verbose", str(verbose)],
         ],
+        trace="config",
     )
 
     logger.info(f"Extracting SASS and resource usage from {input_file}")
@@ -283,7 +285,7 @@ def main() -> None:
         dependency_results = analyze(
             cfg=cfg,
             all_instructions=instructions,
-            ni=loop_iterations,
+            loop_iterations=loop_iterations,
             latency=build_latency_table(hp),
             logger=logger,
         )

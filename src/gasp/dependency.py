@@ -122,7 +122,7 @@ def dfs_cfg(cfg, successors):
 def analyze(
     cfg: ControlFlowGraph,
     all_instructions: dict[str, list[SASSInstruction]],
-    ni: int | None,
+    loop_iterations: int | None,
     latency: LatencyTable,
     logger: Logger,
 ) -> DependencyOutput:
@@ -138,7 +138,7 @@ def analyze(
     back_edges = dfs_cfg(cfg, successors)
 
     # one loop per header: several back edges to the same head (e.g. `continue`)
-    # are the same loop and must only multiply by ni once
+    # are the same loop and must only multiply by loop_iterations once
     loops: dict[str, set[str]] = {}
     for tail, head in back_edges:
         loop_nodes = loops.setdefault(head, {head})
@@ -149,16 +149,17 @@ def analyze(
                 loop_nodes.add(node)
                 queue.extend(predecessors[node])
 
-    if ni is None and loops:
+    if loop_iterations is None and loops:
         raise LoopIterationsRequiredError(sorted(loops))
 
     # from loop we can determine how many times a node repeats
     node_iterations = {node_id: 1 for node_id in cfg.nodes}
     for loop_nodes in loops.values():
         for node in loop_nodes:
-            node_iterations[node] *= ni
+            node_iterations[node] *= loop_iterations
 
     logger.info(f"Dependency analysis: {len(loops)} loop(s) detected")
+    logger.trace("dependency", f"loop_iterations: {loop_iterations}")
     logger.trace("dependency", f"back edges: {back_edges or '-'}")
     for head, loop_nodes in loops.items():
         logger.trace("dependency", f"loop {head}: {sorted(loop_nodes)}")
