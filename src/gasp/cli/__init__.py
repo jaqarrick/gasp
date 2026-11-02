@@ -8,7 +8,7 @@ from gasp import __version__
 from gasp.cfg import format_cfg, gen_cfg_from_raw
 from gasp.common.constants import GPU_TO_ARCH
 from gasp.cuda_toolkit import CUDAExtractor
-from gasp.dependency import analyze
+from gasp.dependency import LoopIterationsRequiredError, analyze
 from gasp.gpuperf.types import HardwareParameters, LaunchParameters
 from gasp.logger import DEFAULT_TRACE_FILE, TRACE_MODULES, Logger
 from gasp.occupancy import OccupancyInput, calculate_occupancy
@@ -19,7 +19,6 @@ from gasp.profiler import ProfileInput, profile_kernel
 
 from .constants import (
     DEFAULT_BLOCK_SIZE,
-    DEFAULT_LOOP_ITERATIONS,
     DEFAULT_PROBLEM_SIZE,
 )
 from .types import Args
@@ -100,7 +99,8 @@ def build_parser() -> argparse.ArgumentParser:
         "--loop-iterations",
         type=int,
         default=None,
-        help="Iterations per loop in the kernel (applied to every loop)",
+        help="Iterations per loop in the kernel (applied to every loop). "
+        "Required if the kernel contains loops",
     )
     parser.add_argument(
         "-I",
@@ -154,6 +154,7 @@ def main() -> None:
     traces, trace_file = resolve_traces(args.log_traces, args.trace_file)
     logger = Logger(verbose, traces=traces, trace_file=trace_file)
     logger.info("Verbose mode enabled")
+    logger.trace("config", f"command: {shlex.join(sys.argv)}")
 
     if block_size is None:
         logger.info(
@@ -173,12 +174,6 @@ def main() -> None:
             f"No argument for --grid_size supplied. Defaulting to ceil(problem_size / block_size) = {grid_size}"
         )
 
-    if loop_iterations is None:
-        logger.info(
-            f"No argument for --loop-iterations supplied. Defaulting to {DEFAULT_LOOP_ITERATIONS}"
-        )
-        loop_iterations = DEFAULT_LOOP_ITERATIONS
-
     arch = GPU_TO_ARCH.get(gpu.lower())
 
     if arch is None:
@@ -195,9 +190,10 @@ def main() -> None:
             ["Block Size", str(block_size)],
             ["Grid Size", str(grid_size)],
             ["Problem Size", str(problem_size)],
-            ["Loop Iterations", str(loop_iterations)],
+            ["Loop Iterations", str(loop_iterations or "Not provided")],
             ["Verbose", str(verbose)],
         ],
+        trace="config",
     )
 
     logger.info(f"Extracting SASS and resource usage from {input_file}")
@@ -285,13 +281,17 @@ def main() -> None:
 
     logger.info("SASS has been parsed")
 
-    dependency_results = analyze(
-        cfg=cfg,
-        all_instructions=instructions,
-        ni=loop_iterations,
-        latency=build_latency_table(hp),
-        logger=logger,
-    )
+    try:
+        dependency_results = analyze(
+            cfg=cfg,
+            all_instructions=instructions,
+            loop_iterations=loop_iterations,
+            latency=build_latency_table(hp),
+            logger=logger,
+        )
+    except LoopIterationsRequiredError as e:
+        logger.error(f"{e}. Rerun with --loop-iterations <N>")
+        sys.exit(1)
     logger.table(
         "Dependency Analysis",
         ["Parameter", "Value"],
