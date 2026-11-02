@@ -6,7 +6,12 @@ from unittest.mock import MagicMock
 import pytest
 
 from gasp.cfg import CFGEdge, CFGNode, ControlFlowGraph, gen_cfg_from_raw
-from gasp.dependency import LatencyTable, analyze, get_ilp_mlp_for_node
+from gasp.dependency import (
+    LatencyTable,
+    LoopIterationsRequiredError,
+    analyze,
+    get_ilp_mlp_for_node,
+)
 from gasp.logger import Logger
 from gasp.parser import get_parser
 from gasp.parser.types import OpCategory, SASSInstruction
@@ -132,6 +137,23 @@ def test_self_loop(logger):
     cfg = make_cfg(nodes, [("entry", "body"), ("body", "body"), ("body", "exit")])
     out = analyze(cfg, one_inst_per_node(nodes), ni=10, latency=LATENCY, logger=logger)
     assert out.total_inst_count == 1 + 10 + 1
+
+
+def test_loop_without_ni_raises(logger):
+    nodes = ["entry", "body", "exit"]
+    cfg = make_cfg(nodes, [("entry", "body"), ("body", "body"), ("body", "exit")])
+    with pytest.raises(LoopIterationsRequiredError) as exc:
+        analyze(cfg, one_inst_per_node(nodes), ni=None, latency=LATENCY, logger=logger)
+    assert exc.value.loop_headers == ["body"]
+
+
+def test_no_loops_without_ni(logger):
+    nodes = ["entry", "a", "exit"]
+    cfg = make_cfg(nodes, [("entry", "a"), ("a", "exit")])
+    out = analyze(
+        cfg, one_inst_per_node(nodes), ni=None, latency=LATENCY, logger=logger
+    )
+    assert out.total_inst_count == 3
 
 
 def test_loop_body_spans_blocks(logger):

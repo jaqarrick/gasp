@@ -88,6 +88,16 @@ def get_ilp_mlp_for_node(instructions: list[SASSInstruction], latency: LatencyTa
     return ilp, mlp, total_latency
 
 
+class LoopIterationsRequiredError(ValueError):
+    def __init__(self, loop_headers: list[str]):
+        self.loop_headers = loop_headers
+        super().__init__(
+            f"kernel contains {len(loop_headers)} loop(s) "
+            f"(headers: {', '.join(loop_headers)}) "
+            "but no loop iteration count was supplied"
+        )
+
+
 UNVISITED, IN_PROGRESS, DONE = 0, 1, 2
 
 
@@ -112,7 +122,7 @@ def dfs_cfg(cfg, successors):
 def analyze(
     cfg: ControlFlowGraph,
     all_instructions: dict[str, list[SASSInstruction]],
-    ni: int,
+    ni: int | None,
     latency: LatencyTable,
     logger: Logger,
 ) -> DependencyOutput:
@@ -138,6 +148,9 @@ def analyze(
             if node not in loop_nodes:
                 loop_nodes.add(node)
                 queue.extend(predecessors[node])
+
+    if ni is None and loops:
+        raise LoopIterationsRequiredError(sorted(loops))
 
     # from loop we can determine how many times a node repeats
     node_iterations = {node_id: 1 for node_id in cfg.nodes}
