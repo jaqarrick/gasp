@@ -44,6 +44,8 @@ ENV PATH="/workspace/bin:$PATH"
 RUN python3 --version \
     && nvcc --version \
     && nvdisasm --version \
+    && cuobjdump --version \
+    && ncu --version \
     && faial-cost --help > /dev/null \
     && which cu-to-json \
     && echo "All tools OK"

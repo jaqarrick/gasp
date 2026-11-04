@@ -3,6 +3,7 @@ import io
 import os
 import re
 import shutil
+import statistics
 import subprocess
 import sys
 import tempfile
@@ -37,6 +38,7 @@ _SASS_INSTRUCTION = re.compile(r"^\s*/\*([0-9a-f]+)\*/\s+(.*?;)")
 
 @dataclass
 class ProfileInput:
+    name: str
     input_file: str
     arch: str
     kernel_name: str
@@ -45,6 +47,7 @@ class ProfileInput:
     program_args: list[str]
     include_dirs: list[str]
     extra_flags: list[str]
+    repeats: int
     logger: Logger
 
 
@@ -57,9 +60,19 @@ class KernelMeasurement:
 
 @dataclass
 class ProfileOutput:
-    serial: KernelMeasurement
-    parallel: KernelMeasurement
-    speedup: float
+    runs: list[KernelMeasurement]
+
+    @property
+    def cycles(self) -> float:
+        return statistics.median(run.cycles for run in self.runs)
+
+    @property
+    def cycles_min(self) -> float:
+        return min(run.cycles for run in self.runs)
+
+    @property
+    def cycles_max(self) -> float:
+        return max(run.cycles for run in self.runs)
 
 
 def check_packages(logger: Logger) -> None:
@@ -70,16 +83,14 @@ def check_packages(logger: Logger) -> None:
         sys.exit(1)
 
 
-def build_executable(
-    i: ProfileInput, block_size: int, grid_size: int, out_path: str
-) -> None:
+def build_executable(i: ProfileInput, out_path: str) -> None:
     cmd = [
         "nvcc",
         f"-arch={i.arch}",
         *(f"-I{d}" for d in i.include_dirs),
         *i.extra_flags,
-        f"-DGASP_BLOCK_SIZE={block_size}",
-        f"-DGASP_GRID_SIZE={grid_size}",
+        f"-DGASP_BLOCK_SIZE={i.block_size}",
+        f"-DGASP_GRID_SIZE={i.grid_size}",
         i.input_file,
         "-o",
         out_path,
@@ -231,12 +242,8 @@ def trace_measurement(
     )
 
 
-def measure(
-    i: ProfileInput, block_size: int, grid_size: int, workdir: str, name: str
-) -> KernelMeasurement:
-    exe = os.path.join(workdir, name)
-    label = f"{name} <<<{grid_size}, {block_size}>>>"
-    build_executable(i, block_size, grid_size, exe)
+def measure(i: ProfileInput, exe: str, trace: bool) -> KernelMeasurement:
+    label = f"{i.name} <<<{i.grid_size}, {i.block_size}>>>"
     i.logger.trace("profiler", f"=== {label}: {i.kernel_name} ===")
     metrics = run_ncu(exe, i.program_args, i.kernel_name, i.logger)
     for required in (
@@ -246,20 +253,21 @@ def measure(
         BLOCK_SIZE_METRIC,
     ):
         if required not in metrics:
-            i.logger.error(f"ncu did not report {required} for {name} run")
+            i.logger.error(f"ncu did not report {required} for {i.name}")
             sys.exit(1)
     # a program that ignores GASP_GRID_SIZE / GASP_BLOCK_SIZE launches its own config
     launched_grid = int(metrics[GRID_SIZE_METRIC])
     launched_block = int(metrics[BLOCK_SIZE_METRIC])
-    if (launched_grid, launched_block) != (grid_size, block_size):
+    if (launched_grid, launched_block) != (i.grid_size, i.block_size):
         i.logger.error(
-            f"{name} run launched <<<{launched_grid}, {launched_block}>>>, "
-            f"expected <<<{grid_size}, {block_size}>>>. The program must take its "
-            "launch config from GASP_GRID_SIZE / GASP_BLOCK_SIZE, and --grid-size / "
-            "--block-size must match it (see benchmarks/custom/README.md)"
+            f"{i.name} launched <<<{launched_grid}, {launched_block}>>>, "
+            f"expected <<<{i.grid_size}, {i.block_size}>>>. The program must take its "
+            "launch config from GASP_GRID_SIZE / GASP_BLOCK_SIZE, or the requested "
+            "grid and block size must match what it launches "
+            "(see benchmarks/custom/README.md)"
         )
         sys.exit(1)
-    if i.logger.trace_enabled("profiler"):
+    if trace and i.logger.trace_enabled("profiler"):
         trace_measurement(i, exe, label, metrics)
     return KernelMeasurement(
         duration_ns=metrics[DURATION_METRIC],
@@ -270,14 +278,15 @@ def measure(
 
 def profile_kernel(i: ProfileInput) -> ProfileOutput:
     check_packages(i.logger)
+    runs = []
     with tempfile.TemporaryDirectory(prefix="gasp-profile-") as workdir:
-        i.logger.info("Profiling one-thread run <<<1, 1>>>")
-        serial = measure(i, 1, 1, workdir, "serial")
-        i.logger.info(f"Profiling full run <<<{i.grid_size}, {i.block_size}>>>")
-        parallel = measure(i, i.block_size, i.grid_size, workdir, "parallel")
-
-    return ProfileOutput(
-        serial=serial,
-        parallel=parallel,
-        speedup=serial.cycles / parallel.cycles,
-    )
+        exe = os.path.join(workdir, "kernel")
+        build_executable(i, exe)
+        for run in range(i.repeats):
+            i.logger.info(
+                f"Profiling {i.name} <<<{i.grid_size}, {i.block_size}>>>, "
+                f"run {run + 1}/{i.repeats}"
+            )
+            # ncu --set full is slow, so only the first run gets the full trace
+            runs.append(measure(i, exe, trace=run == 0))
+    return ProfileOutput(runs=runs)

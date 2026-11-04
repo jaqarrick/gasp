@@ -1,36 +1,58 @@
 import argparse
-import math
-import os
 import shlex
 import sys
+from dataclasses import dataclass
 
 from gasp import __version__
-from gasp.cfg import format_cfg, gen_cfg_from_raw
+from gasp.cfg import filter_cfg, format_cfg, gen_cfg_from_raw
 from gasp.common.constants import GPU_TO_ARCH
+from gasp.compare import measured_speedup, speedup, work_mismatches
 from gasp.cuda_toolkit import CUDAExtractor
 from gasp.dependency import LoopIterationsRequiredError, analyze
 from gasp.gpuperf.types import HardwareParameters, LaunchParameters
+from gasp.kernels import resolve_kernel
 from gasp.logger import DEFAULT_TRACE_FILE, TRACE_MODULES, Logger
 from gasp.occupancy import OccupancyInput, calculate_occupancy
 from gasp.parser import get_parser
 from gasp.pico import PicoInput, perform_pico_analysis
-from gasp.predict import PredictionInput, predict
-from gasp.profiler import ProfileInput, profile_kernel
+from gasp.predict import PredictionInput, PredictionOutput, predict
+from gasp.profiler import ProfileInput, ProfileOutput, profile_kernel
 
-from .constants import (
-    DEFAULT_BLOCK_SIZE,
-    DEFAULT_PROBLEM_SIZE,
+from .config import (
+    ConfigError,
+    KernelSpec,
+    load_config,
+    parse_input,
+    specs_from_inputs,
 )
+from .constants import DEFAULT_REPEATS
 from .types import Args
-from .utils import build_latency_table, load_hardware_profile
+from .utils import HardwareProfile, build_latency_table, load_hardware_profile
 
 
-def cu_file(path: str) -> str:
-    if not path.endswith(".cu"):
-        raise argparse.ArgumentTypeError(f"expected a .cu file, got '{path}'")
-    if not os.path.isfile(path):
-        raise argparse.ArgumentTypeError(f"file not found: {path}")
-    return path
+@dataclass
+class KernelResult:
+    spec: KernelSpec
+    kernel_name: str  # mangled
+    prediction: PredictionOutput
+    pico_error: bool
+
+
+def kernel_input(value: str) -> tuple[str, str | None]:
+    try:
+        return parse_input(value)
+    except ConfigError as e:
+        raise argparse.ArgumentTypeError(str(e)) from e
+
+
+def positive_int(value: str) -> int:
+    try:
+        number = int(value)
+    except ValueError:
+        number = 0
+    if number < 1:
+        raise argparse.ArgumentTypeError(f"expected a positive integer, got '{value}'")
+    return number
 
 
 def trace_modules(value: str) -> set[str]:
@@ -83,7 +105,26 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"File traces are written to (default: ./{DEFAULT_TRACE_FILE}). "
         "Implies --log-traces all if --log-traces is not given",
     )
-    parser.add_argument("input", type=cu_file, metavar="FILE", help="path to .cu file")
+    parser.add_argument(
+        "inputs",
+        type=kernel_input,
+        nargs="*",
+        metavar="INPUT",
+        help="Kernels to compare, each a .cu file or file.cu::kernel. "
+        "A file holding several kernels needs the kernel name",
+    )
+    parser.add_argument(
+        "--config",
+        default=None,
+        help="TOML file listing the kernels and their settings. "
+        "Can't be combined with input files or per-kernel flags",
+    )
+    parser.add_argument(
+        "--reference",
+        default=None,
+        metavar="NAME",
+        help="Kernel the others are compared with (default: the first kernel)",
+    )
 
     parser.add_argument(
         "--block-size",
@@ -117,8 +158,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--run",
         action="store_true",
-        help="Compile and run the program under ncu with one thread and with the "
-        "full launch, and compare the measured speedup with the prediction",
+        help="Compile and run each program under ncu, and compare the measured "
+        "cycles and speedup with the prediction",
+    )
+    parser.add_argument(
+        "--repeats",
+        type=positive_int,
+        default=None,
+        metavar="N",
+        help=f"ncu runs per kernel with --run (default: {DEFAULT_REPEATS})",
     )
     parser.add_argument(
         "--program-args",
@@ -135,92 +183,108 @@ def relative_error(predicted: float, measured: float) -> str:
     return f"{(predicted - measured) / measured * 100:+.1f}%"
 
 
-def main() -> None:
-    parser = build_parser()
-    raw = parser.parse_args()
-    args = Args(**vars(raw))
-    verbose = args.verbose
-    profile = args.profile
-    gpu = args.gpu.lower()
-    input_file = args.input
-    grid_size = args.grid_size
-    block_size = args.block_size
-    problem_size = args.problem_size
-    loop_iterations = args.loop_iterations
-    include_dirs = args.include_dir
-    nvcc_flags = shlex.split(args.nvcc_flags) if args.nvcc_flags else []
-    program_args = shlex.split(args.program_args) if args.program_args else []
+def check_args(parser: argparse.ArgumentParser, args: Args) -> None:
+    if args.repeats is not None and not args.run:
+        parser.error("--repeats requires --run")
 
-    traces, trace_file = resolve_traces(args.log_traces, args.trace_file)
-    logger = Logger(verbose, traces=traces, trace_file=trace_file)
-    logger.info("Verbose mode enabled")
-    logger.trace("config", f"command: {shlex.join(sys.argv)}")
+    if args.config is None:
+        if not args.inputs:
+            parser.error("give at least one input file, or --config")
+        return
 
-    if block_size is None:
-        logger.info(
-            f"No argument for --block-size supplied. Defaulting to {DEFAULT_BLOCK_SIZE}"
-        )
-        block_size = DEFAULT_BLOCK_SIZE
+    if args.inputs:
+        parser.error("--config can't be combined with input files")
+    per_kernel_flags = {
+        "--block-size": args.block_size,
+        "--grid-size": args.grid_size,
+        "--problem-size": args.problem_size,
+        "--loop-iterations": args.loop_iterations,
+        "--include-dir": args.include_dir or None,
+        "--nvcc-flags": args.nvcc_flags,
+        "--program-args": args.program_args,
+    }
+    used = [flag for flag, value in per_kernel_flags.items() if value is not None]
+    if used:
+        parser.error(f"--config can't be combined with {', '.join(used)}")
 
-    if problem_size is None:
-        logger.info(
-            f"No argument for --problem-size supplied. Defaulting to {DEFAULT_PROBLEM_SIZE}"
-        )
-        problem_size = DEFAULT_PROBLEM_SIZE
 
-    if grid_size is None:
-        grid_size = math.ceil(problem_size / block_size)
-        logger.info(
-            f"No argument for --grid_size supplied. Defaulting to ceil(problem_size / block_size) = {grid_size}"
-        )
+def build_specs(args: Args) -> list[KernelSpec]:
+    if args.config is not None:
+        return load_config(args.config)
 
-    arch = GPU_TO_ARCH.get(gpu.lower())
+    settings = {
+        "problem_size": args.problem_size,
+        "block_size": args.block_size,
+        "grid_size": args.grid_size,
+        "loop_iterations": args.loop_iterations,
+        "include_dirs": args.include_dir or None,
+        "nvcc_flags": shlex.split(args.nvcc_flags) if args.nvcc_flags else None,
+        "program_args": shlex.split(args.program_args) if args.program_args else None,
+    }
+    return specs_from_inputs(
+        args.inputs, {k: v for k, v in settings.items() if v is not None}
+    )
 
-    if arch is None:
-        logger.error(f"No architecture defined for GPU {gpu}")
-        sys.exit(1)
 
+def analyze_kernel(
+    spec: KernelSpec,
+    arch: str,
+    hp: HardwareProfile,
+    warn_shared_program: bool,
+    logger: Logger,
+) -> KernelResult:
+    name = spec.name
+    logger.trace("config", f"=== kernel {name} ===")
     logger.table(
-        "Configuration",
+        f"Configuration: {name}",
         ["Parameter", "Value"],
         [
-            ["GPU", str(gpu or "Not provided")],
-            ["Profile", str(profile or "Not provided")],
-            ["Input", input_file],
-            ["Block Size", str(block_size)],
-            ["Grid Size", str(grid_size)],
-            ["Problem Size", str(problem_size)],
-            ["Loop Iterations", str(loop_iterations or "Not provided")],
-            ["Verbose", str(verbose)],
+            ["Input", spec.file],
+            ["Kernel", spec.kernel or "Not provided"],
+            ["Block Size", str(spec.block_size)],
+            ["Grid Size", str(spec.grid_size)],
+            ["Problem Size", str(spec.problem_size)],
+            ["Loop Iterations", str(spec.loop_iterations or "Not provided")],
         ],
         trace="config",
     )
 
-    logger.info(f"Extracting SASS and resource usage from {input_file}")
+    logger.info(f"Extracting SASS and resource usage from {spec.file}")
 
     extractor = CUDAExtractor(
-        input_file,
+        spec.file,
         arch,
         logger,
-        include_dirs=include_dirs,
-        extra_flags=nvcc_flags,
+        include_dirs=spec.include_dirs,
+        extra_flags=spec.nvcc_flags,
     )
     result = extractor.process()
+    # {'_Z9addvectorPiS_S_i': {'reg': 12, 'shared': 0, 'stack': 0, 'local': 0}}
     resources = result["resources"]
 
-    cfg = gen_cfg_from_raw(raw_cfg=result["raw_cfg"])
+    try:
+        kernel_name = resolve_kernel(spec.kernel, resources)
+        cfg = filter_cfg(gen_cfg_from_raw(raw_cfg=result["raw_cfg"]), kernel_name)
+    except ValueError as e:
+        logger.error(f"{name}: {spec.file}: {e}")
+        sys.exit(1)
     logger.trace("cfg", format_cfg(cfg))
-    # {'_Z9addvectorPiS_S_i:': {'reg': 12, 'shared': 0, 'stack': 0, 'local': 0}}
-    # for now we assume a single kernel
-    kernel_name, kernel = next(iter(resources.items()))
+
+    if warn_shared_program and len(resources) > 1:
+        logger.warning(
+            f"{name}: {spec.file} holds several kernels. The GASP_* macros and program "
+            "arguments apply to the whole program, and the other kernels still run "
+            "and can affect the measured one. Separate files avoid this"
+        )
+
+    kernel = resources[kernel_name]
     registers_per_thread = kernel["reg"]
     shared_memory_per_block = kernel["shared"]
 
-    hp = load_hardware_profile(gpu, logger)
     occupancy_results = calculate_occupancy(
         OccupancyInput(
-            block_size=block_size,
-            grid_size=grid_size,
+            block_size=spec.block_size,
+            grid_size=spec.grid_size,
             warp_size=hp.warp_size,
             sms_per_gpu=hp.sms_per_gpu,
             max_warps_per_sm=hp.max_warps_per_sm,
@@ -235,7 +299,7 @@ def main() -> None:
         logger=logger,
     )
     logger.table(
-        "Occupancy",
+        f"Occupancy: {name}",
         ["Parameter", "Value"],
         [
             ["Active Warps/SM", str(occupancy_results.active_warps_per_sm)],
@@ -250,21 +314,22 @@ def main() -> None:
     pico_results = perform_pico_analysis(
         PicoInput(
             logger=logger,
-            grid_size=grid_size,
-            input_file=input_file,
-            block_size=block_size,
-            problem_size=problem_size,
+            grid_size=spec.grid_size,
+            input_file=spec.file,
+            kernel_name=kernel_name,
+            block_size=spec.block_size,
+            problem_size=spec.problem_size,
             bank_count=None,
             parameters=[],
         )
     )
 
     if pico_results.error:
-        logger.error("PICO error")
+        logger.error(f"{name}: PICO error")
         logger.info("Continuing without PICO results")
     else:
         logger.table(
-            "PICO Results",
+            f"PICO Results: {name}",
             ["Result", "Value"],
             [
                 ["Bank Conflicts", str(pico_results.bank_conflict_count)],
@@ -285,15 +350,18 @@ def main() -> None:
         dependency_results = analyze(
             cfg=cfg,
             all_instructions=instructions,
-            loop_iterations=loop_iterations,
+            loop_iterations=spec.loop_iterations,
             latency=build_latency_table(hp),
             logger=logger,
         )
     except LoopIterationsRequiredError as e:
-        logger.error(f"{e}. Rerun with --loop-iterations <N>")
+        logger.error(
+            f"{name}: {e}. Rerun with --loop-iterations <N>, "
+            "or set loop_iterations in the config"
+        )
         sys.exit(1)
     logger.table(
-        "Dependency Analysis",
+        f"Dependency Analysis: {name}",
         ["Parameter", "Value"],
         [
             ["ILP", f"{dependency_results.ilp:.2f}"],
@@ -324,9 +392,9 @@ def main() -> None:
                 dram_bandwidth=hp.dram_bandwidth_bytes_per_cycle,
             ),
             launch=LaunchParameters(
-                block_size=block_size,
-                grid_size=grid_size,
-                problem_size=problem_size,
+                block_size=spec.block_size,
+                grid_size=spec.grid_size,
+                problem_size=spec.problem_size,
                 registers_per_thread=registers_per_thread,
                 shared_mem_per_block_bytes=shared_memory_per_block,
             ),
@@ -334,7 +402,7 @@ def main() -> None:
         logger=logger,
     )
     logger.table(
-        "Prediction",
+        f"Prediction: {name}",
         ["Parameter", "Value"],
         [
             ["ITILP", f"{prediction.itilp:.2f}"],
@@ -348,56 +416,178 @@ def main() -> None:
             ["T_overlap (cycles)", f"{prediction.t_overlap:.0f}"],
             ["T_exec (cycles)", f"{prediction.t_exec:.0f}"],
             ["T_GPU (cycles)", f"{prediction.t_gpu:.0f}"],
-            ["T_one_thread (cycles)", f"{prediction.t_one_thread:.0f}"],
-            ["Speedup", f"{prediction.speedup:.2f}"],
         ],
         trace="predict",
     )
+    return KernelResult(
+        spec=spec,
+        kernel_name=kernel_name,
+        prediction=prediction,
+        pico_error=pico_results.error,
+    )
+
+
+def report_comparison(
+    results: list[KernelResult], reference: str, logger: Logger
+) -> None:
+    compare = len(results) > 1
+    t_reference = next(r.prediction.t_gpu for r in results if r.spec.name == reference)
+
+    if len({r.pico_error for r in results}) > 1:
+        logger.warning(
+            "Pico fell back on some kernels only, so these speedups compare different "
+            "coalescing assumptions"
+        )
+
+    columns = ["Kernel", "Launch", "T_comp", "T_mem", "T_overlap", "T_GPU"]
+    if compare:
+        columns.append("Speedup")
+    columns.append("Pico")
+
+    rows = []
+    for r in results:
+        p = r.prediction
+        row = [
+            r.spec.name,
+            f"<<<{r.spec.grid_size}, {r.spec.block_size}>>>",
+            f"{p.t_comp:.0f}",
+            f"{p.t_mem:.0f}",
+            f"{p.t_overlap:.0f}",
+            f"{p.t_gpu:.0f}",
+        ]
+        if compare:
+            row.append(f"{speedup(t_reference, p.t_gpu):.2f}")
+        row.append("fallback" if r.pico_error else "ok")
+        rows.append(row)
+
+    title = (
+        f"Predicted comparison (reference: {reference})" if compare else "Prediction"
+    )
+    logger.table(f"{title}, cycles", columns, rows, force=True, trace="predict")
+
+
+def report_measured(
+    results: list[KernelResult],
+    measured: dict[str, ProfileOutput],
+    reference: str,
+    repeats: int,
+    logger: Logger,
+) -> None:
+    compare = len(results) > 1
+    t_reference = next(r.prediction.t_gpu for r in results if r.spec.name == reference)
+
+    columns = [
+        "Kernel",
+        "Pred T_GPU",
+        "Meas cycles (median)",
+        "Spread (min-max)",
+        "Error",
+    ]
+    if compare:
+        columns += ["Pred speedup", "Meas speedup (range)", "Error"]
+
+    rows = []
+    for r in results:
+        m = measured[r.spec.name]
+        t_gpu = r.prediction.t_gpu
+        row = [
+            r.spec.name,
+            f"{t_gpu:.0f}",
+            f"{m.cycles:.0f}",
+            f"{m.cycles_min:.0f}-{m.cycles_max:.0f}",
+            relative_error(t_gpu, m.cycles),
+        ]
+        if compare and r.spec.name == reference:
+            row += ["1.00", "1.00 (reference)", ""]
+        elif compare:
+            predicted = speedup(t_reference, t_gpu)
+            s = measured_speedup(measured[reference], m)
+            row += [
+                f"{predicted:.2f}",
+                f"{s.median:.2f} ({s.low:.2f}-{s.high:.2f})",
+                relative_error(predicted, s.median),
+            ]
+        rows.append(row)
+
+    runs = f"{repeats} run{'s' if repeats != 1 else ''} per kernel"
+    title = (
+        f"Predicted vs measured (reference: {reference}, {runs})"
+        if compare
+        else f"Predicted vs measured ({runs})"
+    )
+    logger.table(title, columns, rows, force=True, trace="profiler")
+
+
+def main() -> None:
+    parser = build_parser()
+    raw = parser.parse_intermixed_args()
+    args = Args(**vars(raw))
+    check_args(parser, args)
+
+    profile = args.profile
+    gpu = args.gpu.lower()
+    repeats = args.repeats or DEFAULT_REPEATS
+
+    traces, trace_file = resolve_traces(args.log_traces, args.trace_file)
+    logger = Logger(args.verbose, traces=traces, trace_file=trace_file)
+    logger.info("Verbose mode enabled")
+    logger.trace("config", f"command: {shlex.join(sys.argv)}")
+    logger.trace("config", f"gpu: {gpu}, profile: {profile or 'Not provided'}")
+
+    try:
+        specs = build_specs(args)
+    except ConfigError as e:
+        logger.error(str(e))
+        sys.exit(1)
+
+    names = [spec.name for spec in specs]
+    reference = args.reference or names[0]
+    if reference not in names:
+        logger.error(
+            f"--reference {reference} is not one of the kernels: {', '.join(names)}"
+        )
+        sys.exit(1)
+
+    arch = GPU_TO_ARCH.get(gpu)
+    if arch is None:
+        logger.error(f"No architecture defined for GPU {gpu}")
+        sys.exit(1)
+
+    for warning in work_mismatches(
+        {spec.name: spec.problem_size for spec in specs},
+        {spec.name: spec.program_args for spec in specs},
+    ):
+        logger.warning(warning)
+
+    hp = load_hardware_profile(gpu, logger)
+    results = [
+        analyze_kernel(spec, arch, hp, warn_shared_program=args.run, logger=logger)
+        for spec in specs
+    ]
+    report_comparison(results, reference, logger)
 
     if not args.run:
         return
 
-    measured = profile_kernel(
-        ProfileInput(
-            input_file=input_file,
-            arch=arch,
-            kernel_name=kernel_name.rstrip(":"),
-            block_size=block_size,
-            grid_size=grid_size,
-            program_args=program_args,
-            include_dirs=include_dirs,
-            extra_flags=nvcc_flags,
-            logger=logger,
+    measured = {
+        r.spec.name: profile_kernel(
+            ProfileInput(
+                name=r.spec.name,
+                input_file=r.spec.file,
+                arch=arch,
+                kernel_name=r.kernel_name,
+                block_size=r.spec.block_size,
+                grid_size=r.spec.grid_size,
+                program_args=r.spec.program_args,
+                include_dirs=r.spec.include_dirs,
+                extra_flags=r.spec.nvcc_flags,
+                repeats=repeats,
+                logger=logger,
+            )
         )
-    )
-    logger.table(
-        "Predicted vs Measured",
-        ["Parameter", "Predicted", "Measured", "Error"],
-        [
-            [
-                "T_one_thread (cycles)",
-                f"{prediction.t_one_thread:.0f}",
-                f"{measured.serial.cycles:.0f}",
-                relative_error(prediction.t_one_thread, measured.serial.cycles),
-            ],
-            [
-                "T_GPU (cycles)",
-                f"{prediction.t_gpu:.0f}",
-                f"{measured.parallel.cycles:.0f}",
-                relative_error(prediction.t_gpu, measured.parallel.cycles),
-            ],
-            [
-                "Speedup",
-                f"{prediction.speedup:.2f}",
-                f"{measured.speedup:.2f}",
-                relative_error(prediction.speedup, measured.speedup),
-            ],
-            ["One-thread duration (ns)", "", f"{measured.serial.duration_ns:.0f}", ""],
-            ["Full-run duration (ns)", "", f"{measured.parallel.duration_ns:.0f}", ""],
-        ],
-        force=True,
-        trace="profiler",
-    )
+        for r in results
+    }
+    report_measured(results, measured, reference, repeats, logger)
 
 
 if __name__ == "__main__":

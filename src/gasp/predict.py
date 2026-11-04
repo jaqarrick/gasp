@@ -39,8 +39,6 @@ class PredictionOutput:
     t_overlap: float
     t_exec: float
     t_gpu: float
-    t_one_thread: float
-    speedup: float
 
 
 def get_average_trans_warp(p: PicoOutput, mem_inst_count: int) -> float:
@@ -137,10 +135,6 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
     t_exec = model.predict_total_exec_time_cycles()
     t_gpu = t_exec + h.launch_overhead
 
-    # one thread runs every thread's work back to back, no overlap
-    per_thread = d.total_latency + d.mem_inst_count * model.amat
-    t_one_thread = per_thread * l.grid_size * l.block_size
-
     logger.info("Prediction completed")
     return PredictionOutput(
         itilp=itilp,
@@ -154,6 +148,4 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         t_overlap=model.t_overlap,
         t_exec=t_exec,
         t_gpu=t_gpu,
-        t_one_thread=t_one_thread,
-        speedup=t_one_thread / t_gpu,
     )
