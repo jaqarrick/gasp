@@ -102,7 +102,7 @@ make run ARGS="--gpu b200 benchmarks/custom/vecadd.cu"
 make run ARGS="--gpu rtx2080ti --run benchmarks/custom/vecadd_good.cu benchmarks/custom/vecadd_poor.cu"
 ```
 
-- Each kernel runs `--repeats N` times (default 3). Cycles are the median, with the min-max spread beside them.
+- Each kernel runs `--repeats N` times (default 3). Cycles are ncu's Elapsed Cycles (`gpc__cycles_elapsed.max`). The table shows the median, with the min-max spread beside it.
 - Measured speedup is the ratio of the medians. Its range is the widest the runs allow, so treat a gap inside the range as no measured difference.
 - Every run has to launch the requested grid and block size, or GASP stops. See [the benchmark notes](benchmarks/custom/README.md) for how to write a program for `--run`.
 

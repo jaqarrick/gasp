@@ -14,7 +14,7 @@ from gasp.logger import Logger, format_table
 REQUIRED: list[str] = ["nvcc", "ncu"]
 
 DURATION_METRIC = "gpu__time_duration.sum"
-CYCLES_METRIC = "sm__cycles_elapsed.max"
+CYCLES_METRIC = "gpc__cycles_elapsed.max"
 GRID_SIZE_METRIC = "launch__grid_size"
 BLOCK_SIZE_METRIC = "launch__block_size"
 METRICS: list[str] = [
