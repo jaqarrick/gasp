@@ -4,7 +4,9 @@
 // Method   : Streaming, fully coalesced reads of a buffer much larger than L2,
 //            with every SM busy. Each thread issues independent 16-byte loads
 //            (4 in flight per thread, grid-stride), so the memory system is
-//            saturated and DRAM bandwidth, not latency, is the limit.
+//            saturated and DRAM bandwidth, not latency, is the limit. The buffer
+//            is filled with pseudo-random data (not a repeated byte), so no
+//            memory-controller compression can shrink the traffic.
 //
 // Units    : bytes per SM clock cycle for the WHOLE GPU:
 //              bytes_read / (kernel_span_ns * sm_clock_GHz)
@@ -64,7 +66,7 @@
 // ---- Identity of this benchmark -------------------------------------------
 static const char* PARAMETER      = "dram_bandwidth_bytes_per_cycle";
 static const char* SCHEMA_VERSION = "1.1.0";   // bump if the JSON layout changes
-static const char* BENCH_VERSION  = "1.1.0";   // bump if the measurement method changes
+static const char* BENCH_VERSION  = "1.2.0";   // bump if the measurement method changes
 
 // ---- Experiment parameters -------------------------------------------------
 constexpr int  THREADS          = 256;     // threads per block
@@ -76,6 +78,7 @@ constexpr int  DEFAULT_REPS     = 200;     // timed launches (>=100)
 constexpr int  DEFAULT_MULT_L2  = 4;       // default working set is at least 4 x L2
 constexpr int  MIN_L2_MULT      = 2;       // explicit working set must be >= 2 x L2
 constexpr long DEFAULT_WS_KB    = 1024L * 1024L;   // 1 GiB
+constexpr uint64_t DATA_SEED    = 0x2545F4914F6CDD1DULL;   // fixed seed: reproducible data
 
 // ---- Device ----------------------------------------------------------------
 __device__ __forceinline__ uint64_t read_clock64() {
@@ -126,6 +129,21 @@ dram_read_kernel(const uint4* __restrict__ buf, size_t n_vec, uint64_t* ts, uint
         ts[4 * blockIdx.x + 3] = read_clock64();
     }
     sink[tid] = acc;   // keeps the loaded data observable
+}
+
+// splitmix64: a cheap, well-mixed 64-bit hash. Used to fill the buffer with
+// pseudo-random, effectively incompressible data. Fixed seed => reproducible.
+__device__ __forceinline__ uint64_t splitmix64(uint64_t x) {
+    x += 0x9E3779B97F4A7C15ULL;
+    x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ULL;
+    x = (x ^ (x >> 27)) * 0x94D049BB133111EBULL;
+    return x ^ (x >> 31);
+}
+
+__global__ void fill_random_kernel(uint64_t* buf, size_t n_words, uint64_t seed) {
+    const size_t stride = static_cast<size_t>(gridDim.x) * blockDim.x;
+    for (size_t i = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x; i < n_words; i += stride)
+        buf[i] = splitmix64(seed + i);
 }
 
 // ---- Host helpers ----------------------------------------------------------
@@ -275,7 +293,12 @@ int main(int argc, char** argv) {
     CUDA_CHECK(cudaMalloc(&d_buf, bytes_used));
     CUDA_CHECK(cudaMalloc(&d_ts, static_cast<size_t>(grid) * 4 * sizeof(uint64_t)));
     CUDA_CHECK(cudaMalloc(&d_sink, grid_threads * sizeof(uint32_t)));
-    CUDA_CHECK(cudaMemset(d_buf, 0x5A, bytes_used));   // non-zero data
+    // Fill with pseudo-random data on the device (fast, no host copy). A repeated
+    // byte such as 0x5A is highly compressible, and a memory-controller compressor
+    // could then move fewer bytes than we count, inflating the measured bandwidth.
+    fill_random_kernel<<<grid, THREADS>>>(reinterpret_cast<uint64_t*>(d_buf), bytes_used / 8, DATA_SEED);
+    CUDA_CHECK(cudaGetLastError());
+    CUDA_CHECK(cudaDeviceSynchronize());
 
     const uint4* d_vec = reinterpret_cast<const uint4*>(d_buf);
     std::vector<uint64_t> h_ts(static_cast<size_t>(grid) * 4);
@@ -415,6 +438,7 @@ int main(int argc, char** argv) {
     j << "    \"working_set_requested_bytes\": " << requested_bytes << ",\n";
     j << "    \"l2_cache_size_kb_assumed\": " << l2_kb_used << ",\n";
     j << "    \"l2_cache_size_source\": \"" << (l2_cache_kb ? "user" : "device") << "\",\n";
+    j << "    \"data_pattern\": \"splitmix64 pseudo-random 64-bit words (fixed seed)\",\n";
     j << "    \"bytes_per_load\": " << VEC_BYTES << ",\n";
     j << "    \"loads_in_flight_per_thread\": " << UNROLL << ",\n";
     j << "    \"blocks\": " << grid << ",\n";
