@@ -68,12 +68,12 @@ def trace_modules(value: str) -> set[str]:
 
 
 def resolve_traces(
-    log_traces: set[str] | None, trace_file: str | None
+    trace: set[str] | None, trace_file: str | None
 ) -> tuple[set[str] | None, str]:
     # --trace-file on its own traces every module
-    if log_traces is None and trace_file is not None:
-        log_traces = {"all"}
-    return log_traces, trace_file or DEFAULT_TRACE_FILE
+    if trace is None and trace_file is not None:
+        trace = {"all"}
+    return trace, trace_file or DEFAULT_TRACE_FILE
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -89,7 +89,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument(
-        "--log-traces",
+        "--trace",
         type=trace_modules,
         nargs="?",
         const={"all"},
@@ -103,7 +103,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--trace-file",
         default=None,
         help=f"File traces are written to (default: ./{DEFAULT_TRACE_FILE}). "
-        "Implies --log-traces all if --log-traces is not given",
+        "Implies --trace all if --trace is not given",
     )
     parser.add_argument(
         "inputs",
@@ -528,7 +528,7 @@ def main() -> None:
     gpu = args.gpu.lower()
     repeats = args.repeats or DEFAULT_REPEATS
 
-    traces, trace_file = resolve_traces(args.log_traces, args.trace_file)
+    traces, trace_file = resolve_traces(args.trace, args.trace_file)
     logger = Logger(args.verbose, traces=traces, trace_file=trace_file)
     logger.info("Verbose mode enabled")
     logger.trace("config", f"command: {shlex.join(sys.argv)}")

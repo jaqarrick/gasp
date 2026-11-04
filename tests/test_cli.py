@@ -217,7 +217,7 @@ class TestLoadHardwareProfile:
         assert hp.launch_overhead_cycles == 5000
 
 
-# --log-traces / --trace-file
+# --trace / --trace-file
 
 VECADD = "benchmarks/custom/vecadd.cu"
 
@@ -229,37 +229,37 @@ def parse(*argv):
     return build_parser().parse_intermixed_args(["--gpu", "b200", VECADD, *argv])
 
 
-def test_log_traces_defaults_to_off():
+def test_trace_defaults_to_off():
     args = parse()
-    assert args.log_traces is None
-    assert resolve_traces(args.log_traces, args.trace_file) == (None, "traces.log")
+    assert args.trace is None
+    assert resolve_traces(args.trace, args.trace_file) == (None, "traces.log")
 
 
-def test_log_traces_without_modules_is_all():
-    assert parse("--log-traces").log_traces == {"all"}
+def test_trace_without_modules_is_all():
+    assert parse("--trace").trace == {"all"}
 
 
-def test_log_traces_comma_separated_modules():
-    assert parse("--log-traces", "cfg, SASS,profiler").log_traces == {
+def test_trace_comma_separated_modules():
+    assert parse("--trace", "cfg, SASS,profiler").trace == {
         "cfg",
         "sass",
         "profiler",
     }
 
 
-def test_log_traces_rejects_unknown_module():
+def test_trace_rejects_unknown_module():
     with pytest.raises(SystemExit):
-        parse("--log-traces", "cfg,bogus")
+        parse("--trace", "cfg,bogus")
 
 
 def test_trace_file_alone_implies_all():
     args = parse("--trace-file", "out.log")
-    assert resolve_traces(args.log_traces, args.trace_file) == ({"all"}, "out.log")
+    assert resolve_traces(args.trace, args.trace_file) == ({"all"}, "out.log")
 
 
 def test_trace_file_keeps_selected_modules():
-    args = parse("--log-traces", "cfg", "--trace-file", "out.log")
-    assert resolve_traces(args.log_traces, args.trace_file) == ({"cfg"}, "out.log")
+    args = parse("--trace", "cfg", "--trace-file", "out.log")
+    assert resolve_traces(args.trace, args.trace_file) == ({"cfg"}, "out.log")
 
 
 # inputs and flag rules

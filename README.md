@@ -133,8 +133,8 @@ These apply to the whole run:
 | `--run`               | Run each program under `ncu` and compare with the prediction |
 | `--repeats`           | `ncu` runs per kernel with `--run` (default: 3)          |
 | `--verbose`           | Verbose output                                           |
-| `--log-traces`        | Write traces to the trace file; optional comma-separated modules (`config,cuda,cfg,sass,occupancy,pico,dependency,predict,profiler`), default `all` |
-| `--trace-file`        | Trace file path (default `./traces.log`); implies `--log-traces all` |
+| `--trace`             | Write traces to the trace file; optional comma-separated modules (`config,cuda,cfg,sass,occupancy,pico,dependency,predict,profiler`), default `all` |
+| `--trace-file`        | Trace file path (default `./traces.log`); implies `--trace all` |
 | `--help`              | Show usage                                               |
 | `--version`           | Show version                                             |
 

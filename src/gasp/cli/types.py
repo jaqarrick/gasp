@@ -9,7 +9,7 @@ class Args:
     repeats: int | None
     gpu: str | None
     verbose: bool
-    log_traces: set[str] | None
+    trace: set[str] | None
     trace_file: str | None
     profile: str | None
     block_size: int | None
