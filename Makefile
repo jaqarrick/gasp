@@ -5,6 +5,7 @@ PY := PYTHONPATH=src $(VENV)/bin/python
 IMAGE := gasp
 PLATFORM := linux/amd64
 ARGS ?=
+DOCKER_FLAGS ?=
 
 .PHONY: all build install run test lint lint-fix format pre-commit clean docker-clean docker-run help
 
@@ -40,7 +41,7 @@ build:
 	docker build --platform $(PLATFORM) -t $(IMAGE) .
 
 docker-run:
-	docker run --rm --platform $(PLATFORM) \
+	docker run --rm --platform $(PLATFORM) $(DOCKER_FLAGS) \
 		-v $(PWD)/benchmarks:/workspace/benchmarks \
 		-v $(PWD)/hardware:/workspace/hardware \
 		$(IMAGE) $(ARGS)
@@ -67,4 +68,8 @@ help:
 	@echo ""
 	@echo "Example:"
 	@echo "  make run ARGS='kernel.cu --gpu b200 --verbose'"
+	@echo "  make run ARGS='--gpu b200 good.cu poor.cu'"
+	@echo "  make run ARGS='--gpu b200 kernels.cu::good kernels.cu::poor'"
+	@echo "  make run ARGS='--gpu b200 --config benchmarks/custom/vecadd.toml'"
 	@echo "  make docker-run ARGS='benchmarks/custom/example.cu --gpu b200'"
+	@echo "  make docker-run DOCKER_FLAGS='--gpus all' ARGS='--gpu b200 --run --config benchmarks/custom/vecadd.toml'"

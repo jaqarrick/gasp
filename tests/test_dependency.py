@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from gasp.cfg import CFGEdge, CFGNode, ControlFlowGraph, gen_cfg_from_raw
+from gasp.cfg import CFGEdge, CFGNode, ControlFlowGraph, filter_cfg, gen_cfg_from_raw
 from gasp.dependency import (
     LatencyTable,
     LoopIterationsRequiredError,
@@ -361,3 +361,35 @@ def test_sgemm_fixture_loop_weighting(arch, logger):
     assert out.total_inst_count == expected
     assert out.ilp >= 1
     assert out.mlp >= 1
+
+
+TWO_KERNELS = """\
+digraph f {
+subgraph "cluster_first" {
+"first"
+[label="first"]
+}
+subgraph "cluster_second" {
+"second"
+[label="second"]
+"second":exit0:s -> "loop":entry:n [style=solid];
+"loop"
+[label="loop"]
+"loop":exit0:e -> "loop":entry:n [style=solid];
+}
+}
+"""
+
+
+def test_loop_in_a_later_kernel_is_found_once_filtered(logger):
+    cfg = filter_cfg(gen_cfg_from_raw(TWO_KERNELS), "second")
+
+    with pytest.raises(LoopIterationsRequiredError) as e:
+        analyze(cfg, {}, None, LATENCY, logger)
+    assert e.value.loop_headers == ["loop"]
+
+
+def test_other_kernels_loop_does_not_require_iterations(logger):
+    cfg = filter_cfg(gen_cfg_from_raw(TWO_KERNELS), "first")
+
+    analyze(cfg, {}, None, LATENCY, logger)

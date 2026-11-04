@@ -3,7 +3,10 @@ from dataclasses import dataclass
 
 @dataclass
 class Args:
-    input: str
+    inputs: list[tuple[str, str | None]]
+    config: str | None
+    reference: str | None
+    repeats: int | None
     gpu: str | None
     verbose: bool
     log_traces: set[str] | None
