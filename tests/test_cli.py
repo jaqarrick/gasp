@@ -6,8 +6,20 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from gasp.cli import build_parser, resolve_traces
+from gasp.cli import (
+    KernelResult,
+    build_parser,
+    build_specs,
+    check_args,
+    report_comparison,
+    report_measured,
+    resolve_traces,
+)
+from gasp.cli.config import KernelSpec
+from gasp.cli.types import Args
 from gasp.cli.utils import GPU_PROFILES, HardwareProfile, load_hardware_profile
+from gasp.predict import PredictionOutput
+from gasp.profiler import KernelMeasurement, ProfileOutput
 
 VALID_PROFILE = {
     "architecture": "ampere",
@@ -210,8 +222,11 @@ class TestLoadHardwareProfile:
 VECADD = "benchmarks/custom/vecadd.cu"
 
 
+STRIDE = "benchmarks/custom/vecadd_stride.cu"
+
+
 def parse(*argv):
-    return build_parser().parse_args(["--gpu", "b200", VECADD, *argv])
+    return build_parser().parse_intermixed_args(["--gpu", "b200", VECADD, *argv])
 
 
 def test_log_traces_defaults_to_off():
@@ -245,3 +260,241 @@ def test_trace_file_alone_implies_all():
 def test_trace_file_keeps_selected_modules():
     args = parse("--log-traces", "cfg", "--trace-file", "out.log")
     assert resolve_traces(args.log_traces, args.trace_file) == ({"cfg"}, "out.log")
+
+
+# inputs and flag rules
+
+
+def checked_args(*argv) -> Args:
+    parser = build_parser()
+    args = Args(**vars(parser.parse_intermixed_args(["--gpu", "b200", *argv])))
+    check_args(parser, args)
+    return args
+
+
+def test_several_inputs():
+    assert checked_args(VECADD, STRIDE).inputs == [(VECADD, None), (STRIDE, None)]
+
+
+def test_input_selector():
+    assert checked_args(f"{VECADD}::vecadd").inputs == [(VECADD, "vecadd")]
+
+
+def test_inputs_can_be_mixed_with_flags():
+    args = checked_args(VECADD, "--block-size", "128", STRIDE)
+
+    assert args.inputs == [(VECADD, None), (STRIDE, None)]
+    assert args.block_size == 128
+
+
+@pytest.mark.parametrize(
+    "value", ["benchmarks/custom/missing.cu", "README.md", f"{VECADD}::"]
+)
+def test_invalid_input_exits(value):
+    with pytest.raises(SystemExit):
+        checked_args(value)
+
+
+def test_no_inputs_exits():
+    with pytest.raises(SystemExit):
+        checked_args()
+
+
+def test_config_alone_is_accepted():
+    assert checked_args("--config", "kernels.toml").config == "kernels.toml"
+
+
+def test_config_with_input_file_exits():
+    with pytest.raises(SystemExit):
+        checked_args("--config", "kernels.toml", VECADD)
+
+
+@pytest.mark.parametrize(
+    "flag",
+    [
+        ("--block-size", "256"),
+        ("--grid-size", "8"),
+        ("--problem-size", "1000"),
+        ("--loop-iterations", "8"),
+        ("-I", "inc"),
+        ("--nvcc-flags", "-O2"),
+        ("--program-args", "1000"),
+    ],
+)
+def test_config_with_per_kernel_flag_exits(flag):
+    with pytest.raises(SystemExit):
+        checked_args("--config", "kernels.toml", *flag)
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [
+        ("--run", "--repeats", "5"),
+        ("--run",),
+        ("--reference", "good"),
+        ("--verbose",),
+    ],
+)
+def test_config_with_global_flags_is_accepted(flags):
+    checked_args("--config", "kernels.toml", *flags)
+
+
+def test_repeats_without_run_exits():
+    with pytest.raises(SystemExit):
+        checked_args(VECADD, "--repeats", "3")
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "many"])
+def test_invalid_repeats_exits(value):
+    with pytest.raises(SystemExit):
+        checked_args(VECADD, "--run", "--repeats", value)
+
+
+def test_build_specs_applies_shared_flags_to_every_input():
+    args = checked_args(
+        VECADD,
+        STRIDE,
+        "--problem-size",
+        "1000",
+        "--block-size",
+        "100",
+        "--nvcc-flags",
+        "--use_fast_math -O2",
+        "--program-args",
+        "1000",
+        "-I",
+        "inc",
+    )
+    vecadd, stride = build_specs(args)
+
+    assert (vecadd.name, stride.name) == ("vecadd", "vecadd_stride")
+    for spec in (vecadd, stride):
+        assert spec.grid_size == 10
+        assert spec.nvcc_flags == ["--use_fast_math", "-O2"]
+        assert spec.program_args == ["1000"]
+        assert spec.include_dirs == ["inc"]
+
+
+# reports
+
+
+def result(name: str, t_gpu: float, pico_error: bool = False) -> KernelResult:
+    return KernelResult(
+        spec=KernelSpec(
+            name=name,
+            file=f"{name}.cu",
+            kernel=None,
+            problem_size=1000,
+            block_size=256,
+            grid_size=4,
+            loop_iterations=None,
+            include_dirs=[],
+            nvcc_flags=[],
+            program_args=[],
+        ),
+        kernel_name=name,
+        prediction=PredictionOutput(
+            itilp=1.0,
+            cwp=1.0,
+            mwp_cp=1.0,
+            mwp_peak_bw=1.0,
+            itmlp=1.0,
+            average_trans_warp=1.0,
+            t_comp=10.0,
+            t_mem=20.0,
+            t_overlap=5.0,
+            t_exec=25.0,
+            t_gpu=t_gpu,
+        ),
+        pico_error=pico_error,
+    )
+
+
+def measured(*cycles: float) -> ProfileOutput:
+    return ProfileOutput(
+        runs=[KernelMeasurement(duration_ns=1.0, cycles=c, metrics={}) for c in cycles]
+    )
+
+
+@pytest.fixture
+def report_logger():
+    return MagicMock(spec=["table", "warning"])
+
+
+def table(logger):
+    title, columns, rows = logger.table.call_args.args
+    assert logger.table.call_args.kwargs["force"] is True
+    return title, [dict(zip(columns, row)) for row in rows]
+
+
+def test_comparison_speedup_is_relative_to_the_reference(report_logger):
+    report_comparison(
+        [result("good", 100.0), result("poor", 200.0)], "good", report_logger
+    )
+    title, rows = table(report_logger)
+
+    assert "reference: good" in title
+    assert [row["Speedup"] for row in rows] == ["1.00", "0.50"]
+    assert rows[0]["Launch"] == "<<<4, 256>>>"
+    assert rows[0]["T_comp"] == "10"
+    assert rows[0]["T_mem"] == "20"
+    assert rows[0]["T_overlap"] == "5"
+
+
+def test_comparison_with_another_reference(report_logger):
+    report_comparison(
+        [result("good", 100.0), result("poor", 200.0)], "poor", report_logger
+    )
+    _, rows = table(report_logger)
+
+    assert [row["Speedup"] for row in rows] == ["2.00", "1.00"]
+
+
+def test_single_kernel_has_no_speedup(report_logger):
+    report_comparison([result("only", 100.0)], "only", report_logger)
+    title, rows = table(report_logger)
+
+    assert "reference" not in title
+    assert "Speedup" not in rows[0]
+    assert rows[0]["T_GPU"] == "100"
+
+
+def test_comparison_warns_when_pico_fell_back_on_some_kernels(report_logger):
+    results = [result("good", 100.0), result("poor", 200.0, pico_error=True)]
+    report_comparison(results, "good", report_logger)
+    _, rows = table(report_logger)
+
+    report_logger.warning.assert_called_once()
+    assert [row["Pico"] for row in rows] == ["ok", "fallback"]
+
+
+def test_comparison_no_warning_when_pico_fell_back_on_all(report_logger):
+    results = [result("a", 100.0, pico_error=True), result("b", 200.0, pico_error=True)]
+    report_comparison(results, "a", report_logger)
+
+    report_logger.warning.assert_not_called()
+
+
+def test_measured_report_compares_speedups(report_logger):
+    results = [result("good", 100.0), result("poor", 200.0)]
+    profiles = {"good": measured(90, 100, 110), "poor": measured(120, 125, 130)}
+    report_measured(results, profiles, "good", 3, report_logger)
+    title, rows = table(report_logger)
+
+    assert "3 runs per kernel" in title
+    assert rows[0]["Meas cycles (median)"] == "100"
+    assert rows[0]["Spread (min-max)"] == "90-110"
+    assert rows[0]["Meas speedup (range)"] == "1.00 (reference)"
+    assert rows[1]["Pred speedup"] == "0.50"
+    assert rows[1]["Meas speedup (range)"] == "0.80 (0.69-0.92)"
+
+
+def test_measured_report_single_kernel_has_no_speedup(report_logger):
+    report_measured(
+        [result("only", 100.0)], {"only": measured(100)}, "only", 1, report_logger
+    )
+    title, rows = table(report_logger)
+
+    assert "1 run per kernel" in title
+    assert "Pred speedup" not in rows[0]
+    assert rows[0]["Error"] == "+0.0%"
