@@ -1,4 +1,4 @@
-# This module contains the GPUPerf formula for speedup
+# This module contains the GPUPerf formula for execution time
 from gasp.logger import Logger
 
 from .types import (
@@ -28,7 +28,6 @@ class GPUPerf:
         self.t_comp = self._get_t_comp()
         self.t_mem = self._get_t_mem()
         self.t_overlap = self._get_t_overlap(self.t_mem, self.t_comp)
-        self.amat = self._get_amat()
         t_exec = self.t_comp + self.t_mem - self.t_overlap
         return t_exec
 

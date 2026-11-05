@@ -96,7 +96,7 @@ class CUDAExtractor:
         for line in result.stdout.splitlines():
             fn_match = re.search(r"Function\s+(\S+)", line)
             if fn_match:
-                current_kernel = fn_match.group(1)
+                current_kernel = fn_match.group(1).rstrip(":")
                 kernels[current_kernel] = {}
 
             if current_kernel:
