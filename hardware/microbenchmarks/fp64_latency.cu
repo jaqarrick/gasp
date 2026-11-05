@@ -142,25 +142,6 @@ static void short_gpu_name(const char *full, char *buf, size_t size) {
     buf[n] = '\0';
 }
 
-// Compute capability (prop.major, prop.minor) -> architecture family name,
-// e.g. 8.0 -> "ampere". Used for the "architecture" field in the JSON.
-static const char *architecture_name(int major, int minor) {
-    switch (major) {
-    case 5:  return "maxwell";
-    case 6:  return "pascal";
-    case 7:  return (minor >= 5) ? "turing" : "volta";   // 7.0/7.2 volta, 7.5 turing
-    case 8:  return (minor == 9) ? "ada" : "ampere";      // 8.0/8.6/8.7 ampere, 8.9 ada
-    case 9:  return "hopper";
-    case 10: /* datacenter blackwell (B200, GB200) */
-    case 11: /* Jetson Thor, renumbered from 10.1 in CUDA 13 */
-    case 12: return "blackwell";                          // 12.x = consumer blackwell (RTX 50)
-    default:
-        fprintf(stderr, "WARNING: unknown compute capability %d.%d; architecture set to \"unknown\"\n",
-                major, minor);
-        return "unknown";
-    }
-}
-
 // Folder that holds the executable, taken from argv[0]:
 // "./fp64_latency" -> ".", "hardware/microbenchmarks/fp64_latency" -> "hardware/microbenchmarks".
 static void executable_dir(const char *argv0, char *buf, size_t size) {
@@ -222,10 +203,16 @@ int main(int argc, char **argv) {
     // Subtract the median clock overhead from every run, then divide by the
     // number of adds to get cycles per DADD.
     double overhead = median_of(overhead_samples, REPS);
+    // Per-run breakdown: gross (clock overhead included) -> net (overhead removed) -> per op.
+    double net_cycles[REPS];
     double per_op[REPS];
+    double gross_per_op[REPS];
     for (int r = 0; r < REPS; r++) {
-        per_op[r] = (raw_cycles[r] - overhead) / (double)CHAIN_OPS;
+        net_cycles[r] = raw_cycles[r] - overhead;
+        per_op[r] = net_cycles[r] / (double)CHAIN_OPS;
+        gross_per_op[r] = raw_cycles[r] / (double)CHAIN_OPS;
     }
+    double uncorrected_value = median_of(gross_per_op, REPS);  // no subtraction
 
     double sum = 0.0;
     double mn = per_op[0];
@@ -276,19 +263,14 @@ int main(int argc, char **argv) {
         return 1;
     }
     fprintf(f, "{\n");
+    fprintf(f, "  \"benchmark\": \"fp64_latency.cu\",\n");
     fprintf(f, "  \"parameter\": \"fp64_inst_latency_cycles\",\n");
     fprintf(f, "  \"value\": %.4f,\n", median);
     fprintf(f, "  \"unit\": \"cycles\",\n");
     fprintf(f, "  \"gpu\": \"%s\",\n", gpu);
-    fprintf(f, "  \"architecture\": \"%s\",\n", architecture_name(prop.major, prop.minor));
+    fprintf(f, "  \"gpu_name\": \"%s\",\n", prop.name);
     fprintf(f, "  \"arch\": \"sm_%d%d\",\n", prop.major, prop.minor);
-    fprintf(f, "  \"device\": {\n");
-    fprintf(f, "    \"name\": \"%s\",\n", prop.name);
-    fprintf(f, "    \"sms\": %d,\n", prop.multiProcessorCount);
-    fprintf(f, "    \"max_warps_per_sm\": %d,\n", prop.maxThreadsPerMultiProcessor / prop.warpSize);
-    fprintf(f, "    \"l2_cache_bytes\": %d,\n", prop.l2CacheSize);
-    fprintf(f, "    \"shared_mem_per_sm_bytes\": %zu\n", prop.sharedMemPerMultiprocessor);
-    fprintf(f, "  },\n");
+    fprintf(f, "  \"num_sms\": %d,\n", prop.multiProcessorCount);
     fprintf(f, "  \"stats\": {\n");
     fprintf(f, "    \"median\": %.4f,\n", median);
     fprintf(f, "    \"mean\": %.4f,\n", mean);
@@ -296,16 +278,29 @@ int main(int argc, char **argv) {
     fprintf(f, "    \"min\": %.4f,\n", mn);
     fprintf(f, "    \"max\": %.4f\n", mx);
     fprintf(f, "  },\n");
-    // raw_cycles: per run, clock64 delta around the DADD chain (clock overhead included).
-    // overhead_cycles: median cost of reading the clock; per-DADD stats use
-    //                  (raw_cycles - overhead_cycles) / CHAIN_OPS.
+    // raw_cycles           : per run, clock64 delta around the chain, clock-read cost INCLUDED
+    // overhead_samples     : per run, clock64 delta of two back-to-back reads (cost of the clock)
+    // overhead_cycles      : median of overhead_samples; the value subtracted from every run
+    // net_cycles           : raw_cycles - overhead_cycles (per run)
+    // per_op_cycles        : net_cycles / CHAIN_OPS (per run); stats are computed over these
+    // uncorrected_value    : median of raw_cycles / CHAIN_OPS (no overhead subtracted)
     fprintf(f, "  \"raw_cycles\": [");
-    for (int r = 0; r < REPS; r++) {
-        fprintf(f, "%s%.0f", r ? ", " : "", raw_cycles[r]);
-    }
+    for (int r = 0; r < REPS; r++) fprintf(f, "%s%.0f", r ? ", " : "", raw_cycles[r]);
     fprintf(f, "],\n");
-    fprintf(f, "  \"overhead_cycles\": %.1f,\n", overhead);
+    fprintf(f, "  \"overhead_samples_cycles\": [");
+    for (int r = 0; r < REPS; r++) fprintf(f, "%s%.0f", r ? ", " : "", overhead_samples[r]);
+    fprintf(f, "],\n");
+    fprintf(f, "  \"overhead_cycles\": %.4f,\n", overhead);
+    fprintf(f, "  \"overhead_subtracted\": true,\n");
+    fprintf(f, "  \"net_cycles\": [");
+    for (int r = 0; r < REPS; r++) fprintf(f, "%s%.4f", r ? ", " : "", net_cycles[r]);
+    fprintf(f, "],\n");
+    fprintf(f, "  \"per_op_cycles\": [");
+    for (int r = 0; r < REPS; r++) fprintf(f, "%s%.4f", r ? ", " : "", per_op[r]);
+    fprintf(f, "],\n");
+    fprintf(f, "  \"uncorrected_value\": %.4f,\n", uncorrected_value);
     fprintf(f, "  \"cuda_version\": \"%d.%d\",\n", runtime_version / 1000, (runtime_version % 1000) / 10);
+    fprintf(f, "  \"nvcc_version\": \"%d.%d\",\n", __CUDACC_VER_MAJOR__, __CUDACC_VER_MINOR__);
     fprintf(f, "  \"driver_version\": \"%s\",\n", driver);
     fprintf(f, "  \"timestamp\": \"%s\"\n", timestamp);
     fprintf(f, "}\n");
