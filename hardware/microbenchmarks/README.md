@@ -23,9 +23,31 @@ Build:
 * B200: `nvcc -O3 -std=c++17 -arch=sm_100 constant_memory_load.cu -o constant_memory_load`
 
 ## Kernel Launch Overhead
+* Measures the overhead of launching an empty CUDA kernel across different grid and block configurations. The benchmark uses NVIDIA Nsight Compute (ncu) to collect GPU cycle metrics and fits a linear model.
+The model reports:
+* launch_base_cycles: Estimated baseline launch overhead, in GPU cycles.
+* launch_per_thread_cycles: Estimated additional overhead per configured thread, in cycles/thread.
+
 Change the file paths and architecture arguments below as necessary.
 To build:
 * A100: nvcc -O3 -std=c++17 -arch=sm_80 launch_overhead_bench.cu -o launch_overhead_bench
 * H100: nvcc -O3 -std=c++17 -arch=sm_90 launch_overhead_bench.cu -o launch_overhead_bench
 * B200: nvcc -O3 -std=c++17 -arch=sm_100 launch_overhead_bench.cu -o launch_overhead_bench
-* Then run the script ./run_launch_overhead.py. This runs 4 configurations on the GPU and collects metrics then makes a linear model. Results are printed to a JSON file in hardware/runs/.
+* Then run the script from repository root: ./run_launch_overhead.py.
+
+The script:
+1. Identifies the GPU and records its hardware metadata.
+2. Profiles eight grid/block configurations using Nsight Compute.
+3. Measures cold and warm kernel launches over multiple repetitions.
+4. Fits a linear model to the warm-launch measurements.
+5. Writes one JSON report per fitted parameter.
+
+The configurations used are:
+(1, 1)
+(1, 32)
+(1, 256)
+(1, 1024)
+(32, 256)
+(128, 256)
+(256, 256)
+(512, 256)
