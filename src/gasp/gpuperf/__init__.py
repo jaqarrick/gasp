@@ -1,4 +1,4 @@
-# This module contains the GPUPerf formula for speedup
+# This module contains the GPUPerf formula for execution time
 from gasp.logger import Logger
 
 from .types import (
@@ -25,10 +25,10 @@ class GPUPerf:
         self.logger = logger
 
     def predict_total_exec_time_cycles(self):
-        t_comp = self._get_t_comp()
-        t_mem = self._get_t_mem()
-        t_overlap = self._get_t_overlap(t_mem, t_comp)
-        t_exec = t_comp + t_mem - t_overlap
+        self.t_comp = self._get_t_comp()
+        self.t_mem = self._get_t_mem()
+        self.t_overlap = self._get_t_overlap(self.t_mem, self.t_comp)
+        t_exec = self.t_comp + self.t_mem - self.t_overlap
         return t_exec
 
     def _get_t_comp(self):
@@ -37,7 +37,7 @@ class GPUPerf:
         o = self.o
         # w_parallel
         inst_per_sm = (k.total_inst_count * o.total_warps) / o.active_sms
-        effective_throughput = h.average_inst_latency / o.itilp
+        effective_throughput = k.average_inst_latency / o.itilp
         w_parallel = inst_per_sm * effective_throughput
 
         # w_serial = o_sync + o_sfu + o_cfdiv + o_bank
@@ -64,7 +64,7 @@ class GPUPerf:
         )
 
         # todo: implement our own model for overhead / bank conflict overhead since GPUPerf uses emulation
-        o_cfdiv = k.divergent_inst_count * h.average_inst_latency
+        o_cfdiv = k.divergent_inst_count * k.average_inst_latency
         o_bank = k.bank_conflict_count * h.bank_penalty
 
         w_serial = o_sync + o_sfu + o_cfdiv + o_bank

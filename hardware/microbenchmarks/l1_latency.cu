@@ -8,9 +8,12 @@
 //            nvcc -O3 -std=c++17 -arch=sm_90  l1_latency.cu -o l1_latency   (H100)
 //            nvcc -O3 -std=c++17 -arch=sm_100 l1_latency.cu -o l1_latency   (B200)
 //
-// Run      : ./l1_latency [--gpu NAME] [--out-dir DIR] [--reps N]
+// Run      : ./l1_latency [--gpu NAME] [--out-dir DIR] [--reps N] [--l1-cache-size KB]
 //            Writes  <out-dir>/l1_cache_hit_latency_cycles.<gpu>.run.json
 //            Default out-dir = ./hardware/runs   (created if missing)
+//            --l1-cache-size KB = the L1 size to assume (default 64). The working
+//            set is 1/4 of it (default 16 KB), so it always fits in L1. Use it for
+//            hardware with a different L1; CUDA does not report the L1 size.
 //            --gpu overrides the short GPU name (default: derived from the
 //            device name, e.g. "NVIDIA A100-SXM4-80GB" -> "a100").
 //
@@ -46,15 +49,17 @@
 
 // ---- Identity of this benchmark -------------------------------------------
 static const char* PARAMETER      = "l1_cache_hit_latency_cycles";
-static const char* SCHEMA_VERSION = "1.0.0";   // bump if the JSON layout changes
-static const char* BENCH_VERSION  = "1.1.0";   // bump if the measurement method changes
+static const char* SCHEMA_VERSION = "1.1.0";   // bump if the JSON layout changes
+static const char* BENCH_VERSION  = "1.2.0";   // bump if the measurement method changes
 
 // ---- Experiment parameters -------------------------------------------------
-// 16 KB is far below L1 on A100/H100/B200, so after warm-up every access in
-// the timed region should be an L1 hit.
-constexpr int WORKING_SET_BYTES = 16 * 1024;
-constexpr int LINE_BYTES        = 128;
-constexpr int NUM_NODES         = WORKING_SET_BYTES / LINE_BYTES;  // 128 lines
+// The working set is 1/4 of the assumed L1 size, so after warm-up every access
+// in the timed region should be an L1 hit. The default assumed size (64 KB) is
+// deliberately on the small side: that keeps the 16 KB working set inside L1
+// even on GPUs whose L1 is partly given over to shared memory.
+constexpr int DEFAULT_L1_CACHE_KB = 64;
+constexpr int L1_FRACTION_DIV     = 4;      // working set = L1 size / 4
+constexpr int LINE_BYTES          = 128;
 constexpr int CHASE_LOADS       = 1024;   // dependent loads in the timed region
 constexpr int UNROLL            = 16;     // loads per loop iteration
 constexpr int DEFAULT_REPS      = 200;    // independent kernel launches (>=100)
@@ -74,12 +79,12 @@ __device__ __forceinline__ uint64_t read_clock64() {
 
 // out[0] = gross cycles of the timed chain (clock overhead included)
 // out[1] = clock overhead (two back-to-back clock reads, nothing between)
-__global__ void l1_chase_kernel(uint64_t start, long long* out, uint64_t* sink) {
+__global__ void l1_chase_kernel(uint64_t start, int num_nodes, long long* out, uint64_t* sink) {
     uint64_t p = start;
 
     // 1) Warm-up: two laps so every line is resident in L1.
 #pragma unroll 1
-    for (int i = 0; i < 2 * NUM_NODES; ++i) {
+    for (int i = 0; i < 2 * num_nodes; ++i) {
         CHASE_ONE
     }
 
@@ -166,21 +171,32 @@ int main(int argc, char** argv) {
     std::string out_dir = "./hardware/runs";
     std::string gpu_override;
     int reps = DEFAULT_REPS;
+    long l1_cache_kb = DEFAULT_L1_CACHE_KB;
     for (int i = 1; i < argc; ++i) {
         if (!strcmp(argv[i], "--out-dir") && i + 1 < argc) out_dir = argv[++i];
         else if (!strcmp(argv[i], "--gpu") && i + 1 < argc) gpu_override = argv[++i];
         else if (!strcmp(argv[i], "--reps") && i + 1 < argc) reps = atoi(argv[++i]);
-        else { fprintf(stderr, "Usage: %s [--gpu NAME] [--out-dir DIR] [--reps N]\n", argv[0]); return 1; }
+        else if (!strcmp(argv[i], "--l1-cache-size") && i + 1 < argc) l1_cache_kb = atol(argv[++i]);
+        else {
+            fprintf(stderr, "Usage: %s [--gpu NAME] [--out-dir DIR] [--reps N] [--l1-cache-size KB]\n", argv[0]);
+            return 1;
+        }
     }
     if (reps < 100) { fprintf(stderr, "reps must be >= 100 (issue #3)\n"); return 1; }
+    if (l1_cache_kb < 8) { fprintf(stderr, "--l1-cache-size must be >= 8 (KB)\n"); return 1; }
+
+    // Working set = 1/4 of the assumed L1 size (default 64 KB -> 16 KB).
+    const size_t working_set_bytes = static_cast<size_t>(l1_cache_kb) * 1024 / L1_FRACTION_DIV;
+    const int num_nodes = static_cast<int>(working_set_bytes / LINE_BYTES);
 
     cudaDeviceProp prop;
     CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
     const std::string gpu_name = prop.name;
     const std::string gpu = gpu_override.empty() ? short_gpu_name(gpu_name) : gpu_override;
     const std::string arch = "sm_" + std::to_string(prop.major * 10 + prop.minor);
-    fprintf(stderr, "GPU: %s (%s), SMs: %d\n", gpu_name.c_str(), arch.c_str(),
-            prop.multiProcessorCount);
+    fprintf(stderr, "GPU: %s (%s), SMs: %d, assumed L1: %ld KB, working set: %zu KB\n",
+            gpu_name.c_str(), arch.c_str(), prop.multiProcessorCount, l1_cache_kb,
+            working_set_bytes / 1024);
 
     int rt_ver = 0;
     CUDA_CHECK(cudaRuntimeGetVersion(&rt_ver));
@@ -188,25 +204,25 @@ int main(int argc, char** argv) {
     // Pointer ring: node i's first 8 bytes hold the device address of the next
     // node. Sattolo's shuffle gives ONE cycle covering all nodes in random order.
     uint8_t* d_buf = nullptr;
-    CUDA_CHECK(cudaMalloc(&d_buf, WORKING_SET_BYTES));
+    CUDA_CHECK(cudaMalloc(&d_buf, working_set_bytes));
 
-    std::vector<int> next(NUM_NODES);
+    std::vector<int> next(num_nodes);
     {
-        std::vector<int> perm(NUM_NODES);
+        std::vector<int> perm(num_nodes);
         std::iota(perm.begin(), perm.end(), 0);
         std::mt19937 rng(12345);
-        for (int i = NUM_NODES - 1; i > 0; --i) {
+        for (int i = num_nodes - 1; i > 0; --i) {
             std::uniform_int_distribution<int> d(0, i - 1);
             std::swap(perm[i], perm[d(rng)]);
         }
-        for (int i = 0; i < NUM_NODES; ++i) next[perm[i]] = perm[(i + 1) % NUM_NODES];
+        for (int i = 0; i < num_nodes; ++i) next[perm[i]] = perm[(i + 1) % num_nodes];
     }
-    std::vector<uint8_t> h_buf(WORKING_SET_BYTES, 0);
-    for (int i = 0; i < NUM_NODES; ++i) {
+    std::vector<uint8_t> h_buf(working_set_bytes, 0);
+    for (int i = 0; i < num_nodes; ++i) {
         uint64_t a = reinterpret_cast<uint64_t>(d_buf) + static_cast<uint64_t>(next[i]) * LINE_BYTES;
         *reinterpret_cast<uint64_t*>(&h_buf[static_cast<size_t>(i) * LINE_BYTES]) = a;
     }
-    CUDA_CHECK(cudaMemcpy(d_buf, h_buf.data(), WORKING_SET_BYTES, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(d_buf, h_buf.data(), working_set_bytes, cudaMemcpyHostToDevice));
 
     long long* d_out;
     uint64_t*  d_sink;
@@ -216,7 +232,7 @@ int main(int argc, char** argv) {
     std::vector<long long> raw_cycles, overheads;
     for (int r = 0; r < reps; ++r) {
         CUDA_CHECK(cudaMemset(d_out, 0, 2 * sizeof(long long)));
-        l1_chase_kernel<<<1, 1>>>(reinterpret_cast<uint64_t>(d_buf), d_out, d_sink);
+        l1_chase_kernel<<<1, 1>>>(reinterpret_cast<uint64_t>(d_buf), num_nodes, d_out, d_sink);
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
         long long h[2];
@@ -301,7 +317,8 @@ int main(int argc, char** argv) {
     j << "    \"method\": \"pointer-chase, working set fits in L1\",\n";
     j << "    \"load_instruction\": \"ld.global.ca.u64\",\n";
     j << "    \"timer\": \"clock64\",\n";
-    j << "    \"working_set_bytes\": " << WORKING_SET_BYTES << ",\n";
+    j << "    \"working_set_bytes\": " << working_set_bytes << ",\n";
+    j << "    \"l1_cache_size_kb_assumed\": " << l1_cache_kb << ",\n";
     j << "    \"line_bytes\": " << LINE_BYTES << ",\n";
     j << "    \"loads_per_rep\": " << CHASE_LOADS << ",\n";
     j << "    \"reps\": " << reps << ",\n";

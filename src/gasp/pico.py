@@ -1,16 +1,17 @@
 import json
 import shutil
 import subprocess
-import sys
 import threading
 from dataclasses import dataclass
 
+from gasp.kernels import kernel_base_name, source_base_name
 from gasp.logger import Logger
 
 
 @dataclass
 class PicoInput:
     input_file: str
+    kernel_name: str
     block_size: int
     grid_size: int
     problem_size: int
@@ -31,13 +32,20 @@ class PicoOutput:
 pico = "faial-cost"
 
 
-def parse_total_cost(raw: str) -> int:
+def parse_total_cost(raw: str, kernel_name: str) -> int:
+    """Cost of one kernel. Raises ValueError unless exactly one entry matches it."""
+    base = kernel_base_name(kernel_name)
     data = json.loads(raw)
-    total = 0
-    for kernel in data["kernels"]:
-        if "total_cost" in kernel:
-            total += int(kernel["total_cost"])
-    return total
+    matches = [
+        kernel
+        for kernel in data.get("kernels", [])
+        if source_base_name(kernel.get("kernel_name", "")) == base
+    ]
+    if len(matches) != 1:
+        raise ValueError(f"expected one result for {base}, got {len(matches)}")
+    if "total_cost" not in matches[0]:
+        raise ValueError(f"no cost reported for {base}")
+    return int(matches[0]["total_cost"])
 
 
 def run_pico(i: PicoInput, cmd: str, results: dict) -> None:
@@ -50,6 +58,7 @@ def run_pico(i: PicoInput, cmd: str, results: dict) -> None:
     if params:
         path += ["-p", *params]
     path += ["--json", i.input_file]
+    i.logger.trace("pico", f"command: {' '.join(path)}")
 
     result = subprocess.run(
         path,
@@ -58,22 +67,28 @@ def run_pico(i: PicoInput, cmd: str, results: dict) -> None:
         text=True,
     )
     if result.returncode != 0:
+        # the caller falls back when a result is missing
         i.logger.error(f"pico failed:\n{result.stderr}")
-        sys.exit(1)
+        return
+    i.logger.trace("pico", f"{cmd} result: {result.stdout.strip()}")
     results[cmd] = result.stdout
+
+
+def _fallback() -> PicoOutput:
+    return PicoOutput(
+        uncoalesced_count=0,
+        bank_conflict_count=0,
+        active_threads=0,
+        memory_accesses_count=0,
+        error=True,
+    )
 
 
 def perform_pico_analysis(input: PicoInput) -> PicoOutput:
     logger = input.logger
     if shutil.which(pico) is None:
         logger.error(f"pico ({pico}) is not available on current system.")
-        return PicoOutput(
-            uncoalesced_count=0,
-            bank_conflict_count=0,
-            active_threads=0,
-            memory_accesses_count=0,
-            error=True,
-        )
+        return _fallback()
 
     commands = ["bc", "ua", "count", "active"]
     results: dict[str, str] = {}
@@ -87,15 +102,19 @@ def perform_pico_analysis(input: PicoInput) -> PicoOutput:
     for t in threads:
         t.join()
 
-    bc_json = results["bc"]
-    ua_json = results["ua"]
-    count_json = results["count"]
-    active_warps_json = results["active"]
+    if len(results) != len(commands):
+        return _fallback()
 
-    return PicoOutput(
-        uncoalesced_count=parse_total_cost(ua_json),
-        bank_conflict_count=parse_total_cost(bc_json),
-        active_threads=parse_total_cost(active_warps_json),
-        memory_accesses_count=parse_total_cost(count_json),
-        error=False,
-    )
+    try:
+        return PicoOutput(
+            uncoalesced_count=parse_total_cost(results["ua"], input.kernel_name),
+            bank_conflict_count=parse_total_cost(results["bc"], input.kernel_name),
+            active_threads=parse_total_cost(results["active"], input.kernel_name),
+            memory_accesses_count=parse_total_cost(results["count"], input.kernel_name),
+            error=False,
+        )
+    except ValueError as e:
+        # a symbolic cost, e.g. a loop bounded by a kernel argument Pico wasn't given,
+        # or a kernel Pico doesn't report exactly once
+        logger.warning(f"pico returned no usable cost: {e}")
+        return _fallback()

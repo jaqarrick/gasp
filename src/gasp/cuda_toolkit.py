@@ -52,6 +52,7 @@ class CUDAExtractor:
             self.cubin_path,
         ]
         self.logger.info(f"Compiling: {' '.join(cmd)}")
+        self.logger.trace("cuda", f"nvcc command: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, check=False, text=True)
         if result.returncode != 0:
             self.logger.error(f"nvcc failed:\n{result.stderr}")
@@ -95,7 +96,7 @@ class CUDAExtractor:
         for line in result.stdout.splitlines():
             fn_match = re.search(r"Function\s+(\S+)", line)
             if fn_match:
-                current_kernel = fn_match.group(1)
+                current_kernel = fn_match.group(1).rstrip(":")
                 kernels[current_kernel] = {}
 
             if current_kernel:
@@ -103,6 +104,8 @@ class CUDAExtractor:
                     m = re.search(rf"{field}:(\d+)", line)
                     if m:
                         kernels[current_kernel][field.lower()] = int(m.group(1))
+        for kernel, usage in kernels.items():
+            self.logger.trace("cuda", f"resource usage {kernel} {usage}")
         return kernels
 
     def process(self) -> KernelInfo:

@@ -181,6 +181,22 @@ common_ops = {
     "SUST": OpCategory.OTHER_MEM,  # Surface Store
 }
 
+MEMORY_LOAD_CATEGORIES = {
+    OpCategory.GLOBAL_LOAD,
+    OpCategory.SHARED_LOAD,
+    OpCategory.LOCAL_LOAD,
+    OpCategory.RUNTIME_LOAD,
+    OpCategory.CONST_LOAD,
+}
+
+# Counted as #mem_insts in T_mem (Eq. 11)
+# TODO: recalibrate for cache (l1, l2), shared, local mem
+GLOBAL_MEMORY_CATEGORIES = {
+    OpCategory.GLOBAL_LOAD,
+    OpCategory.GLOBAL_STORE,
+}
+
+
 # Registers per operand implied by a size modifier
 # e.g. LDS.128 R12, [R0] writes R12-R15, STG.E.64 [R2.64], R4 reads R4 + R5
 # .WIDE is handled separately, since only some of its operands are 64-bit

@@ -63,6 +63,7 @@ def make_parser(arch, logger, cfg=None):
 @pytest.mark.parametrize(
     "arch, parser_cls",
     [
+        ("sm_75", BracketSASSParser),
         ("sm_80", BracketSASSParser),
         ("sm_86", BracketSASSParser),
         ("sm_89", BracketSASSParser),
@@ -80,7 +81,7 @@ def test_ldcu_only_in_sm100_table(logger):
     assert "LDCU" not in make_parser("sm_90", logger).opcode_table
 
 
-@pytest.mark.parametrize("arch", ["sm_70", "sm_75", "compute_80", "80"])
+@pytest.mark.parametrize("arch", ["sm_70", "compute_80", "80"])
 def test_get_parser_rejects_unsupported_arch(arch, logger):
     with pytest.raises(SystemExit):
         make_parser(arch, logger)
@@ -599,3 +600,28 @@ def test_parse_sgemm_cfg(arch, logger):
     assert parsed_ffma == expected_ffma > 0
 
     logger.warning.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _trim_raw_instruction — DOT record ports
+# ---------------------------------------------------------------------------
+
+TRIM_CASES = [
+    pytest.param(
+        r"{<entry>\ \ MOV\ R1,\ c\[0x0\]\[0x28\]\ ;\l|<exit0>\ \ EXIT\ ;\l}",
+        ["MOV R1, c[0x0][0x28]", "EXIT"],
+        id="entry-and-exit-lines",
+    ),
+    # a block whose only instruction is EXIT has both ports on one line
+    # (sm_75 grid-stride vecadd_stride.cu loop exit)
+    pytest.param(
+        r"{<entry>|<exit0>\ \ EXIT\ ;\l}",
+        ["EXIT"],
+        id="entry-and-exit-same-line",
+    ),
+]
+
+
+@pytest.mark.parametrize("label, expected", TRIM_CASES)
+def test_trim_raw_instruction_strips_ports(label, expected, logger):
+    assert make_parser("sm_80", logger)._trim_raw_instruction(label) == expected

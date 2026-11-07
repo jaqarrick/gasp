@@ -14,6 +14,7 @@ class KernelParameters:
     bank_conflict_count: int
     ilp: float
     mlp: float
+    average_inst_latency: float
     working_set_size: int
 
 
@@ -54,9 +55,9 @@ class HardwareParameters:
     )
     dram_latency: float
     cache_hit_latency: float  # todo: distinguish L1 and L2
-    average_inst_latency: float
     bank_penalty: float
     launch_overhead: float
+    dram_bandwidth: float  # bytes per cycle, whole GPU
 
 
 @dataclass

@@ -32,6 +32,8 @@ class OccupancyOutput:
     active_sms: int
     num_reps: int
     mwp: float
+    warps_per_block: int
+    blocks_per_sm: int
 
 
 def calculate_occupancy(input: OccupancyInput, logger: Logger) -> OccupancyOutput:
@@ -47,9 +49,15 @@ def calculate_occupancy(input: OccupancyInput, logger: Logger) -> OccupancyOutpu
         if input.shared_memory_per_block == 0
         else floor(input.max_shared_mem_per_sm_bytes / input.shared_memory_per_block)
     )
-    blocks_per_sm = min(max_blocks_by_reg, max_blocks_by_smem, input.max_blocks_per_sm)
+    max_blocks_by_warps = floor(input.max_warps_per_sm / warps_per_block)
+    blocks_per_sm = min(
+        max_blocks_by_reg,
+        max_blocks_by_smem,
+        max_blocks_by_warps,
+        input.max_blocks_per_sm,
+    )
 
-    N = min(blocks_per_sm * warps_per_block, input.max_warps_per_sm)
+    N = blocks_per_sm * warps_per_block
 
     total_blocks = input.grid_size
     total_warps = input.grid_size * warps_per_block
@@ -58,6 +66,13 @@ def calculate_occupancy(input: OccupancyInput, logger: Logger) -> OccupancyOutpu
 
     mwp = min(input.dram_latency_cycles / input.departure_delay_cycles, N)
 
+    logger.trace(
+        "occupancy",
+        f"warps/block={warps_per_block} "
+        f"block limits: registers={max_blocks_by_reg} shared={max_blocks_by_smem} "
+        f"warps={max_blocks_by_warps} hw={input.max_blocks_per_sm} "
+        f"-> blocks/SM={blocks_per_sm}",
+    )
     logger.info("Occupancy calculations completed")
     return OccupancyOutput(
         active_warps_per_sm=N,
@@ -65,4 +80,6 @@ def calculate_occupancy(input: OccupancyInput, logger: Logger) -> OccupancyOutpu
         active_sms=active_sms,
         num_reps=num_reps,
         mwp=mwp,
+        warps_per_block=warps_per_block,
+        blocks_per_sm=blocks_per_sm,
     )

@@ -14,3 +14,38 @@ ncu --metrics gpu__time_duration.avg,smsp__inst_executed.sum,smsp__inst_executed
 
 This outputs csv, which we can convert to JSON with `./scripts/csv_to_json.py`
 
+## Comparison pairs
+
+Each pair does the same work in two separate programs, so `gasp --run` measures one kernel at a time.
+
+| Files | Difference in the poor kernel | Result |
+|---|---|---|
+| `vecadd_good.cu`, `vecadd_poor.cu` | Redundant loads: the store to `C` may alias `A` and `B`, so each is loaded twice | Same output |
+| `poly_good.cu`, `poly_poor.cu` | Extra arithmetic: every power is multiplied out again instead of using Horner's rule | Same output within rounding |
+
+The polynomial's degree of 12 puts T_comp and T_mem of `poly_poor` about level on `--gpu rtx2080ti`, which is where the overlap term matters most. Other hardware profiles will move that balance.
+
+```sh
+gasp --gpu rtx2080ti --run benchmarks/custom/vecadd_good.cu benchmarks/custom/vecadd_poor.cu
+gasp --gpu rtx2080ti --config benchmarks/custom/vecadd.toml
+```
+
+## Writing a program for `gasp --run`
+
+`--run` builds each program with `-DGASP_BLOCK_SIZE=<block> -DGASP_GRID_SIZE=<grid>` and runs it under `ncu`. It checks that every run launched that grid and block size, and stops if not.
+
+- A program can take its launch from those macros, as these do:
+
+  ```c
+  #ifndef GASP_BLOCK_SIZE
+  #define GASP_BLOCK_SIZE 256
+  #endif
+  #ifndef GASP_GRID_SIZE
+  #define GASP_GRID_SIZE -1  // means ceil(N / block)
+  #endif
+  ```
+
+- A program that computes its own launch also works, as long as the requested grid and block size match what it launches.
+- `--problem-size` only sets the model's input. The program gets its size from `--program-args` (or `program_args` in a config), so keep the two equal. The pairs above default to `N = 1000000`, the same as GASP's default problem size.
+- Only the kernel's first launch is profiled.
+- Prefer one kernel per program. With several in one file, the macros and program arguments apply to the whole program, and the kernels you didn't select still run and can affect the one you measured.

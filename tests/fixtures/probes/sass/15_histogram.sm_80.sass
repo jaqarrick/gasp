@@ -1,0 +1,726 @@
+	.headerflags	@"EF_CUDA_TEXMODE_UNIFIED EF_CUDA_64BIT_ADDRESS EF_CUDA_SM80 EF_CUDA_VIRTUAL_SM(EF_CUDA_SM80)"
+	.elftype	@"ET_EXEC"
+
+
+//--------------------- .debug_frame              --------------------------
+	.section	.debug_frame,"",@progbits
+.debug_frame:
+        /*0000*/ 	.byte	0xff, 0xff, 0xff, 0xff, 0x24, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff
+        /*0010*/ 	.byte	0xff, 0xff, 0xff, 0xff, 0x03, 0x00, 0x04, 0x7c, 0xff, 0xff, 0xff, 0xff, 0x0f, 0x0c, 0x81, 0x80
+        /*0020*/ 	.byte	0x80, 0x28, 0x00, 0x08, 0xff, 0x81, 0x80, 0x28, 0x08, 0x81, 0x80, 0x80, 0x28, 0x00, 0x00, 0x00
+        /*0030*/ 	.byte	0xff, 0xff, 0xff, 0xff, 0x34, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        /*0040*/ 	.byte	0x00, 0x00, 0x00, 0x00
+        /*0044*/ 	.dword	_Z16histogram_uchar4PjPK6uchar4i
+        /*004c*/ 	.byte	0x80, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x04, 0x00, 0x00, 0x00, 0x04, 0x1c, 0x00
+        /*005c*/ 	.byte	0x00, 0x00, 0x0c, 0x81, 0x80, 0x80, 0x28, 0x00, 0x04, 0x98, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        /*006c*/ 	.byte	0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0x24, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        /*007c*/ 	.byte	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x03, 0x00, 0x04, 0x7c, 0xff, 0xff, 0xff, 0xff
+        /*008c*/ 	.byte	0x0f, 0x0c, 0x81, 0x80, 0x80, 0x28, 0x00, 0x08, 0xff, 0x81, 0x80, 0x28, 0x08, 0x81, 0x80, 0x80
+        /*009c*/ 	.byte	0x28, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0x34, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        /*00ac*/ 	.byte	0x70, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        /*00b4*/ 	.dword	_Z16histogram_sharedPjPKhi
+        /*00bc*/ 	.byte	0x80, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x04, 0x00, 0x00, 0x00, 0x04, 0x1c, 0x00
+        /*00cc*/ 	.byte	0x00, 0x00, 0x0c, 0x81, 0x80, 0x80, 0x28, 0x00, 0x04, 0x8c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        /*00dc*/ 	.byte	0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0x24, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        /*00ec*/ 	.byte	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x03, 0x00, 0x04, 0x7c, 0xff, 0xff, 0xff, 0xff
+        /*00fc*/ 	.byte	0x0f, 0x0c, 0x81, 0x80, 0x80, 0x28, 0x00, 0x08, 0xff, 0x81, 0x80, 0x28, 0x08, 0x81, 0x80, 0x80
+        /*010c*/ 	.byte	0x28, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0x34, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        /*011c*/ 	.byte	0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        /*0124*/ 	.dword	_Z16histogram_globalPjPKhi
+        /*012c*/ 	.byte	0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x04, 0x00, 0x00, 0x00, 0x04, 0x14, 0x00
+        /*013c*/ 	.byte	0x00, 0x00, 0x0c, 0x81, 0x80, 0x80, 0x28, 0x00, 0x04, 0x34, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        /*014c*/ 	.byte	0x00, 0x00, 0x00, 0x00
+
+
+//--------------------- .nv.info                  --------------------------
+	.section	.nv.info,"",@"SHT_CUDA_INFO"
+	.align	4
+
+
+	//----- nvinfo : EIATTR_REGCOUNT
+	.align		4
+        /*0000*/ 	.byte	0x04, 0x2f
+        /*0002*/ 	.short	(.L_1 - .L_0)
+	.align		4
+.L_0:
+        /*0004*/ 	.word	index@(_Z16histogram_globalPjPKhi)
+        /*0008*/ 	.word	0x0000000c
+
+
+	//----- nvinfo : EIATTR_FRAME_SIZE
+	.align		4
+.L_1:
+        /*000c*/ 	.byte	0x04, 0x11
+        /*000e*/ 	.short	(.L_3 - .L_2)
+	.align		4
+.L_2:
+        /*0010*/ 	.word	index@(_Z16histogram_globalPjPKhi)
+        /*0014*/ 	.word	0x00000000
+
+
+	//----- nvinfo : EIATTR_REGCOUNT
+	.align		4
+.L_3:
+        /*0018*/ 	.byte	0x04, 0x2f
+        /*001a*/ 	.short	(.L_5 - .L_4)
+	.align		4
+.L_4:
+        /*001c*/ 	.word	index@(_Z16histogram_sharedPjPKhi)
+        /*0020*/ 	.word	0x00000008
+
+
+	//----- nvinfo : EIATTR_FRAME_SIZE
+	.align		4
+.L_5:
+        /*0024*/ 	.byte	0x04, 0x11
+        /*0026*/ 	.short	(.L_7 - .L_6)
+	.align		4
+.L_6:
+        /*0028*/ 	.word	index@(_Z16histogram_sharedPjPKhi)
+        /*002c*/ 	.word	0x00000000
+
+
+	//----- nvinfo : EIATTR_REGCOUNT
+	.align		4
+.L_7:
+        /*0030*/ 	.byte	0x04, 0x2f
+        /*0032*/ 	.short	(.L_9 - .L_8)
+	.align		4
+.L_8:
+        /*0034*/ 	.word	index@(_Z16histogram_uchar4PjPK6uchar4i)
+        /*0038*/ 	.word	0x0000000c
+
+
+	//----- nvinfo : EIATTR_FRAME_SIZE
+	.align		4
+.L_9:
+        /*003c*/ 	.byte	0x04, 0x11
+        /*003e*/ 	.short	(.L_11 - .L_10)
+	.align		4
+.L_10:
+        /*0040*/ 	.word	index@(_Z16histogram_uchar4PjPK6uchar4i)
+        /*0044*/ 	.word	0x00000000
+
+
+	//----- nvinfo : EIATTR_MIN_STACK_SIZE
+	.align		4
+.L_11:
+        /*0048*/ 	.byte	0x04, 0x12
+        /*004a*/ 	.short	(.L_13 - .L_12)
+	.align		4
+.L_12:
+        /*004c*/ 	.word	index@(_Z16histogram_uchar4PjPK6uchar4i)
+        /*0050*/ 	.word	0x00000000
+
+
+	//----- nvinfo : EIATTR_MIN_STACK_SIZE
+	.align		4
+.L_13:
+        /*0054*/ 	.byte	0x04, 0x12
+        /*0056*/ 	.short	(.L_15 - .L_14)
+	.align		4
+.L_14:
+        /*0058*/ 	.word	index@(_Z16histogram_sharedPjPKhi)
+        /*005c*/ 	.word	0x00000000
+
+
+	//----- nvinfo : EIATTR_MIN_STACK_SIZE
+	.align		4
+.L_15:
+        /*0060*/ 	.byte	0x04, 0x12
+        /*0062*/ 	.short	(.L_17 - .L_16)
+	.align		4
+.L_16:
+        /*0064*/ 	.word	index@(_Z16histogram_globalPjPKhi)
+        /*0068*/ 	.word	0x00000000
+.L_17:
+
+
+//--------------------- .nv.info._Z16histogram_uchar4PjPK6uchar4i --------------------------
+	.section	.nv.info._Z16histogram_uchar4PjPK6uchar4i,"",@"SHT_CUDA_INFO"
+	.sectionflags	@""
+	.align	4
+
+
+	//----- nvinfo : EIATTR_CUDA_API_VERSION
+	.align		4
+        /*0000*/ 	.byte	0x04, 0x37
+        /*0002*/ 	.short	(.L_19 - .L_18)
+.L_18:
+        /*0004*/ 	.word	0x00000080
+
+
+	//----- nvinfo : EIATTR_SW2861232_WAR
+	.align		4
+.L_19:
+        /*0008*/ 	.byte	0x01, 0x35
+	.zero		2
+
+
+	//----- nvinfo : EIATTR_PARAM_CBANK
+	.align		4
+        /*000c*/ 	.byte	0x04, 0x0a
+        /*000e*/ 	.short	(.L_21 - .L_20)
+	.align		4
+.L_20:
+        /*0010*/ 	.word	index@(.nv.constant0._Z16histogram_uchar4PjPK6uchar4i)
+        /*0014*/ 	.short	0x0160
+        /*0016*/ 	.short	0x0014
+
+
+	//----- nvinfo : EIATTR_CBANK_PARAM_SIZE
+	.align		4
+.L_21:
+        /*0018*/ 	.byte	0x03, 0x19
+        /*001a*/ 	.short	0x0014
+
+
+	//----- nvinfo : EIATTR_KPARAM_INFO
+	.align		4
+        /*001c*/ 	.byte	0x04, 0x17
+        /*001e*/ 	.short	(.L_23 - .L_22)
+.L_22:
+        /*0020*/ 	.word	0x00000000
+        /*0024*/ 	.short	0x0002
+        /*0026*/ 	.short	0x0010
+        /*0028*/ 	.byte	0x00, 0xf0, 0x11, 0x00
+
+
+	//----- nvinfo : EIATTR_KPARAM_INFO
+	.align		4
+.L_23:
+        /*002c*/ 	.byte	0x04, 0x17
+        /*002e*/ 	.short	(.L_25 - .L_24)
+.L_24:
+        /*0030*/ 	.word	0x00000000
+        /*0034*/ 	.short	0x0001
+        /*0036*/ 	.short	0x0008
+        /*0038*/ 	.byte	0x00, 0xf0, 0x21, 0x00
+
+
+	//----- nvinfo : EIATTR_KPARAM_INFO
+	.align		4
+.L_25:
+        /*003c*/ 	.byte	0x04, 0x17
+        /*003e*/ 	.short	(.L_27 - .L_26)
+.L_26:
+        /*0040*/ 	.word	0x00000000
+        /*0044*/ 	.short	0x0000
+        /*0046*/ 	.short	0x0000
+        /*0048*/ 	.byte	0x00, 0xf0, 0x21, 0x00
+
+
+	//----- nvinfo : EIATTR_MAXREG_COUNT
+	.align		4
+.L_27:
+        /*004c*/ 	.byte	0x03, 0x1b
+        /*004e*/ 	.short	0x00ff
+
+
+	//----- nvinfo : EIATTR_EXIT_INSTR_OFFSETS
+	.align		4
+        /*0050*/ 	.byte	0x04, 0x1c
+        /*0052*/ 	.short	(.L_29 - .L_28)
+
+
+	//   ....[0]....
+.L_28:
+        /*0054*/ 	.word	0x00000250
+
+
+	//   ....[1]....
+        /*0058*/ 	.word	0x000002e0
+
+
+	//----- nvinfo : EIATTR_CRS_STACK_SIZE
+	.align		4
+.L_29:
+        /*005c*/ 	.byte	0x04, 0x1e
+        /*005e*/ 	.short	(.L_31 - .L_30)
+.L_30:
+        /*0060*/ 	.word	0x00000000
+.L_31:
+
+
+//--------------------- .nv.info._Z16histogram_sharedPjPKhi --------------------------
+	.section	.nv.info._Z16histogram_sharedPjPKhi,"",@"SHT_CUDA_INFO"
+	.sectionflags	@""
+	.align	4
+
+
+	//----- nvinfo : EIATTR_CUDA_API_VERSION
+	.align		4
+        /*0000*/ 	.byte	0x04, 0x37
+        /*0002*/ 	.short	(.L_33 - .L_32)
+.L_32:
+        /*0004*/ 	.word	0x00000080
+
+
+	//----- nvinfo : EIATTR_SW2861232_WAR
+	.align		4
+.L_33:
+        /*0008*/ 	.byte	0x01, 0x35
+	.zero		2
+
+
+	//----- nvinfo : EIATTR_PARAM_CBANK
+	.align		4
+        /*000c*/ 	.byte	0x04, 0x0a
+        /*000e*/ 	.short	(.L_35 - .L_34)
+	.align		4
+.L_34:
+        /*0010*/ 	.word	index@(.nv.constant0._Z16histogram_sharedPjPKhi)
+        /*0014*/ 	.short	0x0160
+        /*0016*/ 	.short	0x0014
+
+
+	//----- nvinfo : EIATTR_CBANK_PARAM_SIZE
+	.align		4
+.L_35:
+        /*0018*/ 	.byte	0x03, 0x19
+        /*001a*/ 	.short	0x0014
+
+
+	//----- nvinfo : EIATTR_KPARAM_INFO
+	.align		4
+        /*001c*/ 	.byte	0x04, 0x17
+        /*001e*/ 	.short	(.L_37 - .L_36)
+.L_36:
+        /*0020*/ 	.word	0x00000000
+        /*0024*/ 	.short	0x0002
+        /*0026*/ 	.short	0x0010
+        /*0028*/ 	.byte	0x00, 0xf0, 0x11, 0x00
+
+
+	//----- nvinfo : EIATTR_KPARAM_INFO
+	.align		4
+.L_37:
+        /*002c*/ 	.byte	0x04, 0x17
+        /*002e*/ 	.short	(.L_39 - .L_38)
+.L_38:
+        /*0030*/ 	.word	0x00000000
+        /*0034*/ 	.short	0x0001
+        /*0036*/ 	.short	0x0008
+        /*0038*/ 	.byte	0x00, 0xf0, 0x21, 0x00
+
+
+	//----- nvinfo : EIATTR_KPARAM_INFO
+	.align		4
+.L_39:
+        /*003c*/ 	.byte	0x04, 0x17
+        /*003e*/ 	.short	(.L_41 - .L_40)
+.L_40:
+        /*0040*/ 	.word	0x00000000
+        /*0044*/ 	.short	0x0000
+        /*0046*/ 	.short	0x0000
+        /*0048*/ 	.byte	0x00, 0xf0, 0x21, 0x00
+
+
+	//----- nvinfo : EIATTR_MAXREG_COUNT
+	.align		4
+.L_41:
+        /*004c*/ 	.byte	0x03, 0x1b
+        /*004e*/ 	.short	0x00ff
+
+
+	//----- nvinfo : EIATTR_EXIT_INSTR_OFFSETS
+	.align		4
+        /*0050*/ 	.byte	0x04, 0x1c
+        /*0052*/ 	.short	(.L_43 - .L_42)
+
+
+	//   ....[0]....
+.L_42:
+        /*0054*/ 	.word	0x000001e0
+
+
+	//   ....[1]....
+        /*0058*/ 	.word	0x000002b0
+
+
+	//----- nvinfo : EIATTR_CRS_STACK_SIZE
+	.align		4
+.L_43:
+        /*005c*/ 	.byte	0x04, 0x1e
+        /*005e*/ 	.short	(.L_45 - .L_44)
+.L_44:
+        /*0060*/ 	.word	0x00000000
+.L_45:
+
+
+//--------------------- .nv.info._Z16histogram_globalPjPKhi --------------------------
+	.section	.nv.info._Z16histogram_globalPjPKhi,"",@"SHT_CUDA_INFO"
+	.sectionflags	@""
+	.align	4
+
+
+	//----- nvinfo : EIATTR_CUDA_API_VERSION
+	.align		4
+        /*0000*/ 	.byte	0x04, 0x37
+        /*0002*/ 	.short	(.L_47 - .L_46)
+.L_46:
+        /*0004*/ 	.word	0x00000080
+
+
+	//----- nvinfo : EIATTR_SW2861232_WAR
+	.align		4
+.L_47:
+        /*0008*/ 	.byte	0x01, 0x35
+	.zero		2
+
+
+	//----- nvinfo : EIATTR_PARAM_CBANK
+	.align		4
+        /*000c*/ 	.byte	0x04, 0x0a
+        /*000e*/ 	.short	(.L_49 - .L_48)
+	.align		4
+.L_48:
+        /*0010*/ 	.word	index@(.nv.constant0._Z16histogram_globalPjPKhi)
+        /*0014*/ 	.short	0x0160
+        /*0016*/ 	.short	0x0014
+
+
+	//----- nvinfo : EIATTR_CBANK_PARAM_SIZE
+	.align		4
+.L_49:
+        /*0018*/ 	.byte	0x03, 0x19
+        /*001a*/ 	.short	0x0014
+
+
+	//----- nvinfo : EIATTR_KPARAM_INFO
+	.align		4
+        /*001c*/ 	.byte	0x04, 0x17
+        /*001e*/ 	.short	(.L_51 - .L_50)
+.L_50:
+        /*0020*/ 	.word	0x00000000
+        /*0024*/ 	.short	0x0002
+        /*0026*/ 	.short	0x0010
+        /*0028*/ 	.byte	0x00, 0xf0, 0x11, 0x00
+
+
+	//----- nvinfo : EIATTR_KPARAM_INFO
+	.align		4
+.L_51:
+        /*002c*/ 	.byte	0x04, 0x17
+        /*002e*/ 	.short	(.L_53 - .L_52)
+.L_52:
+        /*0030*/ 	.word	0x00000000
+        /*0034*/ 	.short	0x0001
+        /*0036*/ 	.short	0x0008
+        /*0038*/ 	.byte	0x00, 0xf0, 0x21, 0x00
+
+
+	//----- nvinfo : EIATTR_KPARAM_INFO
+	.align		4
+.L_53:
+        /*003c*/ 	.byte	0x04, 0x17
+        /*003e*/ 	.short	(.L_55 - .L_54)
+.L_54:
+        /*0040*/ 	.word	0x00000000
+        /*0044*/ 	.short	0x0000
+        /*0046*/ 	.short	0x0000
+        /*0048*/ 	.byte	0x00, 0xf0, 0x21, 0x00
+
+
+	//----- nvinfo : EIATTR_MAXREG_COUNT
+	.align		4
+.L_55:
+        /*004c*/ 	.byte	0x03, 0x1b
+        /*004e*/ 	.short	0x00ff
+
+
+	//----- nvinfo : EIATTR_EXIT_INSTR_OFFSETS
+	.align		4
+        /*0050*/ 	.byte	0x04, 0x1c
+        /*0052*/ 	.short	(.L_57 - .L_56)
+
+
+	//   ....[0]....
+.L_56:
+        /*0054*/ 	.word	0x00000050
+
+
+	//   ....[1]....
+        /*0058*/ 	.word	0x00000130
+
+
+	//----- nvinfo : EIATTR_CRS_STACK_SIZE
+	.align		4
+.L_57:
+        /*005c*/ 	.byte	0x04, 0x1e
+        /*005e*/ 	.short	(.L_59 - .L_58)
+.L_58:
+        /*0060*/ 	.word	0x00000000
+.L_59:
+
+
+//--------------------- .nv.callgraph             --------------------------
+	.section	.nv.callgraph,"",@"SHT_CUDA_CALLGRAPH"
+	.align	4
+	.sectionentsize	8
+	.align		4
+        /*0000*/ 	.word	0x00000000
+	.align		4
+        /*0004*/ 	.word	0xffffffff
+	.align		4
+        /*0008*/ 	.word	0x00000000
+	.align		4
+        /*000c*/ 	.word	0xfffffffe
+	.align		4
+        /*0010*/ 	.word	0x00000000
+	.align		4
+        /*0014*/ 	.word	0xfffffffd
+	.align		4
+        /*0018*/ 	.word	0x00000000
+	.align		4
+        /*001c*/ 	.word	0xfffffffc
+
+
+//--------------------- .nv.rel.action            --------------------------
+	.section	.nv.rel.action,"",@"SHT_CUDA_RELOCINFO"
+	.align	8
+	.sectionentsize	8
+        /*0000*/ 	.byte	0x73, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0x25, 0x00, 0x05, 0x36
+
+
+//--------------------- .nv.constant0._Z16histogram_uchar4PjPK6uchar4i --------------------------
+	.section	.nv.constant0._Z16histogram_uchar4PjPK6uchar4i,"a",@progbits
+	.sectionflags	@""
+	.align	4
+.nv.constant0._Z16histogram_uchar4PjPK6uchar4i:
+	.zero		372
+
+
+//--------------------- .nv.constant0._Z16histogram_sharedPjPKhi --------------------------
+	.section	.nv.constant0._Z16histogram_sharedPjPKhi,"a",@progbits
+	.sectionflags	@""
+	.align	4
+.nv.constant0._Z16histogram_sharedPjPKhi:
+	.zero		372
+
+
+//--------------------- .nv.constant0._Z16histogram_globalPjPKhi --------------------------
+	.section	.nv.constant0._Z16histogram_globalPjPKhi,"a",@progbits
+	.sectionflags	@""
+	.align	4
+.nv.constant0._Z16histogram_globalPjPKhi:
+	.zero		372
+
+
+//--------------------- .text._Z16histogram_uchar4PjPK6uchar4i --------------------------
+	.section	.text._Z16histogram_uchar4PjPK6uchar4i,"ax",@progbits
+	.sectionflags	@"SHF_BARRIERS=1"
+	.sectioninfo	@"SHI_REGISTERS=12"
+	.align	128
+        .global         _Z16histogram_uchar4PjPK6uchar4i
+        .type           _Z16histogram_uchar4PjPK6uchar4i,@function
+        .size           _Z16histogram_uchar4PjPK6uchar4i,(.L_x_18 - _Z16histogram_uchar4PjPK6uchar4i)
+        .other          _Z16histogram_uchar4PjPK6uchar4i,@"STO_CUDA_ENTRY STV_DEFAULT"
+_Z16histogram_uchar4PjPK6uchar4i:
+.text._Z16histogram_uchar4PjPK6uchar4i:
+        /*0000*/                   IMAD.MOV.U32 R1, RZ, RZ, c[0x0][0x28] ;
+        /*0010*/                   S2R R0, SR_TID.X ;
+        /*0020*/                   BSSY B0, `(.L_x_0) ;
+        /*0030*/                   S2R R3, SR_CTAID.X ;
+        /*0040*/                   ISETP.GE.AND P1, PT, R0, 0x100, PT ;
+        /*0050*/                   IMAD R3, R3, c[0x0][0x0], R0 ;
+        /*0060*/                   ISETP.GE.AND P0, PT, R3, c[0x0][0x170], PT ;
+        /*0070*/               @P1 BRA `(.L_x_1) ;
+        /*0080*/                   IMAD.MOV.U32 R2, RZ, RZ, R0 ;
+.L_x_2:
+        /*0090*/                   STS [R2.X4], RZ ;
+        /*00a0*/                   IADD3 R2, R2, c[0x0][0x0], RZ ;
+        /*00b0*/                   ISETP.GE.AND P1, PT, R2, 0x100, PT ;
+        /*00c0*/              @!P1 BRA `(.L_x_2) ;
+.L_x_1:
+        /*00d0*/                   BSYNC B0 ;
+.L_x_0:
+        /*00e0*/                   BAR.SYNC.DEFER_BLOCKING 0x0 ;
+        /*00f0*/                   ULDC.64 UR4, c[0x0][0x118] ;
+        /*0100*/               @P0 BRA `(.L_x_3) ;
+        /*0110*/                   IMAD.MOV.U32 R4, RZ, RZ, R3 ;
+.L_x_4:
+        /*0120*/                   IMAD.MOV.U32 R3, RZ, RZ, 0x4 ;
+        /*0130*/                   IMAD.WIDE R2, R4, R3, c[0x0][0x168] ;
+        /*0140*/                   LDG.E R2, [R2.64] ;
+        /*0150*/                   IMAD.MOV.U32 R9, RZ, RZ, c[0x0][0x0] ;
+        /*0160*/                   YIELD ;
+        /*0170*/                   IMAD R4, R9, c[0x0][0xc], R4 ;
+        /*0180*/                   ISETP.GE.AND P0, PT, R4, c[0x0][0x170], PT ;
+        /*0190*/                   PRMT R5, R2.reuse, 0x7770, RZ ;
+        /*01a0*/                   PRMT R6, R2.reuse, 0x7771, RZ ;
+        /*01b0*/                   PRMT R7, R2.reuse, 0x7772, RZ ;
+        /*01c0*/                   ATOMS.POPC.INC.32 RZ, [R5.X4+URZ] ;
+        /*01d0*/                   PRMT R8, R2, 0x7773, RZ ;
+        /*01e0*/                   ATOMS.POPC.INC.32 RZ, [R6.X4+URZ] ;
+        /*01f0*/                   ATOMS.POPC.INC.32 RZ, [R7.X4+URZ] ;
+        /*0200*/                   ATOMS.POPC.INC.32 RZ, [R8.X4+URZ] ;
+        /*0210*/              @!P0 BRA `(.L_x_4) ;
+.L_x_3:
+        /*0220*/                   WARPSYNC 0xffffffff ;
+        /*0230*/                   BAR.SYNC.DEFER_BLOCKING 0x0 ;
+        /*0240*/                   ISETP.GT.AND P0, PT, R0, 0xff, PT ;
+        /*0250*/               @P0 EXIT ;
+        /*0260*/                   IMAD.MOV.U32 R7, RZ, RZ, 0x4 ;
+.L_x_5:
+        /*0270*/                   LDS R5, [R0.X4] ;
+        /*0280*/                   IMAD.WIDE R2, R0.reuse, R7, c[0x0][0x160] ;
+        /*0290*/                   YIELD ;
+        /*02a0*/                   IADD3 R0, R0, c[0x0][0x0], RZ ;
+        /*02b0*/                   ISETP.GE.AND P0, PT, R0, 0x100, PT ;
+        /*02c0*/                   RED.E.ADD.STRONG.GPU [R2.64], R5 ;
+        /*02d0*/              @!P0 BRA `(.L_x_5) ;
+        /*02e0*/                   EXIT ;
+.L_x_6:
+        /*02f0*/                   BRA `(.L_x_6);
+        /*0300*/                   NOP;
+        /*0310*/                   NOP;
+        /*0320*/                   NOP;
+        /*0330*/                   NOP;
+        /*0340*/                   NOP;
+        /*0350*/                   NOP;
+        /*0360*/                   NOP;
+        /*0370*/                   NOP;
+.L_x_18:
+
+
+//--------------------- .text._Z16histogram_sharedPjPKhi --------------------------
+	.section	.text._Z16histogram_sharedPjPKhi,"ax",@progbits
+	.sectionflags	@"SHF_BARRIERS=1"
+	.sectioninfo	@"SHI_REGISTERS=8"
+	.align	128
+        .global         _Z16histogram_sharedPjPKhi
+        .type           _Z16histogram_sharedPjPKhi,@function
+        .size           _Z16histogram_sharedPjPKhi,(.L_x_19 - _Z16histogram_sharedPjPKhi)
+        .other          _Z16histogram_sharedPjPKhi,@"STO_CUDA_ENTRY STV_DEFAULT"
+_Z16histogram_sharedPjPKhi:
+.text._Z16histogram_sharedPjPKhi:
+        /*0000*/                   IMAD.MOV.U32 R1, RZ, RZ, c[0x0][0x28] ;
+        /*0010*/                   S2R R0, SR_TID.X ;
+        /*0020*/                   BSSY B0, `(.L_x_7) ;
+        /*0030*/                   S2R R3, SR_CTAID.X ;
+        /*0040*/                   ISETP.GE.AND P1, PT, R0, 0x100, PT ;
+        /*0050*/                   IMAD R3, R3, c[0x0][0x0], R0 ;
+        /*0060*/                   ISETP.GE.AND P0, PT, R3, c[0x0][0x170], PT ;
+        /*0070*/               @P1 BRA `(.L_x_8) ;
+        /*0080*/                   IMAD.MOV.U32 R2, RZ, RZ, R0 ;
+.L_x_9:
+        /*0090*/                   STS [R2.X4], RZ ;
+        /*00a0*/                   IADD3 R2, R2, c[0x0][0x0], RZ ;
+        /*00b0*/                   ISETP.GE.AND P1, PT, R2, 0x100, PT ;
+        /*00c0*/              @!P1 BRA `(.L_x_9) ;
+.L_x_8:
+        /*00d0*/                   BSYNC B0 ;
+.L_x_7:
+        /*00e0*/                   BAR.SYNC.DEFER_BLOCKING 0x0 ;
+        /*00f0*/                   ULDC.64 UR4, c[0x0][0x118] ;
+        /*0100*/               @P0 BRA `(.L_x_10) ;
+        /*0110*/                   IMAD.MOV.U32 R4, RZ, RZ, R3 ;
+.L_x_11:
+        /*0120*/                   IADD3 R2, P0, R4, c[0x0][0x168], RZ ;
+        /*0130*/                   LEA.HI.X.SX32 R3, R4, c[0x0][0x16c], 0x1, P0 ;
+        /*0140*/                   LDG.E.U8 R2, [R2.64] ;
+        /*0150*/                   IMAD.MOV.U32 R5, RZ, RZ, c[0x0][0x0] ;
+        /*0160*/                   YIELD ;
+        /*0170*/                   IMAD R4, R5, c[0x0][0xc], R4 ;
+        /*0180*/                   ISETP.GE.AND P0, PT, R4, c[0x0][0x170], PT ;
+        /*0190*/                   ATOMS.POPC.INC.32 RZ, [R2.X4+URZ] ;
+        /*01a0*/              @!P0 BRA `(.L_x_11) ;
+.L_x_10:
+        /*01b0*/                   WARPSYNC 0xffffffff ;
+        /*01c0*/                   BAR.SYNC.DEFER_BLOCKING 0x0 ;
+        /*01d0*/                   ISETP.GT.AND P0, PT, R0, 0xff, PT ;
+        /*01e0*/               @P0 EXIT ;
+.L_x_14:
+        /*01f0*/                   LDS R5, [R0.X4] ;
+        /*0200*/                   YIELD ;
+        /*0210*/                   BSSY B0, `(.L_x_12) ;
+        /*0220*/                   ISETP.NE.AND P0, PT, R5, RZ, PT ;
+        /*0230*/              @!P0 BRA `(.L_x_13) ;
+        /*0240*/                   IMAD.MOV.U32 R3, RZ, RZ, 0x4 ;
+        /*0250*/                   IMAD.WIDE R2, R0, R3, c[0x0][0x160] ;
+        /*0260*/                   RED.E.ADD.STRONG.GPU [R2.64], R5 ;
+.L_x_13:
+        /*0270*/                   BSYNC B0 ;
+.L_x_12:
+        /*0280*/                   IADD3 R0, R0, c[0x0][0x0], RZ ;
+        /*0290*/                   ISETP.GE.AND P0, PT, R0, 0x100, PT ;
+        /*02a0*/              @!P0 BRA `(.L_x_14) ;
+        /*02b0*/                   EXIT ;
+.L_x_15:
+        /*02c0*/                   BRA `(.L_x_15);
+        /*02d0*/                   NOP;
+        /*02e0*/                   NOP;
+        /*02f0*/                   NOP;
+        /*0300*/                   NOP;
+        /*0310*/                   NOP;
+        /*0320*/                   NOP;
+        /*0330*/                   NOP;
+        /*0340*/                   NOP;
+        /*0350*/                   NOP;
+        /*0360*/                   NOP;
+        /*0370*/                   NOP;
+.L_x_19:
+
+
+//--------------------- .text._Z16histogram_globalPjPKhi --------------------------
+	.section	.text._Z16histogram_globalPjPKhi,"ax",@progbits
+	.sectioninfo	@"SHI_REGISTERS=12"
+	.align	128
+        .global         _Z16histogram_globalPjPKhi
+        .type           _Z16histogram_globalPjPKhi,@function
+        .size           _Z16histogram_globalPjPKhi,(.L_x_20 - _Z16histogram_globalPjPKhi)
+        .other          _Z16histogram_globalPjPKhi,@"STO_CUDA_ENTRY STV_DEFAULT"
+_Z16histogram_globalPjPKhi:
+.text._Z16histogram_globalPjPKhi:
+        /*0000*/                   IMAD.MOV.U32 R1, RZ, RZ, c[0x0][0x28] ;
+        /*0010*/                   S2R R0, SR_CTAID.X ;
+        /*0020*/                   S2R R3, SR_TID.X ;
+        /*0030*/                   IMAD R0, R0, c[0x0][0x0], R3 ;
+        /*0040*/                   ISETP.GE.AND P0, PT, R0, c[0x0][0x170], PT ;
+        /*0050*/               @P0 EXIT ;
+        /*0060*/                   ULDC.64 UR4, c[0x0][0x118] ;
+.L_x_16:
+        /*0070*/                   IADD3 R4, P0, R0, c[0x0][0x168], RZ ;
+        /*0080*/                   LEA.HI.X.SX32 R5, R0, c[0x0][0x16c], 0x1, P0 ;
+        /*0090*/                   LDG.E.U8 R2, [R4.64] ;
+        /*00a0*/                   MOV R9, c[0x0][0x0] ;
+        /*00b0*/                   IMAD.MOV.U32 R3, RZ, RZ, 0x4 ;
+        /*00c0*/                   HFMA2.MMA R7, -RZ, RZ, 0, 5.9604644775390625e-08 ;
+        /*00d0*/                   YIELD ;
+        /*00e0*/                   IMAD R0, R9, c[0x0][0xc], R0 ;
+        /*00f0*/                   ISETP.GE.AND P0, PT, R0, c[0x0][0x170], PT ;
+        /*0100*/                   IMAD.WIDE.U32 R2, R2, R3, c[0x0][0x160] ;
+        /*0110*/                   RED.E.ADD.STRONG.GPU [R2.64], R7 ;
+        /*0120*/              @!P0 BRA `(.L_x_16) ;
+        /*0130*/                   EXIT ;
+.L_x_17:
+        /*0140*/                   BRA `(.L_x_17);
+        /*0150*/                   NOP;
+        /*0160*/                   NOP;
+        /*0170*/                   NOP;
+        /*0180*/                   NOP;
+        /*0190*/                   NOP;
+        /*01a0*/                   NOP;
+        /*01b0*/                   NOP;
+        /*01c0*/                   NOP;
+        /*01d0*/                   NOP;
+        /*01e0*/                   NOP;
+        /*01f0*/                   NOP;
+.L_x_20:
+
+
+//--------------------- .nv.shared._Z16histogram_uchar4PjPK6uchar4i --------------------------
+	.section	.nv.shared._Z16histogram_uchar4PjPK6uchar4i,"aw",@nobits
+	.sectionflags	@""
+	.align	4
+.nv.shared._Z16histogram_uchar4PjPK6uchar4i:
+	.zero		1024
+
+
+//--------------------- .nv.shared._Z16histogram_sharedPjPKhi --------------------------
+	.section	.nv.shared._Z16histogram_sharedPjPKhi,"aw",@nobits
+	.sectionflags	@""
+	.align	4
+.nv.shared._Z16histogram_sharedPjPKhi:
+	.zero		1024

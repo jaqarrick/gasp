@@ -3,7 +3,9 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from gasp.dependency import LatencyTable
 from gasp.logger import Logger
+from gasp.parser.types import OpCategory
 
 PROFILES_DIR = Path("hardware/profiles")
 
@@ -11,6 +13,8 @@ GPU_PROFILES = {
     "b200": PROFILES_DIR / "b200.placeholder.json",
     "h100": PROFILES_DIR / "h100.placeholder.json",
     "a100": PROFILES_DIR / "a100.placeholder.json",
+    # temporary, for cims runs on a Turing card
+    "rtx2080ti": PROFILES_DIR / "rtx2080ti.placeholder.json",
 }
 
 
@@ -66,3 +70,18 @@ def load_hardware_profile(gpu: str, logger: Logger):
     profiled = profile.pop("profiled")
     flat = {**profile, **spec, **profiled}
     return HardwareProfile(**flat)
+
+
+def build_latency_table(hp: HardwareProfile) -> LatencyTable:
+    return LatencyTable(
+        by_category={
+            OpCategory.FP32: hp.fp32_inst_latency_cycles,
+            OpCategory.FP64: hp.fp64_inst_latency_cycles,
+            OpCategory.INT: hp.int32_inst_latency_cycles,
+            OpCategory.SFU: hp.sfu_inst_latency_cycles,
+            OpCategory.SHARED_LOAD: hp.shared_mem_load_latency_cycles,
+            OpCategory.SHARED_STORE: hp.shared_mem_store_latency_cycles,
+            OpCategory.CONST_LOAD: hp.const_mem_latency_cycles,
+        },
+        default=hp.fp32_inst_latency_cycles,
+    )
