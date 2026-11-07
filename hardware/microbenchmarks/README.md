@@ -2,7 +2,7 @@
 This are targeted CUDA programs for specific operation measurements
 
 ## Shared-memory store latency microbenchmark
-* Measures conflict-free warp issuing back-to-back shared-memory stores followed by CTA memory fence.
+* Measures cycles per warp shared-memory store instruction by timing a batch of conflict-free stores followed by a CTA memory fence.
 * A memory fence is a structure that tells the GPU to not let later operations pass earlier shared-memory stores from this thread block. This is to ensure the timer includes store operations completing.
 
 Build:

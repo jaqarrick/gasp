@@ -33,7 +33,7 @@ constexpr int DEFAULT_REPS = 200;
 static_assert(STORE_INSTRUCTIONS % UNROLL == 0,
               "STORE_INSTRUCTIONS must be a multiple of UNROLL");
 
-static const char* PARAMETER = "shared_mem_store_latency_cycles";
+static const char* PARAMETER = "shared_mem_store_throughput_cycles";
 static const char* SCHEMA_VERSION = "1.0.0";
 static const char* BENCH_VERSION = "1.0.0";
 
