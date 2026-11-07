@@ -10,4 +10,4 @@ Build:
 * H100: nvcc -O3 -std=c++17 -arch=sm_90 shared_memory_load.cu -o shared_memory_load
 * B200: nvcc -O3 -std=c++17 -arch=sm_100 shared_memory_load.cu -o shared_memory_load
 Run example:
-* ./shared_memory_load --reps 200 --gpu titan_v
+* ./shared_memory_load --reps 200 --gpu <gpu_name>

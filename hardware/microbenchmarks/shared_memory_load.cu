@@ -300,9 +300,7 @@ int main(int argc, char** argv) {
         *std::max_element(per_load_cycles.begin(), per_load_cycles.end());
 
     int runtime_version = 0;
-    int driver_api_version = 0;
     CUDA_CHECK(cudaRuntimeGetVersion(&runtime_version));
-    CUDA_CHECK(cudaDriverGetVersion(&driver_api_version));
 
     int shared_mem_per_sm = 0;
     CUDA_CHECK(cudaDeviceGetAttribute(
@@ -343,23 +341,9 @@ int main(int argc, char** argv) {
          << "  },\n"
          << "  \"raw_cycles\": [";
 
+    // Raw clock64 delta per rep (median over the 32 lanes), overhead NOT subtracted.
     for (size_t i = 0; i < raw_cycles.size(); ++i) {
         json << (i == 0 ? "" : ", ") << raw_cycles[i];
-    }
-
-    json << "],\n"
-         << "  \"clock_overhead_samples_cycles\": [";
-
-    for (size_t i = 0; i < clock_overhead_samples.size(); ++i) {
-        json << (i == 0 ? "" : ", ") << clock_overhead_samples[i];
-    }
-
-    json << "],\n"
-         << "  \"clock_overhead_cycles\": " << clock_overhead << ",\n"
-         << "  \"per_load_cycles\": [";
-
-    for (size_t i = 0; i < per_load_cycles.size(); ++i) {
-        json << (i == 0 ? "" : ", ") << per_load_cycles[i];
     }
 
     json << "],\n"
@@ -367,6 +351,8 @@ int main(int argc, char** argv) {
          << "    \"method\": \"dependent conflict-free warp shared-memory load chain\",\n"
          << "    \"load_instruction\": \"ld.shared.u32\",\n"
          << "    \"timer\": \"clock64\",\n"
+         << "    \"clock_overhead_cycles\": " << clock_overhead << ",\n"
+         << "    \"value_formula\": \"per_load = (raw_cycles[i] - clock_overhead_cycles) / loads_per_rep; value = median(per_load)\",\n"
          << "    \"nodes_per_lane\": " << NUM_NODES << ",\n"
          << "    \"loads_per_rep\": " << CHASE_LOADS << ",\n"
          << "    \"threads_per_block\": " << WARP_THREADS << ",\n"
@@ -374,8 +360,6 @@ int main(int argc, char** argv) {
          << "  },\n"
          << "  \"cuda_version\": \"" << cuda_version_string(runtime_version)
          << "\",\n"
-         << "  \"driver_api_version\": \""
-         << cuda_version_string(driver_api_version) << "\",\n"
          << "  \"driver_version\": \"" << json_escape(driver_version())
          << "\",\n"
          << "  \"timestamp\": \"" << utc_timestamp() << "\"\n"
