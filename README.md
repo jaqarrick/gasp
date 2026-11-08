@@ -89,12 +89,36 @@ make run ARGS="--gpu b200 benchmarks/custom/vecadd/vecadd.cu"
 ### Config files
 
 - A setting comes from the kernel entry, then `[defaults]`, then the built-in default.
-- Settings are `file`, `name`, `kernel`, `problem_size`, `block_size`, `grid_size`, `loop_iterations`, `include_dirs`, `nvcc_flags`, `program_args` and `params`. `name` is only allowed on a kernel entry.
+- Settings are `file`, `name`, `kernel`, `problem_size`, `block_size`, `grid_size`, `loop_iterations`, `loop_counts`, `include_dirs`, `nvcc_flags`, `program_args` and `params`. `name` and `loop_counts` are only allowed on a kernel entry.
 - `include_dirs`, `nvcc_flags` and `program_args` are arrays of strings, such as `program_args = ["1000000"]`.
 - `block_size` and `grid_size` are a number or an array of up to 3 dimensions, such as `block_size = [16, 16]`. A `block_size` with several dimensions needs `grid_size`, because the grid can't be derived from `problem_size`.
 - `params` gives Pico the values of the kernel's arguments, such as `params = { M = 1024, N = 1024, K = 1024 }`. Without them, a cost that depends on an argument makes Pico fall back. Every name must be an argument of the kernel, or Pico fails and falls back for that kernel, so keep `params` in `[defaults]` only for kernels with the same arguments. A kernel's `params` are merged name by name over those in `[defaults]`, so `params = { K = 512 }` changes only `K`.
 - Paths are relative to the directory GASP runs from, not to the config file.
 - `--config` can't be combined with input files or per-kernel flags.
+
+### Loop counts
+
+GASP multiplies each loop's instructions by its trip count, which it can't work out on its own yet. There are two ways to give it:
+
+- `loop_counts = [64, 0, 0]` on a `[[kernel]]` entry gives each loop its own count, in the order the loops appear in the compiled code.
+- `loop_iterations` (`--loop-iterations`) gives every loop the same count. `loop_counts` wins if both are set, and GASP warns.
+
+The count is trips per entry into the loop; nested loops multiply. A count of 0 means the loop doesn't run.
+
+The list follows the loops in the compiled code (SASS), not the source. nvcc unrolls loops, so one source loop can become several: `mm_basic`'s `k` loop is a main loop that does 16 values of `k` per trip, plus 4-step and 1-step loops for what's left. For K = 1024 that's `[64, 0, 0]`. `--verbose` prints the loops so you can work out each count, and a missing or wrong-length `loop_counts` prints them before GASP stops:
+
+```
+#  Source line                                              Inside  Insts  Loads/trip  Count
+1  mm_basic.cu:13  sum += a[row * K + k] * b[k * N + col];  -       70     32 global   64
+2  mm_basic.cu:13  sum += a[row * K + k] * b[k * N + col];  -       24     8 global    0
+3  mm_basic.cu:13  sum += a[row * K + k] * b[k * N + col];  -       10     2 global    0
+```
+
+- **Source line:** where the loop starts in the source. GASP compiles with `-lineinfo`, which doesn't change the SASS. Several loops on the same line come from one source loop.
+- **Loads/trip:** global and shared loads in one trip. Divide by the loads one source iteration does to get how many source iterations a trip covers: here 32 / 2 = 16, 8 / 2 = 4 and 2 / 2 = 1.
+- **Inside:** the enclosing loop, for nested loops.
+
+The counts depend on the problem size, and the loops can change with the architecture or nvcc version, so check the table when either changes.
 
 ### Measuring with `--run`
 
@@ -147,7 +171,7 @@ These set a kernel's settings, and apply to every input file on the command line
 | `--problem-size`      | `problem_size`    | Total elements (default: 1000000)                       |
 | `--block-size`        | `block_size`      | Threads per block, such as `256` or `16x16` (default: 256) |
 | `--grid-size`         | `grid_size`       | Blocks in the grid, such as `64x64` (derived from problem size if omitted and the block is 1D) |
-| `--loop-iterations`   | `loop_iterations` | Iterations per loop, applied to every loop. Required if the kernel has loops |
+| `--loop-iterations`   | `loop_iterations` | Iterations per loop, applied to every loop. Required if the kernel has loops, unless its config entry sets `loop_counts` (see [Loop counts](#loop-counts)) |
 | `-I`, `--include-dir` | `include_dirs`    | Include directory passed to `nvcc` (repeatable)         |
 | `--nvcc-flags`        | `nvcc_flags`      | Extra flags passed to `nvcc`                            |
 | `--program-args`      | `program_args`    | Arguments passed to the program with `--run`            |

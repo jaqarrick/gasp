@@ -14,8 +14,10 @@ DIM_SETTINGS = ("block_size", "grid_size")
 LIST_SETTINGS = ("include_dirs", "nvcc_flags", "program_args")
 STR_SETTINGS = ("file", "kernel")
 PARAMS = "params"
+# trips of each loop in the compiled kernel, so only on a kernel entry
+LOOP_COUNTS = "loop_counts"
 DEFAULT_KEYS = {*INT_SETTINGS, *DIM_SETTINGS, *LIST_SETTINGS, *STR_SETTINGS, PARAMS}
-ENTRY_KEYS = {*DEFAULT_KEYS, "name"}
+ENTRY_KEYS = {*DEFAULT_KEYS, "name", LOOP_COUNTS}
 
 
 class ConfigError(ValueError):
@@ -33,6 +35,8 @@ class KernelSpec:
     block_dim: Dims
     grid_dim: Dims
     loop_iterations: int | None
+    # trips per entry for each loop, in code order; wins over loop_iterations
+    loop_counts: list[int] | None
     include_dirs: list[str]
     nvcc_flags: list[str]
     program_args: list[str]
@@ -86,6 +90,13 @@ def _validate_settings(settings: dict[str, Any], where: str, allowed: set[str]) 
                 raise ConfigError(
                     f"{where}: {key} must be a table of names to integers"
                 )
+        elif key == LOOP_COUNTS:
+            if not isinstance(value, list) or not all(
+                type(v) is int and v >= 0 for v in value
+            ):
+                raise ConfigError(
+                    f"{where}: {key} must be an array of non-negative integers"
+                )
         elif key in LIST_SETTINGS:
             if not isinstance(value, list) or not all(
                 isinstance(item, str) for item in value
@@ -119,6 +130,7 @@ def _build_spec(
         block_dim=block_dim,
         grid_dim=grid_dim,
         loop_iterations=settings.get("loop_iterations"),
+        loop_counts=settings.get(LOOP_COUNTS),
         include_dirs=settings.get("include_dirs", []),
         nvcc_flags=settings.get("nvcc_flags", []),
         program_args=settings.get("program_args", []),

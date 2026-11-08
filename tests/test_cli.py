@@ -1,5 +1,6 @@
 """Tests for gasp.hardware — HardwareProfile loading and validation."""
 
+import dataclasses
 import json
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -11,13 +12,16 @@ from gasp.cli import (
     build_parser,
     build_specs,
     check_args,
+    loop_counts_template,
     report_comparison,
+    report_loops,
     report_measured,
     resolve_traces,
 )
 from gasp.cli.config import KernelSpec
 from gasp.cli.types import Args
 from gasp.cli.utils import GPU_PROFILES, HardwareProfile, load_hardware_profile
+from gasp.dependency import LoopInfo
 from gasp.predict import PredictionOutput
 from gasp.profiler import KernelMeasurement, ProfileOutput
 
@@ -418,6 +422,7 @@ def result(name: str, t_gpu: float, pico_error: bool = False) -> KernelResult:
             block_dim=(256,),
             grid_dim=(4,),
             loop_iterations=None,
+            loop_counts=None,
             include_dirs=[],
             nvcc_flags=[],
             program_args=[],
@@ -529,3 +534,79 @@ def test_measured_report_single_kernel_has_no_speedup(report_logger):
     assert "1 run per kernel" in title
     assert "Pred speedup" not in rows[0]
     assert rows[0]["Error"] == "+0.0%"
+
+
+# loop table
+
+
+MM_SOURCE = """\
+__global__ void k(float *a, int K) {
+    float sum = 0.0f;
+    for (int k = 0; k < K; k++) {
+        sum += a[k];
+    }
+}
+"""
+
+
+def mm_loops():
+    def loop(header, insts, loads, parent=None):
+        return LoopInfo(header, {header}, insts, loads, 0, parent)
+
+    return [loop(".L_x_4", 70, 32), loop(".L_x_2", 24, 8), loop(".L_x_6", 10, 2)]
+
+
+def loop_spec(tmp_path, **changes):
+    source = tmp_path / "k.cu"
+    source.write_text(MM_SOURCE)
+    spec = dataclasses.replace(result("basic", 1.0).spec, file=str(source))
+    return dataclasses.replace(spec, **changes)
+
+
+def loop_table(logger):
+    title, columns, rows = logger.table.call_args.args
+    return title, [dict(zip(columns, row)) for row in rows]
+
+
+def test_loop_table_shows_source_lines_and_counts(tmp_path, report_logger):
+    spec = loop_spec(tmp_path, loop_counts=[64, 0, 0])
+    lines = {h: (str(tmp_path / "k.cu"), 4) for h in (".L_x_4", ".L_x_2", ".L_x_6")}
+    report_loops(spec, mm_loops(), lines, report_logger)
+    title, rows = loop_table(report_logger)
+
+    assert "3 in the compiled code" in title
+    assert [r["#"] for r in rows] == ["1", "2", "3"]
+    assert rows[0]["Source line"] == "k.cu:4  sum += a[k];"
+    assert [r["Loads/trip"] for r in rows] == ["32 global", "8 global", "2 global"]
+    assert [r["Count"] for r in rows] == ["64", "0", "0"]
+
+
+def test_loop_table_uses_loop_iterations_or_question_marks(tmp_path, report_logger):
+    report_loops(loop_spec(tmp_path, loop_iterations=8), mm_loops(), {}, report_logger)
+    _, rows = loop_table(report_logger)
+    assert [r["Count"] for r in rows] == ["8", "8", "8"]
+    assert rows[0]["Source line"] == "unknown"
+
+    report_loops(loop_spec(tmp_path, loop_counts=[1]), mm_loops(), {}, report_logger)
+    _, rows = loop_table(report_logger)
+    assert [r["Count"] for r in rows] == ["?", "?", "?"]
+
+
+def test_loop_table_shows_nesting(tmp_path, report_logger):
+    loops = [
+        LoopInfo("outer", {"outer", "inner"}, 5, 0, 1, None),
+        LoopInfo("inner", {"inner"}, 3, 0, 1, "outer"),
+    ]
+    report_loops(loop_spec(tmp_path), loops, {}, report_logger)
+    _, rows = loop_table(report_logger)
+    assert [r["Inside"] for r in rows] == ["-", "#1"]
+    assert rows[1]["Loads/trip"] == "1 shared"
+
+
+def test_no_loop_table_without_loops(tmp_path, report_logger):
+    report_loops(loop_spec(tmp_path), [], {}, report_logger)
+    report_logger.table.assert_not_called()
+
+
+def test_loop_counts_template():
+    assert loop_counts_template(3) == "loop_counts = [?, ?, ?]"
