@@ -3,19 +3,26 @@
 # A (M x K) x B (K x N), with M = N = K = 1024 and 16x16 blocks over a 64x64 grid.
 # params gives Pico the kernel arguments; program_args tells the program the same
 # sizes and block shape for --run (M N K bx by).
+#
+# loop_counts gives the trips of each loop in the compiled kernel, in code order
+# (gasp --verbose lists them). They are for K = 1024, so change them with K.
+# mm_basic's k loop compiles to a 16-step main loop and 4-step and 1-step
+# remainder loops: 1024 / 16 = 64, and nothing is left for the remainders.
+# mm_tiled has one loop, over the (K + 15) / 16 = 64 tiles.
 
 [defaults]
 problem_size = 1024
 block_size = [16, 16]
 grid_size = [64, 64]
-loop_iterations = 8
 params = { M = 1024, N = 1024, K = 1024 }
 program_args = ["1024", "1024", "1024", "16", "16"]
 
 [[kernel]]
 name = "basic"
 file = "benchmarks/custom/mm/mm_basic.cu"
+loop_counts = [64, 0, 0]  # 16-step main loop, 4-step and 1-step remainders
 
 [[kernel]]
 name = "tiled"
 file = "benchmarks/custom/mm/mm_tiled.cu"
+loop_counts = [64]  # tiles of 16

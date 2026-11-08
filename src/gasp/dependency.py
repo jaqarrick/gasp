@@ -98,6 +98,28 @@ class LoopIterationsRequiredError(ValueError):
         )
 
 
+class LoopCountMismatchError(ValueError):
+    def __init__(self, loop_headers: list[str], given: int):
+        self.loop_headers = loop_headers
+        self.given = given
+        super().__init__(
+            f"loop_counts has {given} number(s), but the kernel has "
+            f"{len(loop_headers)} loop(s)"
+        )
+
+
+@dataclass
+class LoopInfo:
+    """A loop in the compiled code, for telling loops apart."""
+
+    header: str
+    nodes: set[str]
+    inst_count: int  # instructions in the loop's blocks, nested loops included
+    global_loads: int
+    shared_loads: int
+    parent: str | None  # header of the innermost enclosing loop
+
+
 UNVISITED, IN_PROGRESS, DONE = 0, 1, 2
 
 
@@ -119,14 +141,8 @@ def dfs_cfg(cfg, successors):
     return back_edges
 
 
-def analyze(
-    cfg: ControlFlowGraph,
-    all_instructions: dict[str, list[SASSInstruction]],
-    loop_iterations: int | None,
-    latency: LatencyTable,
-    logger: Logger,
-) -> DependencyOutput:
-
+def find_loops(cfg: ControlFlowGraph) -> tuple[dict[str, set[str]], list]:
+    """Loops by header, in code order, and the back edges (tail, header)."""
     # loop detection: perform DFS on the CFG to discover back edges
     successors = {node_id: [] for node_id in cfg.nodes}
     predecessors = {node_id: [] for node_id in cfg.nodes}
@@ -138,7 +154,7 @@ def analyze(
     back_edges = dfs_cfg(cfg, successors)
 
     # one loop per header: several back edges to the same head (e.g. `continue`)
-    # are the same loop and must only multiply by loop_iterations once
+    # are the same loop and must only multiply by its count once
     loops: dict[str, set[str]] = {}
     for tail, head in back_edges:
         loop_nodes = loops.setdefault(head, {head})
@@ -149,20 +165,78 @@ def analyze(
                 loop_nodes.add(node)
                 queue.extend(predecessors[node])
 
-    if loop_iterations is None and loops:
-        raise LoopIterationsRequiredError(sorted(loops))
+    # DFS finds back edges in no useful order; nvdisasm lists nodes by address,
+    # so this is the order loop_counts follows
+    position = {node_id: i for i, node_id in enumerate(cfg.nodes)}
+    ordered = dict(sorted(loops.items(), key=lambda item: position[item[0]]))
+    return ordered, back_edges
+
+
+def describe_loops(
+    cfg: ControlFlowGraph, all_instructions: dict[str, list[SASSInstruction]]
+) -> list[LoopInfo]:
+    """The kernel's loops in code order, with what helps match them to the source."""
+    loops, _ = find_loops(cfg)
+    infos = []
+    for head, nodes in loops.items():
+        insts = [i for n in nodes for i in all_instructions.get(n, [])]
+        enclosing = [
+            other
+            for other, other_nodes in loops.items()
+            if other != head and nodes < other_nodes
+        ]
+        parent = min(enclosing, key=lambda o: len(loops[o])) if enclosing else None
+        infos.append(
+            LoopInfo(
+                header=head,
+                nodes=nodes,
+                inst_count=len(insts),
+                global_loads=sum(i.category is OpCategory.GLOBAL_LOAD for i in insts),
+                shared_loads=sum(i.category is OpCategory.SHARED_LOAD for i in insts),
+                parent=parent,
+            )
+        )
+    return infos
+
+
+def analyze(
+    cfg: ControlFlowGraph,
+    all_instructions: dict[str, list[SASSInstruction]],
+    loop_iterations: int | None,
+    latency: LatencyTable,
+    logger: Logger,
+    loop_counts: list[int] | None = None,
+) -> DependencyOutput:
+    """loop_counts: trips per entry for each loop, in code order. It wins over
+    loop_iterations, which gives every loop the same count."""
+
+    loops, back_edges = find_loops(cfg)
+
+    if loop_counts is not None and loops:
+        if len(loop_counts) != len(loops):
+            raise LoopCountMismatchError(list(loops), len(loop_counts))
+        counts = dict(zip(loops, loop_counts, strict=True))
+    elif loops:
+        if loop_iterations is None:
+            raise LoopIterationsRequiredError(list(loops))
+        counts = dict.fromkeys(loops, loop_iterations)
+    else:
+        counts = {}
 
     # from loop we can determine how many times a node repeats
     node_iterations = {node_id: 1 for node_id in cfg.nodes}
-    for loop_nodes in loops.values():
+    for head, loop_nodes in loops.items():
         for node in loop_nodes:
-            node_iterations[node] *= loop_iterations
+            node_iterations[node] *= counts[head]
 
     logger.info(f"Dependency analysis: {len(loops)} loop(s) detected")
     logger.trace("dependency", f"loop_iterations: {loop_iterations}")
+    logger.trace("dependency", f"loop_counts: {loop_counts}")
     logger.trace("dependency", f"back edges: {back_edges or '-'}")
     for head, loop_nodes in loops.items():
-        logger.trace("dependency", f"loop {head}: {sorted(loop_nodes)}")
+        logger.trace(
+            "dependency", f"loop {head}: {sorted(loop_nodes)} count={counts[head]}"
+        )
 
     ilps = {}
     mlps = {}

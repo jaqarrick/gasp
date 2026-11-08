@@ -2,13 +2,20 @@ import argparse
 import shlex
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 
 from gasp import __version__
 from gasp.cfg import filter_cfg, format_cfg, gen_cfg_from_raw
 from gasp.common.constants import GPU_TO_ARCH
 from gasp.compare import measured_speedup, speedup, work_mismatches
-from gasp.cuda_toolkit import CUDAExtractor
-from gasp.dependency import LoopIterationsRequiredError, analyze
+from gasp.cuda_toolkit import CUDAExtractor, LabelLines
+from gasp.dependency import (
+    LoopCountMismatchError,
+    LoopInfo,
+    LoopIterationsRequiredError,
+    analyze,
+    describe_loops,
+)
 from gasp.gpuperf.types import HardwareParameters, LaunchParameters
 from gasp.kernels import resolve_kernel
 from gasp.launch import Dims, format_dims, parse_dims
@@ -167,7 +174,8 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help="Iterations per loop in the kernel (applied to every loop). "
-        "Required if the kernel contains loops",
+        "Required if the kernel contains loops, unless the config entry sets "
+        "loop_counts",
     )
     parser.add_argument(
         "-I",
@@ -266,6 +274,87 @@ def build_specs(args: Args) -> list[KernelSpec]:
     )
 
 
+def format_loop_counts(counts: list[int] | None) -> str:
+    return "Not provided" if counts is None else str(counts)
+
+
+def loop_source(
+    header: str, label_lines: LabelLines, source_lines: list[str], source_file: str
+) -> str:
+    """file:line of a loop's first instruction, with the source text if it's ours."""
+    location = label_lines.get(header)
+    if location is None:
+        return "unknown"
+    file, line = location
+    text = f"{Path(file).name}:{line}"
+    if Path(file).name == Path(source_file).name and 0 < line <= len(source_lines):
+        code = " ".join(source_lines[line - 1].split())
+        text += f"  {code[:60]}"
+    return text
+
+
+def loop_rows(
+    loops: list[LoopInfo],
+    counts: list[str],
+    label_lines: LabelLines,
+    source_lines: list[str],
+    source_file: str,
+) -> list[list[str]]:
+    number = {loop.header: i for i, loop in enumerate(loops, start=1)}
+    rows = []
+    for loop, count in zip(loops, counts, strict=True):
+        loads = []
+        if loop.global_loads:
+            loads.append(f"{loop.global_loads} global")
+        if loop.shared_loads:
+            loads.append(f"{loop.shared_loads} shared")
+        rows.append(
+            [
+                str(number[loop.header]),
+                loop_source(loop.header, label_lines, source_lines, source_file),
+                f"#{number[loop.parent]}" if loop.parent else "-",
+                str(loop.inst_count),
+                ", ".join(loads) or "-",
+                count,
+            ]
+        )
+    return rows
+
+
+def report_loops(
+    spec: KernelSpec,
+    loops: list[LoopInfo],
+    label_lines: LabelLines,
+    logger: Logger,
+    force: bool = False,
+) -> None:
+    """Print the kernel's loops in code order, the order loop_counts follows."""
+    if not loops:
+        return
+    if spec.loop_counts is not None and len(spec.loop_counts) == len(loops):
+        counts = [str(c) for c in spec.loop_counts]
+    elif spec.loop_iterations is not None and spec.loop_counts is None:
+        counts = [str(spec.loop_iterations)] * len(loops)
+    else:
+        counts = ["?"] * len(loops)
+    try:
+        with open(spec.file, encoding="utf-8", errors="replace") as f:
+            source_lines = f.read().splitlines()
+    except OSError:
+        source_lines = []
+    logger.table(
+        f"Loops: {spec.name} ({len(loops)} in the compiled code, in loop_counts order)",
+        ["#", "Source line", "Inside", "Insts", "Loads/trip", "Count"],
+        loop_rows(loops, counts, label_lines, source_lines, spec.file),
+        force=force,
+        trace="dependency",
+    )
+
+
+def loop_counts_template(count: int) -> str:
+    return f"loop_counts = [{', '.join(['?'] * count)}]"
+
+
 def analyze_kernel(
     spec: KernelSpec,
     arch: str,
@@ -285,6 +374,7 @@ def analyze_kernel(
             ["Grid Size", format_dims(spec.grid_dim)],
             ["Problem Size", str(spec.problem_size)],
             ["Loop Iterations", str(spec.loop_iterations or "Not provided")],
+            ["Loop Counts", format_loop_counts(spec.loop_counts)],
             ["Kernel Params", format_params(spec.params) or "Not provided"],
         ],
         trace="config",
@@ -387,6 +477,14 @@ def analyze_kernel(
 
     logger.info("SASS has been parsed")
 
+    loops = describe_loops(cfg, instructions)
+    label_lines = result.get("label_lines", {})
+    if loops and spec.loop_counts is not None and spec.loop_iterations is not None:
+        logger.warning(
+            f"{name}: loop_counts is set, so loop_iterations = "
+            f"{spec.loop_iterations} is ignored"
+        )
+
     try:
         dependency_results = analyze(
             cfg=cfg,
@@ -394,13 +492,27 @@ def analyze_kernel(
             loop_iterations=spec.loop_iterations,
             latency=build_latency_table(hp),
             logger=logger,
+            loop_counts=spec.loop_counts,
         )
-    except LoopIterationsRequiredError as e:
+    except LoopCountMismatchError as e:
+        report_loops(spec, loops, label_lines, logger, force=True)
         logger.error(
-            f"{name}: {e}. Rerun with --loop-iterations <N>, "
-            "or set loop_iterations in the config"
+            f"{name}: loop_counts has {e.given} number(s), but the compiled kernel "
+            f"has {len(loops)} loop(s), listed above in code order. Set "
+            f"{loop_counts_template(len(loops))} on its [[kernel]] entry"
         )
         sys.exit(1)
+    except LoopIterationsRequiredError:
+        report_loops(spec, loops, label_lines, logger, force=True)
+        logger.error(
+            f"{name}: the compiled kernel has {len(loops)} loop(s), listed above in "
+            f"code order, and no trip counts. Set "
+            f"{loop_counts_template(len(loops))} on its [[kernel]] entry in a "
+            "config, one count per loop, or give every loop the same count with "
+            "--loop-iterations <N> or loop_iterations"
+        )
+        sys.exit(1)
+    report_loops(spec, loops, label_lines, logger)
     logger.table(
         f"Dependency Analysis: {name}",
         ["Parameter", "Value"],

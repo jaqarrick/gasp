@@ -213,6 +213,45 @@ def test_params_default_to_empty(cu):
     assert good.params == {}
 
 
+def test_loop_counts_on_an_entry(cu):
+    text = """
+[defaults]
+loop_iterations = 8
+
+[[kernel]]
+name = "a"
+file = "DIR/good.cu"
+loop_counts = [64, 0, 0]
+
+[[kernel]]
+name = "b"
+file = "DIR/poor.cu"
+"""
+    a, b = load_config(write_config(cu, text))
+
+    assert a.loop_counts == [64, 0, 0]
+    assert a.loop_iterations == 8
+    assert b.loop_counts is None
+
+
+def test_loop_counts_not_allowed_in_defaults(cu):
+    text = '[defaults]\nloop_counts = [1]\n\n[[kernel]]\nfile = "DIR/good.cu"\n'
+    with pytest.raises(ConfigError, match="unknown setting"):
+        load_config(write_config(cu, text))
+
+
+@pytest.mark.parametrize("value", ["[-1]", "[1.5]", "8", '["8"]', "[true]"])
+def test_invalid_loop_counts_raise(cu, value):
+    text = f'[[kernel]]\nfile = "DIR/good.cu"\nloop_counts = {value}\n'
+    with pytest.raises(ConfigError, match="loop_counts"):
+        load_config(write_config(cu, text))
+
+
+def test_command_line_has_no_loop_counts(cu):
+    (spec,) = specs_from_inputs([(str(cu / "good.cu"), None)], {})
+    assert spec.loop_counts is None
+
+
 def test_invalid_entry_error_names_the_kernel(cu):
     text = '[[kernel]]\nname = "poor"\nfile = "DIR/good.cu"\nblock_size = 0\n'
     with pytest.raises(ConfigError, match="kernel 'poor'"):

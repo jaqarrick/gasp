@@ -8,8 +8,11 @@ import pytest
 from gasp.cfg import CFGEdge, CFGNode, ControlFlowGraph, filter_cfg, gen_cfg_from_raw
 from gasp.dependency import (
     LatencyTable,
+    LoopCountMismatchError,
     LoopIterationsRequiredError,
     analyze,
+    describe_loops,
+    find_loops,
     get_ilp_mlp_for_node,
 )
 from gasp.logger import Logger
@@ -240,6 +243,156 @@ def test_two_back_edges_same_header_count_once(logger):
         logger=logger,
     )
     assert out.total_inst_count == 1 + 10 + 10 + 10 + 1
+
+
+# ---------------------------------------------------------------------------
+# analyze: per-loop counts
+# ---------------------------------------------------------------------------
+
+# three self-loops, written so DFS meets the last one first
+THREE_LOOPS = ["entry", "a", "mid", "b", "c", "exit"]
+THREE_LOOP_EDGES = [
+    ("entry", "c"),
+    ("entry", "a"),
+    ("a", "a"),
+    ("a", "mid"),
+    ("mid", "b"),
+    ("b", "b"),
+    ("b", "c"),
+    ("c", "c"),
+    ("c", "exit"),
+]
+
+
+def test_loops_are_listed_in_code_order():
+    cfg = make_cfg(THREE_LOOPS, THREE_LOOP_EDGES)
+    loops, _ = find_loops(cfg)
+    assert list(loops) == ["a", "b", "c"]
+
+
+def test_loop_counts_apply_in_code_order(logger):
+    cfg = make_cfg(THREE_LOOPS, THREE_LOOP_EDGES)
+    out = analyze(
+        cfg,
+        one_inst_per_node(THREE_LOOPS),
+        loop_iterations=None,
+        latency=LATENCY,
+        logger=logger,
+        loop_counts=[64, 0, 3],
+    )
+    # entry, mid and exit once; a 64 times, b never, c 3 times
+    assert out.total_inst_count == 3 + 64 + 0 + 3
+
+
+def test_loop_counts_win_over_loop_iterations(logger):
+    cfg = make_cfg(THREE_LOOPS, THREE_LOOP_EDGES)
+    out = analyze(
+        cfg,
+        one_inst_per_node(THREE_LOOPS),
+        loop_iterations=10,
+        latency=LATENCY,
+        logger=logger,
+        loop_counts=[1, 1, 1],
+    )
+    assert out.total_inst_count == 6
+
+
+def test_nested_loop_counts_multiply(logger):
+    nodes = ["entry", "outer", "inner", "latch", "exit"]
+    cfg = make_cfg(
+        nodes,
+        [
+            ("entry", "outer"),
+            ("outer", "inner"),
+            ("inner", "inner"),
+            ("inner", "latch"),
+            ("latch", "outer"),
+            ("latch", "exit"),
+        ],
+    )
+    out = analyze(
+        cfg,
+        one_inst_per_node(nodes),
+        loop_iterations=None,
+        latency=LATENCY,
+        logger=logger,
+        loop_counts=[3, 4],
+    )
+    # outer and latch 3 times, inner 3 * 4 times
+    assert out.total_inst_count == 1 + 3 + 12 + 3 + 1
+
+
+@pytest.mark.parametrize("counts", [[1, 2], [1, 2, 3, 4], []])
+def test_wrong_number_of_loop_counts_raises(counts, logger):
+    cfg = make_cfg(THREE_LOOPS, THREE_LOOP_EDGES)
+    with pytest.raises(LoopCountMismatchError) as e:
+        analyze(
+            cfg,
+            one_inst_per_node(THREE_LOOPS),
+            loop_iterations=10,
+            latency=LATENCY,
+            logger=logger,
+            loop_counts=counts,
+        )
+    assert e.value.loop_headers == ["a", "b", "c"]
+    assert e.value.given == len(counts)
+
+
+def test_loop_counts_on_a_loop_free_kernel_are_ignored(logger):
+    nodes = ["entry", "exit"]
+    cfg = make_cfg(nodes, [("entry", "exit")])
+    out = analyze(
+        cfg,
+        one_inst_per_node(nodes),
+        loop_iterations=None,
+        latency=LATENCY,
+        logger=logger,
+        loop_counts=[5],
+    )
+    assert out.total_inst_count == 2
+
+
+def test_describe_loops_mm_basic(logger):
+    cfg, insts = parse_fixture(
+        CFG_DIR / "mm_basic.sm_75.bbcfg.dot", "_Z8mm_basicPfS_S_iii", "sm_75", logger
+    )
+    loops = describe_loops(cfg, insts)
+
+    # 16-step main loop, 4-step and 1-step remainders, in code order
+    assert [loop.header for loop in loops] == [".L_x_4", ".L_x_2", ".L_x_6"]
+    assert [loop.inst_count for loop in loops] == [70, 24, 10]
+    assert [loop.global_loads for loop in loops] == [32, 8, 2]
+    assert all(loop.parent is None for loop in loops)
+
+
+def test_mm_basic_loop_counts(logger):
+    cfg, insts = parse_fixture(
+        CFG_DIR / "mm_basic.sm_75.bbcfg.dot", "_Z8mm_basicPfS_S_iii", "sm_75", logger
+    )
+    out = analyze(cfg, insts, None, LATENCY, logger, loop_counts=[64, 0, 0])
+    # 89 instructions outside the loops, the 70-instruction main loop 64 times
+    assert out.total_inst_count == 89 + 64 * 70
+
+
+def test_describe_loops_nested(logger):
+    nodes = ["entry", "outer", "inner", "latch", "exit"]
+    cfg = make_cfg(
+        nodes,
+        [
+            ("entry", "outer"),
+            ("outer", "inner"),
+            ("inner", "inner"),
+            ("inner", "latch"),
+            ("latch", "outer"),
+            ("latch", "exit"),
+        ],
+    )
+    loops = describe_loops(cfg, one_inst_per_node(nodes))
+    assert [(loop.header, loop.parent) for loop in loops] == [
+        ("outer", None),
+        ("inner", "outer"),
+    ]
+    assert loops[0].inst_count == 3
 
 
 def test_empty_block_skipped(logger):

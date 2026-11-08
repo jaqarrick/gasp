@@ -27,5 +27,9 @@ ignore the `GASP_*` macros, so the config has to match what they launch:
   Without them Pico's cost depends on `M`, `N` and `K`, and GASP falls back.
 - `program_args = ["1024", "1024", "1024", "16", "16"]` gives the program the
   same sizes for `--run`.
+- `loop_counts` gives each compiled loop its trips for K = 1024: `[64]` for
+  `mm_tiled`'s tile loop, and `[64, 0, 0]` for `mm_basic`, whose `k` loop
+  compiles to a 16-step main loop (1024 / 16 = 64) and 4-step and 1-step
+  remainder loops that have nothing left to do.
 
-Change all three together.
+Change all four together.
