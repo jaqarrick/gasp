@@ -71,5 +71,4 @@ help:
 	@echo "  make run ARGS='--gpu b200 good.cu poor.cu'"
 	@echo "  make run ARGS='--gpu b200 kernels.cu::good kernels.cu::poor'"
 	@echo "  make run ARGS='--gpu b200 --config benchmarks/custom/vecadd/vecadd.toml'"
-	@echo "  make docker-run ARGS='benchmarks/custom/example.cu --gpu b200'"
-	@echo "  make docker-run DOCKER_FLAGS='--gpus all' ARGS='--gpu b200 --run --config benchmarks/custom/vecadd.toml'"
+	@echo "  make docker-run DOCKER_FLAGS='--gpus all' ARGS='--gpu b200 --run --config benchmarks/custom/vecadd/vecadd.toml'"

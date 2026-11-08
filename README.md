@@ -42,7 +42,7 @@ Python, CUDA, and all dependencies configured automatically. [More info here](./
 Compare two kernels. The first is the reference, and shared flags apply to both:
 
 ```bash
-make run ARGS="--gpu b200 --problem-size 1000000 --block-size 256 benchmarks/custom/vecadd_good.cu benchmarks/custom/vecadd_poor.cu"
+make run ARGS="--gpu b200 --problem-size 1000000 --block-size 256 benchmarks/custom/vecadd/vecadd_good.cu benchmarks/custom/vecadd/vecadd_poor.cu"
 ```
 
 Pick kernels out of a file that holds several. Without a kernel name, GASP stops and lists them:
@@ -51,10 +51,10 @@ Pick kernels out of a file that holds several. Without a kernel name, GASP stops
 make run ARGS="--gpu b200 kernels.cu::vecadd_good kernels.cu::vecadd_poor"
 ```
 
-Give each kernel its own settings with a TOML file (see [`vecadd.toml`](benchmarks/custom/vecadd.toml)):
+Give each kernel its own settings with a TOML file (see [`vecadd.toml`](benchmarks/custom/vecadd/vecadd.toml)):
 
 ```bash
-make run ARGS="--gpu b200 --config benchmarks/custom/vecadd.toml"
+make run ARGS="--gpu b200 --config benchmarks/custom/vecadd/vecadd.toml"
 ```
 
 ```toml
@@ -64,18 +64,18 @@ block_size = 256
 
 [[kernel]]
 name = "good"
-file = "benchmarks/custom/vecadd_good.cu"
+file = "benchmarks/custom/vecadd/vecadd_good.cu"
 
 [[kernel]]
 name = "poor"
-file = "benchmarks/custom/vecadd_poor.cu"
+file = "benchmarks/custom/vecadd/vecadd_poor.cu"
 block_size = 128
 ```
 
 A single kernel prints its predicted time with no speedup:
 
 ```bash
-make run ARGS="--gpu b200 benchmarks/custom/vecadd.cu"
+make run ARGS="--gpu b200 benchmarks/custom/vecadd/vecadd.cu"
 ```
 
 ### How kernels are compared
@@ -83,14 +83,16 @@ make run ARGS="--gpu b200 benchmarks/custom/vecadd.cu"
 - **Reference:** the first kernel, unless `--reference NAME` is given.
 - **Speedup:** `T_reference / T_kernel`, using predicted T_GPU in cycles. Above 1 means faster than the reference.
 - **Names:** `name` in a config. Otherwise the kernel name from `file.cu::kernel`, or else the file name without `.cu`.
-- **Same work:** compared kernels should do the same work. Different problem sizes or program arguments print a warning.
+- **Same work:** compared kernels should do the same work. Different problem sizes, program arguments or `params` print a warning.
 - **Pico:** the `Pico` column shows `fallback` when Pico gave no usable cost for that kernel. A warning is printed if only some kernels fell back, because their speedups then compare different coalescing assumptions.
 
 ### Config files
 
 - A setting comes from the kernel entry, then `[defaults]`, then the built-in default.
-- Settings are `file`, `name`, `kernel`, `problem_size`, `block_size`, `grid_size`, `loop_iterations`, `include_dirs`, `nvcc_flags` and `program_args`. `name` is only allowed on a kernel entry.
+- Settings are `file`, `name`, `kernel`, `problem_size`, `block_size`, `grid_size`, `loop_iterations`, `include_dirs`, `nvcc_flags`, `program_args` and `params`. `name` is only allowed on a kernel entry.
 - `include_dirs`, `nvcc_flags` and `program_args` are arrays of strings, such as `program_args = ["1000000"]`.
+- `block_size` and `grid_size` are a number or an array of up to 3 dimensions, such as `block_size = [16, 16]`. A `block_size` with several dimensions needs `grid_size`, because the grid can't be derived from `problem_size`.
+- `params` gives Pico the values of the kernel's arguments, such as `params = { M = 1024, N = 1024, K = 1024 }`. Without them, a cost that depends on an argument makes Pico fall back. Every name must be an argument of the kernel, or Pico fails and falls back for that kernel, so keep `params` in `[defaults]` only for kernels with the same arguments. A kernel's `params` are merged name by name over those in `[defaults]`, so `params = { K = 512 }` changes only `K`.
 - Paths are relative to the directory GASP runs from, not to the config file.
 - `--config` can't be combined with input files or per-kernel flags.
 
@@ -99,7 +101,7 @@ make run ARGS="--gpu b200 benchmarks/custom/vecadd.cu"
 `--run` builds each program and runs it under `ncu`, then prints predicted against measured cycles and speedup:
 
 ```bash
-make run ARGS="--gpu rtx2080ti --run benchmarks/custom/vecadd_good.cu benchmarks/custom/vecadd_poor.cu"
+make run ARGS="--gpu rtx2080ti --run benchmarks/custom/vecadd/vecadd_good.cu benchmarks/custom/vecadd/vecadd_poor.cu"
 ```
 
 - Each kernel runs `--repeats N` times (default 3). Cycles are ncu's Elapsed Cycles (`gpc__cycles_elapsed.max`). The table shows the median, with the min-max spread beside it.
@@ -110,8 +112,8 @@ make run ARGS="--gpu rtx2080ti --run benchmarks/custom/vecadd_good.cu benchmarks
 
 ```bash
 make build
-make docker-run ARGS="--gpu b200 --config benchmarks/custom/vecadd.toml"
-make docker-run DOCKER_FLAGS="--gpus all" ARGS="--gpu rtx2080ti --run --config benchmarks/custom/vecadd.toml"
+make docker-run ARGS="--gpu b200 --config benchmarks/custom/vecadd/vecadd.toml"
+make docker-run DOCKER_FLAGS="--gpus all" ARGS="--gpu rtx2080ti --run --config benchmarks/custom/vecadd/vecadd.toml"
 ```
 
 - `docker-run` mounts only `benchmarks/` and `hardware/`. Kernels and configs must be there, or already be in the image from the last `make build`.
@@ -143,9 +145,10 @@ These set a kernel's settings, and apply to every input file on the command line
 | Flag                  | Config key        | Description                                             |
 |-----------------------|-------------------|---------------------------------------------------------|
 | `--problem-size`      | `problem_size`    | Total elements (default: 1000000)                       |
-| `--block-size`        | `block_size`      | Threads per block (default: 256)                        |
-| `--grid-size`         | `grid_size`       | Number of blocks (derived from problem size if omitted) |
+| `--block-size`        | `block_size`      | Threads per block, such as `256` or `16x16` (default: 256) |
+| `--grid-size`         | `grid_size`       | Blocks in the grid, such as `64x64` (derived from problem size if omitted and the block is 1D) |
 | `--loop-iterations`   | `loop_iterations` | Iterations per loop, applied to every loop. Required if the kernel has loops |
 | `-I`, `--include-dir` | `include_dirs`    | Include directory passed to `nvcc` (repeatable)         |
 | `--nvcc-flags`        | `nvcc_flags`      | Extra flags passed to `nvcc`                            |
 | `--program-args`      | `program_args`    | Arguments passed to the program with `--run`            |
+| `--param NAME=VALUE`  | `params`          | Value of a kernel argument for Pico, such as `M=1024` (repeatable) |

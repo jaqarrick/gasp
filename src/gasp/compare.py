@@ -28,7 +28,9 @@ def measured_speedup(
 
 
 def work_mismatches(
-    problem_sizes: dict[str, int], program_args: dict[str, list[str]]
+    problem_sizes: dict[str, int],
+    program_args: dict[str, list[str]],
+    params: dict[str, dict[str, int]] | None = None,
 ) -> list[str]:
     """Warnings for settings that suggest the kernels don't do the same work."""
     warnings = []
@@ -43,5 +45,13 @@ def work_mismatches(
         )
         warnings.append(
             f"Kernels may not do the same work, program arguments differ: {values}"
+        )
+    if params and len({tuple(sorted(p.items())) for p in params.values()}) > 1:
+        values = "; ".join(
+            f"{name}: {', '.join(f'{k}={v}' for k, v in p.items()) or 'none'}"
+            for name, p in params.items()
+        )
+        warnings.append(
+            f"Kernels may not do the same work, kernel params differ: {values}"
         )
     return warnings

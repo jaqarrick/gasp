@@ -5,6 +5,7 @@ import threading
 from dataclasses import dataclass
 
 from gasp.kernels import kernel_base_name, source_base_name
+from gasp.launch import Dims
 from gasp.logger import Logger
 
 
@@ -12,11 +13,11 @@ from gasp.logger import Logger
 class PicoInput:
     input_file: str
     kernel_name: str
-    block_size: int
-    grid_size: int
+    block_dim: Dims
+    grid_dim: Dims
     problem_size: int
     bank_count: int | None
-    parameters: list[dict[str, int]] | None
+    params: dict[str, int]  # kernel arguments, each passed as -p NAME=VALUE
     logger: Logger
 
 
@@ -30,6 +31,21 @@ class PicoOutput:
 
 
 pico = "faial-cost"
+
+
+def format_dim(dims: Dims) -> str:
+    """faial-cost's form: `256` for one dimension, `[16,16]` for several."""
+    if len(dims) == 1:
+        return str(dims[0])
+    return "[" + ",".join(str(d) for d in dims) + "]"
+
+
+def pico_command(i: PicoInput, cmd: str) -> list[str]:
+    command = [pico, "-m", cmd, "-b", format_dim(i.block_dim)]
+    command += ["-g", format_dim(i.grid_dim)]
+    for name, value in i.params.items():
+        command += ["-p", f"{name}={value}"]
+    return command + ["--json", i.input_file]
 
 
 def parse_total_cost(raw: str, kernel_name: str) -> int:
@@ -49,15 +65,7 @@ def parse_total_cost(raw: str, kernel_name: str) -> int:
 
 
 def run_pico(i: PicoInput, cmd: str, results: dict) -> None:
-    params = []
-    for d in i.parameters:
-        for k, v in d.items():
-            params.append(f"{k}={v}")
-
-    path = [pico, "-m", cmd, "-b", str(i.block_size), "-g", str(i.grid_size)]
-    if params:
-        path += ["-p", *params]
-    path += ["--json", i.input_file]
+    path = pico_command(i, cmd)
     i.logger.trace("pico", f"command: {' '.join(path)}")
 
     result = subprocess.run(

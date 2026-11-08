@@ -26,13 +26,15 @@ Each pair does the same work in two separate programs, so `gasp --run` measures 
 The polynomial's degree of 12 puts T_comp and T_mem of `poly_poor` about level on `--gpu rtx2080ti`, which is where the overlap term matters most. Other hardware profiles will move that balance.
 
 ```sh
-gasp --gpu rtx2080ti --run benchmarks/custom/vecadd_good.cu benchmarks/custom/vecadd_poor.cu
-gasp --gpu rtx2080ti --config benchmarks/custom/vecadd.toml
+gasp --gpu rtx2080ti --run benchmarks/custom/vecadd/vecadd_good.cu benchmarks/custom/vecadd/vecadd_poor.cu
+gasp --gpu rtx2080ti --config benchmarks/custom/vecadd/vecadd.toml
 ```
 
 ## Writing a program for `gasp --run`
 
 `--run` builds each program with `-DGASP_BLOCK_SIZE=<block> -DGASP_GRID_SIZE=<grid>` and runs it under `ncu`. It checks that every run launched that grid and block size, and stops if not.
+
+The two macros are totals. For a launch with several dimensions (`block_size = [16, 16]`), `--run` also defines `GASP_BLOCK_DIM_X/Y/Z` and `GASP_GRID_DIM_X/Y/Z`, with missing dimensions set to 1. ncu only reports totals, so a program that launches another shape with the same totals passes the check.
 
 - A program can take its launch from those macros, as these do:
 

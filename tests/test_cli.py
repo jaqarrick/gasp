@@ -219,10 +219,10 @@ class TestLoadHardwareProfile:
 
 # --trace / --trace-file
 
-VECADD = "benchmarks/custom/vecadd.cu"
+VECADD = "benchmarks/custom/vecadd/vecadd.cu"
 
 
-STRIDE = "benchmarks/custom/vecadd_stride.cu"
+STRIDE = "benchmarks/custom/vecadd/vecadd_stride.cu"
 
 
 def parse(*argv):
@@ -284,7 +284,34 @@ def test_inputs_can_be_mixed_with_flags():
     args = checked_args(VECADD, "--block-size", "128", STRIDE)
 
     assert args.inputs == [(VECADD, None), (STRIDE, None)]
-    assert args.block_size == 128
+    assert args.block_size == (128,)
+
+
+def test_block_and_grid_take_several_dims():
+    args = checked_args(VECADD, "--block-size", "16x16", "--grid-size", "64x64")
+    [spec] = build_specs(args)
+
+    assert (spec.block_dim, spec.grid_dim) == ((16, 16), (64, 64))
+    assert (spec.block_size, spec.grid_size) == (256, 4096)
+
+
+@pytest.mark.parametrize("value", ["0", "16x", "16x16x2x2", "x", "16x-1"])
+def test_invalid_block_size_exits(value):
+    with pytest.raises(SystemExit):
+        checked_args(VECADD, "--block-size", value)
+
+
+def test_params_are_repeatable():
+    args = checked_args(VECADD, "--param", "M=1024", "--param", "N=512")
+    [spec] = build_specs(args)
+
+    assert spec.params == {"M": 1024, "N": 512}
+
+
+@pytest.mark.parametrize("value", ["M", "M=", "=4", "M=x", "M=1.5"])
+def test_invalid_param_exits(value):
+    with pytest.raises(SystemExit):
+        checked_args(VECADD, "--param", value)
 
 
 @pytest.mark.parametrize(
@@ -319,6 +346,7 @@ def test_config_with_input_file_exits():
         ("-I", "inc"),
         ("--nvcc-flags", "-O2"),
         ("--program-args", "1000"),
+        ("--param", "M=1024"),
     ],
 )
 def test_config_with_per_kernel_flag_exits(flag):
@@ -387,10 +415,13 @@ def result(name: str, t_gpu: float, pico_error: bool = False) -> KernelResult:
             problem_size=1000,
             block_size=256,
             grid_size=4,
+            block_dim=(256,),
+            grid_dim=(4,),
             loop_iterations=None,
             include_dirs=[],
             nvcc_flags=[],
             program_args=[],
+            params={},
         ),
         kernel_name=name,
         prediction=PredictionOutput(
