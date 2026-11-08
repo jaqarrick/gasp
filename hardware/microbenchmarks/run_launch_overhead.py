@@ -12,7 +12,8 @@
 # otherwise the script aborts.
 # CUDA compilation and update to the GASP profile must be done manually.
 
-# Run the script with this command (Change path as needed): python3 hardware/microbenchmarks/run_launch_overhead.py --binary ./launch_overhead_bench
+# Run the script from any directory; output paths default to the repo root. From the root:
+#   python3 hardware/microbenchmarks/run_launch_overhead.py --binary hardware/microbenchmarks/launch_overhead_bench
 
 """Profile launch_overhead_bench with ncu and fit its per-thread launch model."""
 
@@ -29,6 +30,9 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+# Default output locations are anchored to the repo root (this file lives in
+# hardware/microbenchmarks/), so results land in hardware/runs/ regardless of cwd.
+REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_VERSION = "1"  # TODO: set to the schema_version agreed on Discord
 BENCHMARK = "launch_overhead_bench.cu"
 METRICS = (
@@ -527,14 +531,15 @@ def main() -> int:
     )
     parser.add_argument(
         "--output-dir",
-        default="hardware/runs",
+        default=str(REPO_ROOT / "hardware" / "runs"),
         help="Directory for the result JSON files (one per fitted parameter, "
-        "named after the GPU)",
+        "named after the GPU). Default: <repo>/hardware/runs",
     )
     parser.add_argument(
         "--raw-dir",
-        default="launch_overhead_ncu_raw",
-        help="Parent directory for raw ncu output (a subdirectory per GPU is created)",
+        default=str(REPO_ROOT / "launch_overhead_ncu_raw"),
+        help="Parent directory for raw ncu output (a subdirectory per GPU is "
+        "created). Default: <repo>/launch_overhead_ncu_raw",
     )
     parser.add_argument(
         "--reps",
