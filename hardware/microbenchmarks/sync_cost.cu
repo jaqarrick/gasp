@@ -28,7 +28,7 @@
 
 static const char* PARAMETER      = "sync_factor_cycles";
 static const char* SCHEMA_VERSION = "1.1.0";
-static const char* BENCH_VERSION  = "1.0.0";
+static const char* BENCH_VERSION  = "1.1.0";
 
 constexpr int WARP                 = 32;
 constexpr int LINE_BYTES           = WARP * 4;
@@ -37,6 +37,10 @@ constexpr int DEFAULT_REPS         = 100;         // launches per variant per co
 constexpr int DEFAULT_ITERS        = 256;         // barriers per warp per launch
 constexpr int DEFAULT_LOOP_OVERHEAD = 5;          // pointer IADD3 + IADD3.X, counter IADD3, ISETP, BRA
 constexpr double CV_WARN           = 0.25;        // warn if Γ varies more than this across configs
+// A config whose no-barrier variant streams at >= this fraction of the measured DRAM
+// bandwidth is bandwidth-bound: the barrier hides behind DRAM queueing, which is not
+// the latency-exposure effect GPUPerf's sync term models, so it is excluded from Γ.
+constexpr double DEFAULT_BW_FRAC   = 0.85;
 
 
 constexpr int LOADS[]        = {1, 4};
@@ -187,13 +191,15 @@ static double stddev_of(const std::vector<double>& v) {
 }
 
 // Reads "value" from a run JSON written by another microbenchmark. Returns
-// a value <= 0 if the file or the key is missing.
-static double read_run_value(const std::string& path) {
+// a value <= 0 if the file is missing, its "parameter" is not `parameter`,
+// or it has no "value".
+static double read_run_value(const std::string& path, const std::string& parameter) {
     std::ifstream f(path);
     if (!f) return -1.0;
     std::stringstream ss;
     ss << f.rdbuf();
     const std::string s = ss.str();
+    if (s.find("\"parameter\": \"" + parameter + "\"") == std::string::npos) return -1.0;
     const size_t k = s.find("\"value\":");
     if (k == std::string::npos) return -1.0;
     return atof(s.c_str() + k + 8);
@@ -238,7 +244,10 @@ struct ConfigResult {
     double mem_ratio;
     double t_no_bar, t_bar, t_no_bar_std, t_bar_std;
     double delta, f_sync, gamma;
+    double delta_per_iter;   // delta / iters: SM cycles each barrier round adds
+    double achieved_bw;      // no-barrier variant, bytes per SM cycle across the GPU
     bool co_resident;
+    bool bw_bound;           // achieved_bw >= bw_frac x measured DRAM bandwidth
 };
 
 int main(int argc, char** argv) {
@@ -248,22 +257,28 @@ int main(int argc, char** argv) {
     int iters = DEFAULT_ITERS;
     int loop_overhead = DEFAULT_LOOP_OVERHEAD;
     double dram_latency = 0.0;   // 0 = read from the dram_latency run
+    double dram_bw = 0.0;        // 0 = read from the dram_bandwidth run
+    double bw_frac = DEFAULT_BW_FRAC;
     for (int i = 1; i < argc; ++i) {
         if (!strcmp(argv[i], "--out-dir") && i + 1 < argc) out_dir = argv[++i];
         else if (!strcmp(argv[i], "--gpu") && i + 1 < argc) gpu_override = argv[++i];
         else if (!strcmp(argv[i], "--reps") && i + 1 < argc) reps = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--iters") && i + 1 < argc) iters = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--dram-latency") && i + 1 < argc) dram_latency = atof(argv[++i]);
+        else if (!strcmp(argv[i], "--dram-bandwidth") && i + 1 < argc) dram_bw = atof(argv[++i]);
+        else if (!strcmp(argv[i], "--bw-frac") && i + 1 < argc) bw_frac = atof(argv[++i]);
         else if (!strcmp(argv[i], "--loop-overhead") && i + 1 < argc) loop_overhead = atoi(argv[++i]);
         else {
             fprintf(stderr, "Usage: %s [--gpu NAME] [--out-dir DIR] [--reps N] [--iters N] "
-                            "[--dram-latency CYCLES] [--loop-overhead N]\n", argv[0]);
+                            "[--dram-latency CYCLES] [--dram-bandwidth BYTES_PER_CYCLE] "
+                            "[--bw-frac F] [--loop-overhead N]\n", argv[0]);
             return 1;
         }
     }
     if (reps < 100) { fprintf(stderr, "reps must be >= 100 (issue #3)\n"); return 1; }
     if (iters < 1) { fprintf(stderr, "--iters must be >= 1\n"); return 1; }
     if (loop_overhead < 0) { fprintf(stderr, "--loop-overhead must be >= 0\n"); return 1; }
+    if (bw_frac <= 0.0) { fprintf(stderr, "--bw-frac must be > 0\n"); return 1; }
 
     cudaDeviceProp prop;
     CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
@@ -277,11 +292,22 @@ int main(int argc, char** argv) {
     std::string dram_source = "user";
     if (dram_latency <= 0.0) {
         const fs::path p = fs::path(out_dir) / ("dram_latency_cycles." + gpu + ".run.json");
-        dram_latency = read_run_value(p.string());
+        dram_latency = read_run_value(p.string(), "dram_latency_cycles");
         dram_source = p.string();
         if (dram_latency <= 0.0) {
             fprintf(stderr, "No DRAM latency: pass --dram-latency CYCLES or run dram_latency first "
                             "(looked for %s)\n", p.string().c_str());
+            return 1;
+        }
+    }
+    std::string bw_source = "user";
+    if (dram_bw <= 0.0) {
+        const fs::path p = fs::path(out_dir) / ("dram_bandwidth_bytes_per_cycle." + gpu + ".run.json");
+        dram_bw = read_run_value(p.string(), "dram_bandwidth_bytes_per_cycle");
+        bw_source = p.string();
+        if (dram_bw <= 0.0) {
+            fprintf(stderr, "No DRAM bandwidth: pass --dram-bandwidth BYTES_PER_CYCLE or run "
+                            "dram_bandwidth first (looked for %s)\n", p.string().c_str());
             return 1;
         }
     }
@@ -302,9 +328,10 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    fprintf(stderr, "GPU: %s (%s), SMs: %d, L2: %.1f MB, ring: %.1f MB, DRAM latency: %.1f (%s)\n",
+    fprintf(stderr, "GPU: %s (%s), SMs: %d, L2: %.1f MB, ring: %.1f MB, DRAM latency: %.1f (%s), "
+                    "DRAM bandwidth: %.1f B/cycle (%s)\n",
             gpu_name.c_str(), arch.c_str(), num_sms, prop.l2CacheSize / 1048576.0,
-            ring_bytes / 1048576.0, dram_latency, dram_source.c_str());
+            ring_bytes / 1048576.0, dram_latency, dram_source.c_str(), dram_bw, bw_source.c_str());
 
     int rt_ver = 0;
     CUDA_CHECK(cudaRuntimeGetVersion(&rt_ver));
@@ -386,25 +413,40 @@ int main(int argc, char** argv) {
         cr.delta = cr.t_bar - cr.t_no_bar;
         cr.f_sync = cr.delta / (static_cast<double>(iters) * cr.warps_per_sm);
         cr.gamma = cr.f_sync / (dram_latency * cr.mem_ratio);
+        cr.delta_per_iter = cr.delta / iters;
+        // The span is per SM, but every SM streams at once, so launch bytes over the
+        // span is the GPU-wide rate in bytes per SM cycle, the same unit as dram_bw.
+        cr.achieved_bw = static_cast<double>(launch_bytes) / cr.t_no_bar;
         cr.co_resident = co_resident;
+        cr.bw_bound = cr.achieved_bw >= bw_frac * dram_bw;
         results.push_back(cr);
 
-        fprintf(stderr, "%-48s ratio %.4f  T %10.0f -> %10.0f  F_sync %8.2f  gamma %8.3f%s\n",
-                label, cr.mem_ratio, cr.t_no_bar, cr.t_bar, cr.f_sync, cr.gamma,
-                co_resident ? "" : "  (not co-resident, excluded)");
+        const char* note = !co_resident ? "  (not co-resident, excluded)"
+                         : cr.bw_bound  ? "  (bandwidth-bound, excluded)" : "";
+        fprintf(stderr, "%-48s ratio %.4f  T %10.0f -> %10.0f  BW %6.1f  F_sync %8.2f  gamma %8.3f%s\n",
+                label, cr.mem_ratio, cr.t_no_bar, cr.t_bar, cr.achieved_bw, cr.f_sync, cr.gamma, note);
     }
 
     // ---- Γ over the usable configurations ----------------------------------
-    std::vector<double> gammas;
+    // Usable = every block co-resident and not bandwidth-bound.
+    std::vector<double> gammas, deltas_per_iter;
+    int bw_bound_count = 0;
     double sxy = 0.0, sxx = 0.0;   // least squares through the origin: F_sync = Γ x (lat x ratio)
     for (const auto& r : results) {
         if (!r.co_resident) continue;
+        if (r.bw_bound) { ++bw_bound_count; continue; }
         gammas.push_back(r.gamma);
+        deltas_per_iter.push_back(r.delta_per_iter);
         const double x = dram_latency * r.mem_ratio;
         sxy += x * r.f_sync;
         sxx += x * x;
     }
-    if (gammas.empty()) { fprintf(stderr, "ERROR: no configuration ran with all its blocks co-resident\n"); return 1; }
+    if (gammas.empty()) {
+        fprintf(stderr, "ERROR: no configuration was both co-resident and below %.0f%% of DRAM "
+                        "bandwidth\n", 100 * bw_frac);
+        return 1;
+    }
+    const double median_delta_per_iter = median_of(deltas_per_iter);
     const double median = median_of(gammas);
     const double mean = std::accumulate(gammas.begin(), gammas.end(), 0.0) / gammas.size();
     const double stddev = stddev_of(gammas);
@@ -440,7 +482,7 @@ int main(int argc, char** argv) {
     j << "  \"arch\": \"" << arch << "\",\n";
     j << "  \"num_sms\": " << num_sms << ",\n";
     j << "  \"l2_cache_bytes\": " << prop.l2CacheSize << ",\n";
-    // stats are over the co-resident configurations' Γ, not over reps
+    // stats are over the usable (co-resident, not bandwidth-bound) configurations' Γ, not over reps
     j << "  \"stats\": {\n";
     j << "    \"median\": " << median << ",\n";
     j << "    \"mean\": " << mean << ",\n";
@@ -449,13 +491,18 @@ int main(int argc, char** argv) {
     j << "    \"max\": " << mx << ",\n";
     j << "    \"cv\": " << cv << ",\n";
     j << "    \"least_squares_fit\": " << gamma_fit << ",\n";
-    j << "    \"configs_used\": " << gammas.size() << "\n";
+    j << "    \"configs_used\": " << gammas.size() << ",\n";
+    j << "    \"configs_bandwidth_bound\": " << bw_bound_count << ",\n";
+    j << "    \"median_delta_per_iter_cycles\": " << median_delta_per_iter << "\n";
     j << "  },\n";
     // per configuration:
     //   t_no_bar_cycles, t_bar_cycles : median over reps of the per-SM span (median over SMs)
     //   delta_cycles                  : t_bar - t_no_bar, measured O_sync per SM
+    //   delta_per_iter_cycles         : delta / iters, SM cycles each barrier round adds
     //   f_sync_cycles                 : delta / (iters x warps_per_sm)
     //   gamma                         : f_sync / (dram_latency x mem_ratio)
+    //   achieved_bw_bytes_per_cycle   : no-barrier launch bytes / t_no_bar
+    //   bandwidth_bound               : achieved_bw >= bw_frac x dram_bandwidth (excluded)
     j << "  \"configs\": [\n";
     for (size_t i = 0; i < results.size(); ++i) {
         const auto& r = results[i];
@@ -470,9 +517,12 @@ int main(int argc, char** argv) {
           << ", \"t_bar_cycles\": " << r.t_bar
           << ", \"t_bar_std\": " << r.t_bar_std
           << ", \"delta_cycles\": " << r.delta
+          << ", \"delta_per_iter_cycles\": " << r.delta_per_iter
           << ", \"f_sync_cycles\": " << r.f_sync
           << ", \"gamma\": " << r.gamma
-          << ", \"co_resident\": " << (r.co_resident ? "true" : "false") << "}"
+          << ", \"achieved_bw_bytes_per_cycle\": " << r.achieved_bw
+          << ", \"co_resident\": " << (r.co_resident ? "true" : "false")
+          << ", \"bandwidth_bound\": " << (r.bw_bound ? "true" : "false") << "}"
           << (i + 1 < results.size() ? "," : "") << "\n";
     }
     j << "  ],\n";
@@ -485,6 +535,9 @@ int main(int argc, char** argv) {
     j << "    \"timer\": \"clock64\",\n";
     j << "    \"dram_latency_cycles\": " << dram_latency << ",\n";
     j << "    \"dram_latency_source\": \"" << json_escape(dram_source) << "\",\n";
+    j << "    \"dram_bandwidth_bytes_per_cycle\": " << dram_bw << ",\n";
+    j << "    \"dram_bandwidth_source\": \"" << json_escape(bw_source) << "\",\n";
+    j << "    \"bw_frac\": " << bw_frac << ",\n";
     j << "    \"loop_overhead_insts\": " << loop_overhead << ",\n";
     j << "    \"iters\": " << iters << ",\n";
     j << "    \"reps_per_variant\": " << reps << ",\n";
@@ -509,8 +562,11 @@ int main(int argc, char** argv) {
     fclose(f);
 
     printf("%s", j.str().c_str());
-    fprintf(stderr, "\nGamma: %.3f median over %zu configurations (std %.3f, least-squares fit %.3f)\nSaved: %s\n",
-            median, gammas.size(), stddev, gamma_fit, out_path.string().c_str());
+    fprintf(stderr, "\nGamma: %.3f median over %zu configurations (std %.3f, least-squares fit %.3f); "
+                    "%d bandwidth-bound excluded\nMedian barrier cost: %.1f SM cycles per barrier round\n"
+                    "Saved: %s\n",
+            median, gammas.size(), stddev, gamma_fit, bw_bound_count, median_delta_per_iter,
+            out_path.string().c_str());
 
     CUDA_CHECK(cudaFree(d_ring));
     CUDA_CHECK(cudaFree(d_start));
