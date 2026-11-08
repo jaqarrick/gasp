@@ -38,6 +38,7 @@ class PredictionOutput:
     t_mem: float
     t_overlap: float
     t_exec: float
+    launch_overhead: float
     t_gpu: float
 
 
@@ -133,7 +134,10 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
 
     model = GPUPerf(k, o, l, h, logger)
     t_exec = model.predict_total_exec_time_cycles()
-    t_gpu = t_exec + h.launch_overhead
+    # launch overhead fit by launch_overhead_bench.cu: base + per thread launched
+    threads = l.block_size * l.grid_size
+    launch_overhead = h.launch_overhead_base + h.launch_overhead_per_thread * threads
+    t_gpu = t_exec + launch_overhead
 
     logger.info("Prediction completed")
     return PredictionOutput(
@@ -147,5 +151,6 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         t_mem=model.t_mem,
         t_overlap=model.t_overlap,
         t_exec=t_exec,
+        launch_overhead=launch_overhead,
         t_gpu=t_gpu,
     )

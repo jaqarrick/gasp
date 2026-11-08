@@ -152,7 +152,7 @@ These apply to the whole run:
 
 | Flag                  | Description                                              |
 |-----------------------|----------------------------------------------------------|
-| `--gpu`               | Target GPU (e.g. `b200`, `h100`, `a100`)                 |
+| `--gpu`               | Target GPU: `rtx2080ti` (measured profile), `b200`, `h100`, `a100` (placeholders) |
 | `--profile`           | Path to hardware profile JSON                            |
 | `--config`            | TOML file listing the kernels and their settings         |
 | `--reference`         | Kernel the others are compared with (default: the first) |

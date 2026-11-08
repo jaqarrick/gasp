@@ -42,9 +42,10 @@ VALID_PROFILE = {
         "max_l1_cache_size_bytes": 196608,
     },
     "profiled": {
-        "launch_overhead_cycles": 5000,
+        "launch_overhead_base_cycles": 5000,
+        "launch_overhead_per_thread_cycles": 0.002,
         "departure_delay_cycles": 6,
-        "sync_factor_cycles": 24,
+        "sync_factor": 24,
         "dram_latency_cycles": 400,
         "l1_cache_hit_latency_cycles": 33,
         "l2_cache_hit_latency_cycles": 200,
@@ -134,6 +135,10 @@ class TestGPUProfiles:
         for gpu, path in GPU_PROFILES.items():
             assert "hardware" in path.parts, f"{gpu} path not under hardware/"
 
+    def test_every_profile_loads(self, logger):
+        for gpu in GPU_PROFILES:
+            load_hardware_profile(gpu, logger)
+
 
 class TestLoadHardwareProfile:
     def test_loads_valid_profile(self, monkeypatch, profile_file, logger):
@@ -218,7 +223,8 @@ class TestLoadHardwareProfile:
         # spec keys survive
         assert hp.warp_size == 32
         # profiled keys survive
-        assert hp.launch_overhead_cycles == 5000
+        assert hp.launch_overhead_base_cycles == 5000
+        assert hp.launch_overhead_per_thread_cycles == 0.002
 
 
 # --trace / --trace-file
@@ -440,6 +446,7 @@ def result(name: str, t_gpu: float, pico_error: bool = False) -> KernelResult:
             t_mem=20.0,
             t_overlap=5.0,
             t_exec=25.0,
+            launch_overhead=0.0,
             t_gpu=t_gpu,
         ),
         pico_error=pico_error,

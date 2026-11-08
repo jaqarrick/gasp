@@ -43,10 +43,11 @@ def test_average_trans_warp_no_memory_accesses():
     assert get_average_trans_warp(pico(12, 3), mem_inst_count=0) == 1.0
 
 
-LAUNCH_OVERHEAD = 1000
+LAUNCH_BASE = 1000
+LAUNCH_PER_THREAD = 0.01
 
 
-def prediction_input(mem_inst_count: int = 2) -> PredictionInput:
+def prediction_input(mem_inst_count: int = 2, grid_size: int = 40) -> PredictionInput:
     return PredictionInput(
         dependency=DependencyOutput(
             ilp=2.0,
@@ -76,12 +77,13 @@ def prediction_input(mem_inst_count: int = 2) -> PredictionInput:
             dram_latency=300,
             cache_hit_latency=30,
             bank_penalty=2,
-            launch_overhead=LAUNCH_OVERHEAD,
+            launch_overhead_base=LAUNCH_BASE,
+            launch_overhead_per_thread=LAUNCH_PER_THREAD,
             dram_bandwidth=450,
         ),
         launch=LaunchParameters(
             block_size=256,
-            grid_size=40,
+            grid_size=grid_size,
             problem_size=10240,
             registers_per_thread=12,
             shared_mem_per_block_bytes=0,
@@ -93,7 +95,18 @@ def test_predict_t_gpu_adds_launch_overhead_to_eq_1():
     p = predict(prediction_input(), logger=MagicMock())
 
     assert p.t_exec == pytest.approx(p.t_comp + p.t_mem - p.t_overlap)
-    assert p.t_gpu == pytest.approx(p.t_exec + LAUNCH_OVERHEAD)
+    overhead = LAUNCH_BASE + LAUNCH_PER_THREAD * 256 * 40
+    assert p.launch_overhead == pytest.approx(overhead)
+    assert p.t_gpu == pytest.approx(p.t_exec + overhead)
+
+
+def test_predict_launch_overhead_grows_with_threads():
+    small = predict(prediction_input(grid_size=40), logger=MagicMock())
+    large = predict(prediction_input(grid_size=80), logger=MagicMock())
+
+    assert large.launch_overhead - small.launch_overhead == pytest.approx(
+        LAUNCH_PER_THREAD * 256 * 40
+    )
 
 
 def test_predict_has_no_one_thread_baseline():

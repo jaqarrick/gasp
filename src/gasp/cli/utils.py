@@ -13,8 +13,8 @@ GPU_PROFILES = {
     "b200": PROFILES_DIR / "b200.placeholder.json",
     "h100": PROFILES_DIR / "h100.placeholder.json",
     "a100": PROFILES_DIR / "a100.placeholder.json",
-    # temporary, for cims runs on a Turing card
-    "rtx2080ti": PROFILES_DIR / "rtx2080ti.placeholder.json",
+    # measured with hardware/microbenchmarks (runs in hardware/runs/rtx2080ti/)
+    "rtx2080ti": PROFILES_DIR / "rtx2080ti.json",
 }
 
 
@@ -37,9 +37,10 @@ class HardwareProfile:
     max_l1_cache_size_bytes: int
 
     # profiled
-    launch_overhead_cycles: int
+    launch_overhead_base_cycles: float
+    launch_overhead_per_thread_cycles: float
     departure_delay_cycles: int
-    sync_factor_cycles: int
+    sync_factor: float
     dram_latency_cycles: int
     l1_cache_hit_latency_cycles: int
     l2_cache_hit_latency_cycles: int

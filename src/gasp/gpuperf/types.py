@@ -50,13 +50,14 @@ class HardwareParameters:
     simd_width: int
     sfu_width: int
     departure_delay: float
-    sync_factor: (
-        int  # fudge factor- GPUPerf uses 64 "based on microarchitecture simulations"
-    )
+    # Γ, dimensionless. GPUPerf used 64 "based on microarchitecture simulations";
+    # hardware/microbenchmarks/sync_cost.cu measures it per GPU
+    sync_factor: float
     dram_latency: float
     cache_hit_latency: float  # todo: distinguish L1 and L2
     bank_penalty: float
-    launch_overhead: float
+    launch_overhead_base: float  # cycles per launch
+    launch_overhead_per_thread: float  # cycles per launched thread
     dram_bandwidth: float  # bytes per cycle, whole GPU
 
 
