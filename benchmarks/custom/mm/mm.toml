@@ -1,0 +1,16 @@
+# gasp --gpu rtx2080ti --config benchmarks/custom/mm/mm.toml
+
+[defaults]
+problem_size = 1024
+block_size = 256
+grid_size = 4096
+loop_iterations = 8
+program_args = ["1024"]
+
+[[kernel]]
+name = "basic"
+file = "benchmarks/custom/mm/mm_basic.cu"
+
+[[kernel]]
+name = "tiled"
+file = "benchmarks/custom/mm/mm_tiled.cu"
