@@ -21,12 +21,33 @@ Build:
 * A100: `nvcc -O3 -std=c++17 -arch=sm_80 constant_memory_load.cu -o constant_memory_load`
 * H100: `nvcc -O3 -std=c++17 -arch=sm_90 constant_memory_load.cu -o constant_memory_load`
 * B200: `nvcc -O3 -std=c++17 -arch=sm_100 constant_memory_load.cu -o constant_memory_load`
-## Shared-memory store latency microbenchmark
-* Measures cycles per warp shared-memory store instruction by timing a batch of conflict-free stores followed by a CTA memory fence.
-* A memory fence is a structure that tells the GPU to not let later operations pass earlier shared-memory stores from this thread block. This is to ensure the timer includes store operations completing.
 
-Build:
-* A100: nvcc -O3 -std=c++17 -arch=sm_80 shared_memory_store_latency.cu -o shared_memory_store_latency
-* H100: nvcc -O3 -std=c++17 -arch=sm_90 shared_memory_store_latency.cu -o shared_memory_store_latency
-* B200: nvcc -O3 -std=c++17 -arch=sm_100 shared_memory_store_latency.cu -o shared_memory_store_latency
-Run: ./shared_memory_store_latency --reps 200 --gpu <gpu>
+## Kernel Launch Overhead
+* Measures the overhead of launching an empty CUDA kernel across different grid and block configurations. The benchmark uses NVIDIA Nsight Compute (ncu) to collect GPU cycle metrics and fits a linear model.
+The model reports:
+* launch_base_cycles: Estimated baseline launch overhead, in GPU cycles.
+* launch_per_thread_cycles: Estimated additional overhead per configured thread, in cycles/thread.
+
+Change the file paths and architecture arguments below as necessary.
+To build:
+* A100: nvcc -O3 -std=c++17 -arch=sm_80 launch_overhead_bench.cu -o launch_overhead_bench
+* H100: nvcc -O3 -std=c++17 -arch=sm_90 launch_overhead_bench.cu -o launch_overhead_bench
+* B200: nvcc -O3 -std=c++17 -arch=sm_100 launch_overhead_bench.cu -o launch_overhead_bench
+* Then run the script from any directory, e.g. from the repository root: `python3 hardware/microbenchmarks/run_launch_overhead.py --binary hardware/microbenchmarks/launch_overhead_bench`. Results always go to `hardware/runs/` and raw ncu output to `launch_overhead_ncu_raw/` at the repository root, unless overridden with `--output-dir` / `--raw-dir`.
+
+The script:
+1. Identifies the GPU and records its hardware metadata.
+2. Profiles eight grid/block configurations using Nsight Compute.
+3. Measures cold and warm kernel launches over multiple repetitions.
+4. Fits a linear model to the warm-launch measurements.
+5. Writes one JSON report per fitted parameter.
+
+The configurations used are:
+(1, 1)
+(1, 32)
+(1, 256)
+(1, 1024)
+(32, 256)
+(128, 256)
+(256, 256)
+(512, 256)
