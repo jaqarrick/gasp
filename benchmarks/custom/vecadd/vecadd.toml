@@ -1,4 +1,4 @@
-# gasp --gpu b200 --config benchmarks/custom/vecadd.toml
+# gasp --gpu b200 --config benchmarks/custom/vecadd/vecadd.toml
 #
 # A kernel entry wins over [defaults]. These kernels have no loops, so
 # loop_iterations has no effect here; it shows how one kernel overrides a default.
@@ -11,9 +11,9 @@ program_args = ["1000000"]
 
 [[kernel]]
 name = "good"
-file = "benchmarks/custom/vecadd_good.cu"
+file = "benchmarks/custom/vecadd/vecadd_good.cu"
 
 [[kernel]]
 name = "poor"
-file = "benchmarks/custom/vecadd_poor.cu"
+file = "benchmarks/custom/vecadd/vecadd_poor.cu"
 loop_iterations = 16

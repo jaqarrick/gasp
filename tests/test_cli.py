@@ -219,10 +219,10 @@ class TestLoadHardwareProfile:
 
 # --trace / --trace-file
 
-VECADD = "benchmarks/custom/vecadd.cu"
+VECADD = "benchmarks/custom/vecadd/vecadd.cu"
 
 
-STRIDE = "benchmarks/custom/vecadd_stride.cu"
+STRIDE = "benchmarks/custom/vecadd/vecadd_stride.cu"
 
 
 def parse(*argv):

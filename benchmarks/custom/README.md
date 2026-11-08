@@ -26,8 +26,8 @@ Each pair does the same work in two separate programs, so `gasp --run` measures 
 The polynomial's degree of 12 puts T_comp and T_mem of `poly_poor` about level on `--gpu rtx2080ti`, which is where the overlap term matters most. Other hardware profiles will move that balance.
 
 ```sh
-gasp --gpu rtx2080ti --run benchmarks/custom/vecadd_good.cu benchmarks/custom/vecadd_poor.cu
-gasp --gpu rtx2080ti --config benchmarks/custom/vecadd.toml
+gasp --gpu rtx2080ti --run benchmarks/custom/vecadd/vecadd_good.cu benchmarks/custom/vecadd/vecadd_poor.cu
+gasp --gpu rtx2080ti --config benchmarks/custom/vecadd/vecadd.toml
 ```
 
 ## Writing a program for `gasp --run`
