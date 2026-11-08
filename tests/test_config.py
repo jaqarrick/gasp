@@ -132,6 +132,18 @@ program_args = ["1000000"]
         ('[[kernel]]\nfile = "DIR/good.cu"\nblock_size = -1\n', "block_size"),
         ('[[kernel]]\nfile = "DIR/good.cu"\nblock_size = "8"\n', "block_size"),
         ('[[kernel]]\nfile = "DIR/good.cu"\nblock_size = true\n', "block_size"),
+        ('[[kernel]]\nfile = "DIR/good.cu"\nblock_size = []\n', "block_size"),
+        ('[[kernel]]\nfile = "DIR/good.cu"\nblock_size = [1, 2, 3, 4]\n', "block_size"),
+        ('[[kernel]]\nfile = "DIR/good.cu"\nblock_size = [16, 0]\n', "block_size"),
+        ('[[kernel]]\nfile = "DIR/good.cu"\ngrid_size = [16, "8"]\n', "grid_size"),
+        (
+            '[[kernel]]\nfile = "DIR/good.cu"\nblock_size = [16, 16]\n',
+            "needs grid_size",
+        ),
+        ('[[kernel]]\nfile = "DIR/good.cu"\nparams = 8\n', "params"),
+        ('[[kernel]]\nfile = "DIR/good.cu"\nparams = { M = "8" }\n', "params"),
+        ('[[kernel]]\nfile = "DIR/good.cu"\nparams = { M = true }\n', "params"),
+        ('[[kernel]]\nfile = "DIR/good.cu"\nparams = { M = 1.5 }\n', "params"),
         ('[[kernel]]\nfile = "DIR/good.cu"\nprogram_args = "8"\n', "program_args"),
         ('[[kernel]]\nfile = "DIR/good.cu"\nprogram_args = [8]\n', "program_args"),
         ('[[kernel]]\nname = "a"\n', "missing file"),
@@ -146,6 +158,59 @@ program_args = ["1000000"]
 def test_invalid_config_raises(cu, text, message):
     with pytest.raises(ConfigError, match=message):
         load_config(write_config(cu, text))
+
+
+def test_dims_as_arrays(cu):
+    text = """
+[[kernel]]
+file = "DIR/good.cu"
+block_size = [16, 16]
+grid_size = [64, 64]
+"""
+    [spec] = load_config(write_config(cu, text))
+
+    assert (spec.block_dim, spec.grid_dim) == ((16, 16), (64, 64))
+    assert (spec.block_size, spec.grid_size) == (256, 4096)
+
+
+def test_integer_dims_are_one_dimensional(cu):
+    good, _ = load_config(write_config(cu, TWO_KERNELS))
+
+    assert (good.block_dim, good.grid_dim) == ((100,), (10,))
+
+
+def test_one_element_block_array_still_derives_the_grid(cu):
+    text = "[defaults]\nproblem_size = 1000\nblock_size = [100]\n"
+    text += '[[kernel]]\nfile = "DIR/good.cu"\n'
+    [spec] = load_config(write_config(cu, text))
+
+    assert spec.grid_dim == (10,)
+
+
+def test_params_merge_by_name_over_defaults(cu):
+    text = """
+[defaults]
+params = { M = 1024, N = 1024, K = 1024 }
+
+[[kernel]]
+name = "a"
+file = "DIR/good.cu"
+
+[[kernel]]
+name = "b"
+file = "DIR/poor.cu"
+params = { K = 512, "blockIdx.x" = 0 }
+"""
+    a, b = load_config(write_config(cu, text))
+
+    assert a.params == {"M": 1024, "N": 1024, "K": 1024}
+    assert b.params == {"M": 1024, "N": 1024, "K": 512, "blockIdx.x": 0}
+
+
+def test_params_default_to_empty(cu):
+    good, _ = load_config(write_config(cu, TWO_KERNELS))
+
+    assert good.params == {}
 
 
 def test_invalid_entry_error_names_the_kernel(cu):

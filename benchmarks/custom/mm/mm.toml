@@ -1,11 +1,16 @@
 # gasp --gpu rtx2080ti --config benchmarks/custom/mm/mm.toml
+#
+# A (M x K) x B (K x N), with M = N = K = 1024 and 16x16 blocks over a 64x64 grid.
+# params gives Pico the kernel arguments; program_args tells the program the same
+# sizes and block shape for --run (M N K bx by).
 
 [defaults]
 problem_size = 1024
-block_size = 256
-grid_size = 4096
+block_size = [16, 16]
+grid_size = [64, 64]
 loop_iterations = 8
-program_args = ["1024"]
+params = { M = 1024, N = 1024, K = 1024 }
+program_args = ["1024", "1024", "1024", "16", "16"]
 
 [[kernel]]
 name = "basic"

@@ -34,6 +34,8 @@ gasp --gpu rtx2080ti --config benchmarks/custom/vecadd.toml
 
 `--run` builds each program with `-DGASP_BLOCK_SIZE=<block> -DGASP_GRID_SIZE=<grid>` and runs it under `ncu`. It checks that every run launched that grid and block size, and stops if not.
 
+The two macros are totals. For a launch with several dimensions (`block_size = [16, 16]`), `--run` also defines `GASP_BLOCK_DIM_X/Y/Z` and `GASP_GRID_DIM_X/Y/Z`, with missing dimensions set to 1. ncu only reports totals, so a program that launches another shape with the same totals passes the check.
+
 - A program can take its launch from those macros, as these do:
 
   ```c

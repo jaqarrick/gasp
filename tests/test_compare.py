@@ -54,5 +54,22 @@ def test_warns_on_both():
     assert len(work_mismatches({"a": 1, "b": 2}, {"a": ["1"], "b": ["2"]})) == 2
 
 
+def test_warns_on_different_params():
+    warnings = work_mismatches(
+        {"a": 1, "b": 1},
+        {"a": [], "b": []},
+        {"a": {"M": 1024, "N": 1024}, "b": {"M": 512, "N": 1024}},
+    )
+
+    assert len(warnings) == 1
+    assert "kernel params" in warnings[0]
+    assert "M=512" in warnings[0]
+
+
+def test_params_in_another_order_match():
+    params = {"a": {"M": 1, "N": 2}, "b": {"N": 2, "M": 1}}
+    assert work_mismatches({"a": 1, "b": 1}, {"a": [], "b": []}, params) == []
+
+
 def test_single_kernel_has_no_mismatch():
     assert work_mismatches({"a": 1}, {"a": ["1"]}) == []

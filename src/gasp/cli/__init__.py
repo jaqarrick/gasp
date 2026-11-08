@@ -11,6 +11,7 @@ from gasp.cuda_toolkit import CUDAExtractor
 from gasp.dependency import LoopIterationsRequiredError, analyze
 from gasp.gpuperf.types import HardwareParameters, LaunchParameters
 from gasp.kernels import resolve_kernel
+from gasp.launch import Dims, format_dims, parse_dims
 from gasp.logger import DEFAULT_TRACE_FILE, TRACE_MODULES, Logger
 from gasp.occupancy import OccupancyInput, calculate_occupancy
 from gasp.parser import get_parser
@@ -53,6 +54,25 @@ def positive_int(value: str) -> int:
     if number < 1:
         raise argparse.ArgumentTypeError(f"expected a positive integer, got '{value}'")
     return number
+
+
+def dims(value: str) -> Dims:
+    try:
+        return parse_dims(value)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(str(e)) from e
+
+
+def kernel_param(value: str) -> tuple[str, int]:
+    name, separator, number = value.partition("=")
+    try:
+        if not separator or not name.strip():
+            raise ValueError
+        return name.strip(), int(number)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"expected NAME=INTEGER, such as M=1024, got '{value}'"
+        ) from None
 
 
 def trace_modules(value: str) -> set[str]:
@@ -128,11 +148,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument(
         "--block-size",
-        type=int,
+        type=dims,
         default=None,
-        help="Number of threads per block to be launched",
+        help="Threads per block, such as 256 or 16x16",
     )
-    parser.add_argument("--grid-size", type=int, default=None, help="Size of the grid")
+    parser.add_argument(
+        "--grid-size",
+        type=dims,
+        default=None,
+        help="Blocks in the grid, such as 3907 or 64x64. "
+        "Required when --block-size has several dimensions",
+    )
     parser.add_argument(
         "--problem-size", type=int, default=None, help="Size of the input"
     )
@@ -173,8 +199,20 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help='Arguments passed to the program when run with --run, e.g. "1000000"',
     )
+    parser.add_argument(
+        "--param",
+        type=kernel_param,
+        action="append",
+        default=[],
+        metavar="NAME=VALUE",
+        help="Value of a kernel argument passed to Pico, such as M=1024 (repeatable)",
+    )
 
     return parser
+
+
+def format_params(params: dict[str, int]) -> str:
+    return ", ".join(f"{name}={value}" for name, value in params.items())
 
 
 def relative_error(predicted: float, measured: float) -> str:
@@ -202,6 +240,7 @@ def check_args(parser: argparse.ArgumentParser, args: Args) -> None:
         "--include-dir": args.include_dir or None,
         "--nvcc-flags": args.nvcc_flags,
         "--program-args": args.program_args,
+        "--param": args.param or None,
     }
     used = [flag for flag, value in per_kernel_flags.items() if value is not None]
     if used:
@@ -214,12 +253,13 @@ def build_specs(args: Args) -> list[KernelSpec]:
 
     settings = {
         "problem_size": args.problem_size,
-        "block_size": args.block_size,
-        "grid_size": args.grid_size,
+        "block_size": list(args.block_size) if args.block_size else None,
+        "grid_size": list(args.grid_size) if args.grid_size else None,
         "loop_iterations": args.loop_iterations,
         "include_dirs": args.include_dir or None,
         "nvcc_flags": shlex.split(args.nvcc_flags) if args.nvcc_flags else None,
         "program_args": shlex.split(args.program_args) if args.program_args else None,
+        "params": dict(args.param) if args.param else None,
     }
     return specs_from_inputs(
         args.inputs, {k: v for k, v in settings.items() if v is not None}
@@ -241,10 +281,11 @@ def analyze_kernel(
         [
             ["Input", spec.file],
             ["Kernel", spec.kernel or "Not provided"],
-            ["Block Size", str(spec.block_size)],
-            ["Grid Size", str(spec.grid_size)],
+            ["Block Size", format_dims(spec.block_dim)],
+            ["Grid Size", format_dims(spec.grid_dim)],
             ["Problem Size", str(spec.problem_size)],
             ["Loop Iterations", str(spec.loop_iterations or "Not provided")],
+            ["Kernel Params", format_params(spec.params) or "Not provided"],
         ],
         trace="config",
     )
@@ -314,13 +355,13 @@ def analyze_kernel(
     pico_results = perform_pico_analysis(
         PicoInput(
             logger=logger,
-            grid_size=spec.grid_size,
             input_file=spec.file,
             kernel_name=kernel_name,
-            block_size=spec.block_size,
+            block_dim=spec.block_dim,
+            grid_dim=spec.grid_dim,
             problem_size=spec.problem_size,
             bank_count=None,
-            parameters=[],
+            params=spec.params,
         )
     )
 
@@ -449,7 +490,7 @@ def report_comparison(
         p = r.prediction
         row = [
             r.spec.name,
-            f"<<<{r.spec.grid_size}, {r.spec.block_size}>>>",
+            f"<<<{format_dims(r.spec.grid_dim)}, {format_dims(r.spec.block_dim)}>>>",
             f"{p.t_comp:.0f}",
             f"{p.t_mem:.0f}",
             f"{p.t_overlap:.0f}",
@@ -556,6 +597,7 @@ def main() -> None:
     for warning in work_mismatches(
         {spec.name: spec.problem_size for spec in specs},
         {spec.name: spec.program_args for spec in specs},
+        {spec.name: spec.params for spec in specs},
     ):
         logger.warning(warning)
 
@@ -576,8 +618,8 @@ def main() -> None:
                 input_file=r.spec.file,
                 arch=arch,
                 kernel_name=r.kernel_name,
-                block_size=r.spec.block_size,
-                grid_size=r.spec.grid_size,
+                block_dim=r.spec.block_dim,
+                grid_dim=r.spec.grid_dim,
                 program_args=r.spec.program_args,
                 include_dirs=r.spec.include_dirs,
                 extra_flags=r.spec.nvcc_flags,

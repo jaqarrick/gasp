@@ -48,8 +48,8 @@ def profile_input(logger):
         input_file="benchmarks/custom/vecadd_stride.cu",
         arch="sm_80",
         kernel_name="_Z13vecadd_stridePfS_S_i",
-        block_size=256,
-        grid_size=3907,
+        block_dim=(256,),
+        grid_dim=(3907,),
         program_args=["1000000"],
         include_dirs=["inc"],
         extra_flags=["--use_fast_math"],
@@ -95,7 +95,34 @@ def test_build_executable_command(profile_input):
     assert "--use_fast_math" in cmd
     assert "-DGASP_BLOCK_SIZE=256" in cmd
     assert "-DGASP_GRID_SIZE=3907" in cmd
+    assert "-DGASP_BLOCK_DIM_X=256" in cmd
+    assert "-DGASP_BLOCK_DIM_Y=1" in cmd
+    assert "-DGASP_GRID_DIM_Z=1" in cmd
     assert cmd[-3:] == [profile_input.input_file, "-o", "/tmp/kernel"]
+
+
+def test_build_executable_defines_2d_dims(profile_input):
+    profile_input.block_dim = (16, 16)
+    profile_input.grid_dim = (64, 64)
+    with patch("gasp.profiler.subprocess.run", return_value=completed()) as run:
+        build_executable(profile_input, "/tmp/kernel")
+
+    cmd = run.call_args.args[0]
+    assert "-DGASP_BLOCK_SIZE=256" in cmd
+    assert "-DGASP_GRID_SIZE=4096" in cmd
+    for macro in ("BLOCK_DIM_X=16", "BLOCK_DIM_Y=16", "BLOCK_DIM_Z=1"):
+        assert f"-DGASP_{macro}" in cmd
+    for macro in ("GRID_DIM_X=64", "GRID_DIM_Y=64", "GRID_DIM_Z=1"):
+        assert f"-DGASP_{macro}" in cmd
+
+
+def test_measure_2d_launch_compares_totals(profile_input):
+    profile_input.block_dim = (16, 16)
+    profile_input.grid_dim = (64, 64)
+    with patch("gasp.profiler.run_ncu", return_value=launch_metrics(4096, 256)):
+        measure(profile_input, "/tmp/kernel", trace=False)
+
+    profile_input.logger.error.assert_not_called()
 
 
 def test_build_executable_failure_exits(profile_input):
