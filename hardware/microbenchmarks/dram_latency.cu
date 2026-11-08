@@ -60,8 +60,8 @@
 
 // ---- Identity of this benchmark -------------------------------------------
 static const char* PARAMETER      = "dram_latency_cycles";
-static const char* SCHEMA_VERSION = "1.1.0";   // bump if the JSON layout changes
-static const char* BENCH_VERSION  = "1.0.0";   // bump if the measurement method changes
+static const char* SCHEMA_VERSION = "1.2.0";   // bump if the JSON layout changes
+static const char* BENCH_VERSION  = "1.1.0";   // bump if the measurement method changes
 
 // ---- Experiment parameters -------------------------------------------------
 constexpr int WORKING_SET_L2_MULT = 4;     // default working set = 4 x L2
@@ -82,12 +82,21 @@ __device__ __forceinline__ uint64_t read_clock64() {
     return c;
 }
 
+// Nanoseconds since an arbitrary epoch, independent of the SM clock. Read next to
+// clock64 so the run records the SM clock it ran at (cycles / ns).
+__device__ __forceinline__ uint64_t read_globaltimer() {
+    uint64_t t;
+    asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t)::"memory");
+    return t;
+}
+
 // Dependent load: the same register is address and destination, so there is no
 // address arithmetic between loads. ".cg" = cache at L2 only, bypass L1.
 #define CHASE_ONE asm volatile("ld.global.cg.u64 %0, [%0];" : "+l"(p)::"memory");
 
 // out[0] = gross cycles of the timed chain (clock overhead included)
 // out[1] = clock overhead (two back-to-back clock reads, nothing between)
+// out[2] = globaltimer ns around the timed chain (read outside the clock64 pair)
 __global__ void dram_chase_kernel(uint64_t start, long long* out, uint64_t* sink) {
     uint64_t p = start;
 
@@ -110,6 +119,7 @@ __global__ void dram_chase_kernel(uint64_t start, long long* out, uint64_t* sink
     uint64_t b1 = read_clock64();
 
     // 3) Timed region: CHASE_LOADS strictly dependent DRAM loads.
+    uint64_t g0 = read_globaltimer();
     uint64_t t0 = read_clock64();
 #pragma unroll 1
     for (int i = 0; i < CHASE_LOADS; i += UNROLL) {
@@ -119,9 +129,11 @@ __global__ void dram_chase_kernel(uint64_t start, long long* out, uint64_t* sink
         CHASE_ONE CHASE_ONE CHASE_ONE CHASE_ONE
     }
     uint64_t t1 = read_clock64();
+    uint64_t g1 = read_globaltimer();
 
     out[0] = static_cast<long long>(t1 - t0);
     out[1] = static_cast<long long>(b1 - b0);
+    out[2] = static_cast<long long>(g1 - g0);
     *sink  = p;  // keep the chain observable
 }
 
@@ -260,10 +272,12 @@ int main(int argc, char** argv) {
 
     long long* d_out;
     uint64_t*  d_sink;
-    CUDA_CHECK(cudaMalloc(&d_out, 2 * sizeof(long long)));
+    CUDA_CHECK(cudaMalloc(&d_out, 3 * sizeof(long long)));
     CUDA_CHECK(cudaMalloc(&d_sink, sizeof(uint64_t)));
 
     std::vector<long long> raw_cycles, overheads;
+    std::vector<double> clock_ghz;   // per rep: timed cycles / timed globaltimer ns
+    double sum_clock_cycles = 0.0, sum_clock_ns = 0.0;
     for (int r = 0; r < reps; ++r) {
         // Each rep resumes the walk where the previous rep ended, so it touches
         // lines that have not been used since a full ring ago (>= 4x L2).
@@ -271,14 +285,19 @@ int main(int argc, char** argv) {
         const uint64_t start =
             reinterpret_cast<uint64_t>(d_buf) + static_cast<uint64_t>(order[idx]) * LINE_BYTES;
 
-        CUDA_CHECK(cudaMemset(d_out, 0, 2 * sizeof(long long)));
+        CUDA_CHECK(cudaMemset(d_out, 0, 3 * sizeof(long long)));
         dram_chase_kernel<<<1, 1>>>(start, d_out, d_sink);
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
-        long long h[2];
+        long long h[3];
         CUDA_CHECK(cudaMemcpy(h, d_out, sizeof(h), cudaMemcpyDeviceToHost));
         raw_cycles.push_back(h[0]);
         overheads.push_back(h[1]);
+        if (h[2] > 0) {
+            clock_ghz.push_back(static_cast<double>(h[0]) / static_cast<double>(h[2]));
+            sum_clock_cycles += static_cast<double>(h[0]);
+            sum_clock_ns += static_cast<double>(h[2]);
+        }
     }
 
     // Overhead = median of the baseline measurements; subtract from every rep.
@@ -301,6 +320,18 @@ int main(int argc, char** argv) {
     const double stddev = std::sqrt(var / (reps - 1));
     const double mn = *std::min_element(per_load.begin(), per_load.end());
     const double mx = *std::max_element(per_load.begin(), per_load.end());
+
+    // SM clock the cycles were counted at. DRAM latency in cycles depends on it
+    // (DRAM time is roughly fixed in ns), so the profile needs runs at the clock
+    // the validation runs at: ncu locks base clock, see README "Base clock".
+    if (clock_ghz.empty()) { fprintf(stderr, "ERROR: globaltimer did not advance\n"); return 1; }
+    // Total cycles / total ns, so globaltimer's coarse updates (~1 us) average out.
+    const double clock_ghz_all = sum_clock_cycles / sum_clock_ns;
+    const double clock_min = *std::min_element(clock_ghz.begin(), clock_ghz.end());
+    const double clock_max = *std::max_element(clock_ghz.begin(), clock_ghz.end());
+    if (clock_max > 1.02 * clock_min)
+        fprintf(stderr, "WARNING: SM clock varied %.3f-%.3f GHz across reps; the cycle counts mix "
+                        "clocks. Run under ncu to lock base clock (README).\n", clock_min, clock_max);
 
     if (median < 150.0)
         fprintf(stderr, "WARNING: median %.1f cycles is low for DRAM; loads may still be hitting L2 "
@@ -357,10 +388,18 @@ int main(int argc, char** argv) {
     for (size_t i = 0; i < per_load.size(); ++i) j << (i ? ", " : "") << per_load[i];
     j << "],\n";
     j << "  \"uncorrected_value\": " << uncorrected_value << ",\n";
+    // clock: SM clock during the timed chain. sm_clock_ghz = total clock64 cycles / total
+    // globaltimer ns over all reps; min/max are per rep (globaltimer updates every ~1 us)
+    j << "  \"clock\": {\n";
+    j << "    \"sm_clock_ghz\": " << clock_ghz_all << ",\n";
+    j << "    \"sm_clock_ghz_min\": " << clock_min << ",\n";
+    j << "    \"sm_clock_ghz_max\": " << clock_max << ",\n";
+    j << "    \"value_ns\": " << median / clock_ghz_all << "\n";
+    j << "  },\n";
     j << "  \"measurement\": {\n";
     j << "    \"method\": \"pointer-chase, working set exceeds L2 (includes some TLB cost)\",\n";
     j << "    \"load_instruction\": \"ld.global.cg.u64\",\n";
-    j << "    \"timer\": \"clock64\",\n";
+    j << "    \"timer\": \"clock64 (cycles), globaltimer (SM clock)\",\n";
     j << "    \"working_set_bytes\": " << working_set_bytes << ",\n";
     j << "    \"l2_cache_size_kb_assumed\": " << l2_kb_used << ",\n";
     j << "    \"l2_cache_size_source\": \"" << (l2_cache_kb ? "user" : "device") << "\",\n";
@@ -391,8 +430,9 @@ int main(int argc, char** argv) {
     fclose(f);
 
     printf("%s", j.str().c_str());
-    fprintf(stderr, "\nDRAM latency: %.2f cycles (std %.3f, overhead %.1f cycles subtracted)\nSaved: %s\n",
-            median, stddev, overhead, out_path.string().c_str());
+    fprintf(stderr, "\nDRAM latency: %.2f cycles at %.3f GHz SM clock = %.1f ns (std %.3f, overhead %.1f "
+                    "cycles subtracted)\nSaved: %s\n",
+            median, clock_ghz_all, median / clock_ghz_all, stddev, overhead, out_path.string().c_str());
 
     CUDA_CHECK(cudaFree(d_buf));
     CUDA_CHECK(cudaFree(d_out));
@@ -405,7 +445,8 @@ int main(int argc, char** argv) {
 //   cuobjdump -sass dram_latency.cubin
 // In dram_chase_kernel you should see:
 //   * clock reads (CS2R) back-to-back for the baseline, then one before and
-//     one after the timed loop
+//     one after the timed loop, with a globaltimer read (S2UR/CS2R of
+//     SR_GLOBALTIMER) just outside each of the timed pair
 //   * inside the timed loop, 16 consecutive 64-bit LDG instructions carrying
 //     the same cache-operator modifier as l2_latency (.STRONG.GPU on Turing),
 //     each address register being the previous instruction's destination
