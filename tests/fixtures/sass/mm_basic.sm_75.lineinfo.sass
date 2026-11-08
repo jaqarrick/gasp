@@ -464,24 +464,24 @@
         .other          _Z8mm_basicPfS_S_iii,@"STO_CUDA_ENTRY STV_DEFAULT"
 _Z8mm_basicPfS_S_iii:
 .text._Z8mm_basicPfS_S_iii:
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 6
+	//## File "benchmarks/mm/mm_basic.cu", line 6
         /*0000*/                   MOV R1, c[0x0][0x28] ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 8
+	//## File "benchmarks/mm/mm_basic.cu", line 8
         /*0010*/                   S2R R16, SR_CTAID.X ;
         /*0020*/                   S2R R3, SR_TID.X ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 7
+	//## File "benchmarks/mm/mm_basic.cu", line 7
         /*0030*/                   S2R R17, SR_CTAID.Y ;
         /*0040*/                   S2R R0, SR_TID.Y ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 8
+	//## File "benchmarks/mm/mm_basic.cu", line 8
         /*0050*/                   IMAD R16, R16, c[0x0][0x0], R3 ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 10
+	//## File "benchmarks/mm/mm_basic.cu", line 10
         /*0060*/                   ISETP.GE.AND P0, PT, R16, c[0x0][0x17c], PT ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 7
+	//## File "benchmarks/mm/mm_basic.cu", line 7
         /*0070*/                   IMAD R17, R17, c[0x0][0x4], R0 ;
         /*0080*/                   ISETP.GE.OR P0, PT, R17, c[0x0][0x178], P0 ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 10
+	//## File "benchmarks/mm/mm_basic.cu", line 10
         /*0090*/               @P0 EXIT ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 12
+	//## File "benchmarks/mm/mm_basic.cu", line 12
         /*00a0*/                   MOV R18, c[0x0][0x180] ;
         /*00b0*/                   MOV R0, RZ ;
         /*00c0*/                   ISETP.GE.AND P0, PT, R18, 0x1, PT ;
@@ -506,7 +506,7 @@ _Z8mm_basicPfS_S_iii:
         /*01f0*/              @!P1 BRA `(.L_x_3) ;
         /*0200*/                   PLOP3.LUT P0, PT, PT, PT, PT, 0x8, 0x0 ;
 .L_x_4:
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 13
+	//## File "benchmarks/mm/mm_basic.cu", line 13
         /*0210*/                   IMAD.WIDE R6, R23.reuse, c[0x0][0x17c], R4 ;
         /*0220*/                   LDG.E.SYS R25, [R4] ;
         /*0230*/                   LDG.E.SYS R24, [R2+-0x8] ;
@@ -554,16 +554,16 @@ _Z8mm_basicPfS_S_iii:
         /*04d0*/                   LDG.E.SYS R6, [R2+0x30] ;
         /*04e0*/                   LDG.E.SYS R46, [R2+0x34] ;
         /*04f0*/                   LDG.E.SYS R9, [R4] ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 12
+	//## File "benchmarks/mm/mm_basic.cu", line 12
         /*0500*/                   IADD3 R22, R22, -0x10, RZ ;
         /*0510*/                   ISETP.GT.AND P1, PT, R22, 0xc, PT ;
         /*0520*/                   IADD3 R2, P2, R2, 0x40, RZ ;
         /*0530*/                   IADD3 R19, R19, 0x10, RZ ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 13
+	//## File "benchmarks/mm/mm_basic.cu", line 13
         /*0540*/                   IMAD.WIDE R4, R23, c[0x0][0x17c], R4 ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 12
+	//## File "benchmarks/mm/mm_basic.cu", line 12
         /*0550*/                   IADD3.X R3, RZ, R3, RZ, P2, !PT ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 13
+	//## File "benchmarks/mm/mm_basic.cu", line 13
         /*0560*/                   FFMA R24, R25, R24, R0 ;
         /*0570*/                   FFMA R24, R27, R26, R24 ;
         /*0580*/                   FFMA R24, R29, R28, R24 ;
@@ -580,12 +580,12 @@ _Z8mm_basicPfS_S_iii:
         /*0630*/                   FFMA R7, R12, R45, R7 ;
         /*0640*/                   FFMA R6, R14, R6, R7 ;
         /*0650*/                   FFMA R0, R9, R46, R6 ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 12
+	//## File "benchmarks/mm/mm_basic.cu", line 12
         /*0660*/               @P1 BRA `(.L_x_4) ;
 .L_x_3:
         /*0670*/                   ISETP.GT.AND P1, PT, R22, 0x4, PT ;
         /*0680*/              @!P1 BRA `(.L_x_5) ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 13
+	//## File "benchmarks/mm/mm_basic.cu", line 13
         /*0690*/                   IMAD.WIDE R6, R23.reuse, c[0x0][0x17c], R4 ;
         /*06a0*/                   LDG.E.SYS R25, [R4] ;
         /*06b0*/                   LDG.E.SYS R24, [R2+-0x8] ;
@@ -609,10 +609,10 @@ _Z8mm_basicPfS_S_iii:
         /*07d0*/                   LDG.E.SYS R9, [R2+0x10] ;
         /*07e0*/                   LDG.E.SYS R30, [R2+0x14] ;
         /*07f0*/                   LDG.E.SYS R11, [R4] ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 12
+	//## File "benchmarks/mm/mm_basic.cu", line 12
         /*0800*/                   IADD3 R19, R19, 0x8, RZ ;
         /*0810*/                   IADD3 R22, R22, -0x8, RZ ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 13
+	//## File "benchmarks/mm/mm_basic.cu", line 13
         /*0820*/                   IMAD.WIDE R4, R23, c[0x0][0x17c], R4 ;
         /*0830*/                   FFMA R24, R25, R24, R0 ;
         /*0840*/                   FFMA R7, R7, R26, R24 ;
@@ -620,23 +620,23 @@ _Z8mm_basicPfS_S_iii:
         /*0860*/                   FFMA R7, R10, R28, R7 ;
         /*0870*/                   FFMA R7, R12, R29, R7 ;
         /*0880*/                   FFMA R6, R14, R6, R7 ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 12
+	//## File "benchmarks/mm/mm_basic.cu", line 12
         /*0890*/                   IADD3 R7, P0, R2, 0x20, RZ ;
         /*08a0*/                   IADD3.X R8, RZ, R3, RZ, P0, !PT ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 13
+	//## File "benchmarks/mm/mm_basic.cu", line 13
         /*08b0*/                   FFMA R6, R21, R9, R6 ;
         /*08c0*/                   PLOP3.LUT P0, PT, PT, PT, PT, 0x8, 0x0 ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 12
+	//## File "benchmarks/mm/mm_basic.cu", line 12
         /*08d0*/                   MOV R2, R7 ;
         /*08e0*/                   MOV R3, R8 ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 13
+	//## File "benchmarks/mm/mm_basic.cu", line 13
         /*08f0*/                   FFMA R0, R11, R30, R6 ;
 .L_x_5:
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 12
+	//## File "benchmarks/mm/mm_basic.cu", line 12
         /*0900*/                   ISETP.NE.OR P0, PT, R22, RZ, P0 ;
         /*0910*/              @!P0 BRA `(.L_x_1) ;
 .L_x_2:
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 13
+	//## File "benchmarks/mm/mm_basic.cu", line 13
         /*0920*/                   IMAD.WIDE R6, R23.reuse, c[0x0][0x17c], R4 ;
         /*0930*/                   LDG.E.SYS R12, [R2+-0x8] ;
         /*0940*/                   LDG.E.SYS R5, [R4] ;
@@ -648,27 +648,27 @@ _Z8mm_basicPfS_S_iii:
         /*09a0*/                   LDG.E.SYS R14, [R2] ;
         /*09b0*/                   LDG.E.SYS R20, [R2+0x4] ;
         /*09c0*/                   LDG.E.SYS R15, [R10] ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 12
+	//## File "benchmarks/mm/mm_basic.cu", line 12
         /*09d0*/                   IADD3 R22, R22, -0x4, RZ ;
         /*09e0*/                   ISETP.NE.AND P0, PT, R22, RZ, PT ;
         /*09f0*/                   IADD3 R19, R19, 0x4, RZ ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 13
+	//## File "benchmarks/mm/mm_basic.cu", line 13
         /*0a00*/                   FFMA R12, R5, R12, R0 ;
         /*0a10*/                   FFMA R12, R7, R13, R12 ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 12
+	//## File "benchmarks/mm/mm_basic.cu", line 12
         /*0a20*/                   IADD3 R13, P1, R2, 0x10, RZ ;
         /*0a30*/                   IADD3.X R6, RZ, R3, RZ, P1, !PT ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 13
+	//## File "benchmarks/mm/mm_basic.cu", line 13
         /*0a40*/                   FFMA R12, R9, R14, R12 ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 12
+	//## File "benchmarks/mm/mm_basic.cu", line 12
         /*0a50*/                   MOV R2, R13 ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 13
+	//## File "benchmarks/mm/mm_basic.cu", line 13
         /*0a60*/                   IMAD.WIDE R4, R23, c[0x0][0x17c], R10 ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 12
+	//## File "benchmarks/mm/mm_basic.cu", line 12
         /*0a70*/                   MOV R3, R6 ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 13
+	//## File "benchmarks/mm/mm_basic.cu", line 13
         /*0a80*/                   FFMA R0, R15, R20, R12 ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 12
+	//## File "benchmarks/mm/mm_basic.cu", line 12
         /*0a90*/               @P0 BRA `(.L_x_2) ;
 .L_x_1:
         /*0aa0*/                   ISETP.NE.AND P0, PT, R18, RZ, PT ;
@@ -680,27 +680,27 @@ _Z8mm_basicPfS_S_iii:
         /*0b00*/                   IMAD.WIDE R4, R4, R9, c[0x0][0x168] ;
         /*0b10*/                   MOV R6, R2 ;
 .L_x_6:
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 13
+	//## File "benchmarks/mm/mm_basic.cu", line 13
         /*0b20*/                   MOV R2, R6 ;
         /*0b30*/                   LDG.E.SYS R7, [R4] ;
         /*0b40*/                   LDG.E.SYS R2, [R2] ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 12
+	//## File "benchmarks/mm/mm_basic.cu", line 12
         /*0b50*/                   IADD3 R18, R18, -0x1, RZ ;
         /*0b60*/                   IMAD.WIDE R4, R9, c[0x0][0x17c], R4 ;
         /*0b70*/                   IADD3 R6, P1, R6, 0x4, RZ ;
         /*0b80*/                   ISETP.NE.AND P0, PT, R18, RZ, PT ;
         /*0b90*/                   IADD3.X R3, RZ, R3, RZ, P1, !PT ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 13
+	//## File "benchmarks/mm/mm_basic.cu", line 13
         /*0ba0*/                   FFMA R0, R7, R2, R0 ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 12
+	//## File "benchmarks/mm/mm_basic.cu", line 12
         /*0bb0*/               @P0 BRA `(.L_x_6) ;
 .L_x_0:
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 15
+	//## File "benchmarks/mm/mm_basic.cu", line 15
         /*0bc0*/                   MOV R3, 0x4 ;
         /*0bd0*/                   IMAD R2, R17, c[0x0][0x17c], R16 ;
         /*0be0*/                   IMAD.WIDE R2, R2, R3, c[0x0][0x170] ;
         /*0bf0*/                   STG.E.SYS [R2], R0 ;
-	//## File "benchmarks/custom/mm/mm_basic.cu", line 17
+	//## File "benchmarks/mm/mm_basic.cu", line 17
         /*0c00*/                   EXIT ;
 .L_x_7:
         /*0c10*/                   BRA `(.L_x_7);

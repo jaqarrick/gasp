@@ -6,7 +6,7 @@ set -uo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VENV="$REPO/.venv"
 MIN_PYTHON="3.12"
-SAMPLE_KERNEL="$REPO/benchmarks/custom/vecadd/vecadd.cu"
+SAMPLE_KERNEL="$REPO/benchmarks/vecadd/vecadd.cu"
 
 failures=0
 

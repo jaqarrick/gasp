@@ -286,7 +286,7 @@ def measure(i: ProfileInput, exe: str, trace: bool) -> KernelMeasurement:
             f"expected {i.launch} ({i.grid_size} blocks of {i.block_size} threads). "
             "The program must take its launch config from the GASP_* macros, or the "
             "requested grid and block size must match what it launches "
-            "(see benchmarks/custom/README.md)"
+            "(see benchmarks/README.md)"
         )
         sys.exit(1)
     if trace and i.logger.trace_enabled("profiler"):

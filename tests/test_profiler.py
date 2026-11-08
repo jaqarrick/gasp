@@ -24,7 +24,7 @@ from gasp.profiler import (
     run_ncu_report,
 )
 
-PROFILE_CSV = Path("benchmarks/custom/vecadd/vecadd.turing.N1000000.profile.csv")
+PROFILE_CSV = Path("benchmarks/vecadd/vecadd.turing.N1000000.profile.csv")
 
 NCU_PREAMBLE = (
     "==PROF== Connected to process 461639 (/tmp/gasp-profile-x/kernel)\n"
@@ -45,7 +45,7 @@ def logger():
 def profile_input(logger):
     return ProfileInput(
         name="vecadd_stride",
-        input_file="benchmarks/custom/vecadd/vecadd_stride.cu",
+        input_file="benchmarks/vecadd/vecadd_stride.cu",
         arch="sm_80",
         kernel_name="_Z13vecadd_stridePfS_S_i",
         block_dim=(256,),

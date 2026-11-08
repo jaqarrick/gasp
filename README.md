@@ -42,7 +42,7 @@ Python, CUDA, and all dependencies configured automatically. [More info here](./
 Compare two kernels. The first is the reference, and shared flags apply to both:
 
 ```bash
-make run ARGS="--gpu b200 --problem-size 1000000 --block-size 256 benchmarks/custom/vecadd/vecadd_good.cu benchmarks/custom/vecadd/vecadd_poor.cu"
+make run ARGS="--gpu b200 --problem-size 1000000 --block-size 256 benchmarks/vecadd/vecadd_good.cu benchmarks/vecadd/vecadd_poor.cu"
 ```
 
 Pick kernels out of a file that holds several. Without a kernel name, GASP stops and lists them:
@@ -51,10 +51,10 @@ Pick kernels out of a file that holds several. Without a kernel name, GASP stops
 make run ARGS="--gpu b200 kernels.cu::vecadd_good kernels.cu::vecadd_poor"
 ```
 
-Give each kernel its own settings with a TOML file (see [`vecadd.toml`](benchmarks/custom/vecadd/vecadd.toml)):
+Give each kernel its own settings with a TOML file (see [`vecadd.toml`](benchmarks/vecadd/vecadd.toml)):
 
 ```bash
-make run ARGS="--gpu b200 --config benchmarks/custom/vecadd/vecadd.toml"
+make run ARGS="--gpu b200 --config benchmarks/vecadd/vecadd.toml"
 ```
 
 ```toml
@@ -64,18 +64,18 @@ block_size = 256
 
 [[kernel]]
 name = "good"
-file = "benchmarks/custom/vecadd/vecadd_good.cu"
+file = "benchmarks/vecadd/vecadd_good.cu"
 
 [[kernel]]
 name = "poor"
-file = "benchmarks/custom/vecadd/vecadd_poor.cu"
+file = "benchmarks/vecadd/vecadd_poor.cu"
 block_size = 128
 ```
 
 A single kernel prints its predicted time with no speedup:
 
 ```bash
-make run ARGS="--gpu b200 benchmarks/custom/vecadd/vecadd.cu"
+make run ARGS="--gpu b200 benchmarks/vecadd/vecadd.cu"
 ```
 
 ### How kernels are compared
@@ -125,19 +125,19 @@ The counts depend on the problem size, and the loops can change with the archite
 `--run` builds each program and runs it under `ncu`, then prints predicted against measured cycles and speedup:
 
 ```bash
-make run ARGS="--gpu rtx2080ti --run benchmarks/custom/vecadd/vecadd_good.cu benchmarks/custom/vecadd/vecadd_poor.cu"
+make run ARGS="--gpu rtx2080ti --run benchmarks/vecadd/vecadd_good.cu benchmarks/vecadd/vecadd_poor.cu"
 ```
 
 - Each kernel runs `--repeats N` times (default 3). Cycles are ncu's Elapsed Cycles (`gpc__cycles_elapsed.max`). The table shows the median, with the min-max spread beside it.
 - Measured speedup is the ratio of the medians. Its range is the widest the runs allow, so treat a gap inside the range as no measured difference.
-- Every run has to launch the requested grid and block size, or GASP stops. See [the benchmark notes](benchmarks/custom/README.md) for how to write a program for `--run`.
+- Every run has to launch the requested grid and block size, or GASP stops. See [the benchmark notes](benchmarks/README.md) for how to write a program for `--run`.
 
 ### Docker
 
 ```bash
 make build
-make docker-run ARGS="--gpu b200 --config benchmarks/custom/vecadd/vecadd.toml"
-make docker-run DOCKER_FLAGS="--gpus all" ARGS="--gpu rtx2080ti --run --config benchmarks/custom/vecadd/vecadd.toml"
+make docker-run ARGS="--gpu b200 --config benchmarks/vecadd/vecadd.toml"
+make docker-run DOCKER_FLAGS="--gpus all" ARGS="--gpu rtx2080ti --run --config benchmarks/vecadd/vecadd.toml"
 ```
 
 - `docker-run` mounts only `benchmarks/` and `hardware/`. Kernels and configs must be there, or already be in the image from the last `make build`.

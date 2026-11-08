@@ -229,10 +229,10 @@ class TestLoadHardwareProfile:
 
 # --trace / --trace-file
 
-VECADD = "benchmarks/custom/vecadd/vecadd.cu"
+VECADD = "benchmarks/vecadd/vecadd.cu"
 
 
-STRIDE = "benchmarks/custom/vecadd/vecadd_stride.cu"
+STRIDE = "benchmarks/vecadd/vecadd_stride.cu"
 
 
 def parse(*argv):
@@ -324,9 +324,7 @@ def test_invalid_param_exits(value):
         checked_args(VECADD, "--param", value)
 
 
-@pytest.mark.parametrize(
-    "value", ["benchmarks/custom/missing.cu", "README.md", f"{VECADD}::"]
-)
+@pytest.mark.parametrize("value", ["benchmarks/missing.cu", "README.md", f"{VECADD}::"])
 def test_invalid_input_exits(value):
     with pytest.raises(SystemExit):
         checked_args(value)

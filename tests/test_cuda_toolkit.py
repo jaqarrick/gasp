@@ -5,7 +5,7 @@ from pathlib import Path
 from gasp.cuda_toolkit import parse_label_lines
 
 SASS_DIR = Path(__file__).parent / "fixtures" / "sass"
-MM_BASIC_CU = "benchmarks/custom/mm/mm_basic.cu"
+MM_BASIC_CU = "benchmarks/mm/mm_basic.cu"
 
 
 def test_label_lines_from_mm_basic():
