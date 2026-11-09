@@ -1,6 +1,7 @@
 """Tests for gasp.predict — Pico counts → average_trans_warp, T_GPU."""
 
 from dataclasses import replace
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
