@@ -10,6 +10,7 @@ from gasp.cfg import ControlFlowGraph, gen_cfg_from_raw
 from gasp.logger import Logger
 from gasp.parser import get_parser
 from gasp.parser.bracket import BracketSASSParser
+from gasp.parser.constants import GLOBAL_MEMORY_CATEGORIES
 from gasp.parser.descriptor import DescriptorSASSParser
 from gasp.parser.types import OpCategory, SASSInstruction
 
@@ -34,13 +35,25 @@ def base_opcode(line: str) -> str:
     return opcode.split(".")[0]
 
 
-def instr(opcode, category, src=(), dst=(), predicate=None) -> SASSInstruction:
+def instr(
+    opcode,
+    category,
+    src=(),
+    dst=(),
+    predicate=None,
+    width=None,
+    base=None,
+    offset=None,
+) -> SASSInstruction:
     return SASSInstruction(
         opcode=opcode,
         category=category,
         predicate=predicate,
         src_registers=set(src),
         dest_registers=set(dst),
+        access_width_bytes=width,
+        address_base_register=base,
+        address_offset=offset,
     )
 
 
@@ -140,12 +153,27 @@ BRACKET_CASES = [
     ),
     pytest.param(
         "LDG.E R4, [R4.64]",
-        instr("LDG", OpCategory.GLOBAL_LOAD, src={"R4", "R5"}, dst={"R4"}),
+        instr(
+            "LDG",
+            OpCategory.GLOBAL_LOAD,
+            src={"R4", "R5"},
+            dst={"R4"},
+            width=4,
+            base="R4",
+            offset=0,
+        ),
         id="global-load",
     ),
     pytest.param(
         "STG.E [R6.64], R9",
-        instr("STG", OpCategory.GLOBAL_STORE, src={"R6", "R7", "R9"}),
+        instr(
+            "STG",
+            OpCategory.GLOBAL_STORE,
+            src={"R6", "R7", "R9"},
+            width=4,
+            base="R6",
+            offset=0,
+        ),
         id="global-store",
     ),
     pytest.param(
@@ -198,12 +226,27 @@ DESCRIPTOR_CASES = [
     ),
     pytest.param(
         "LDG.E R3, desc[UR4][R2.64]",
-        instr("LDG", OpCategory.GLOBAL_LOAD, src={"UR4", "R2", "R3"}, dst={"R3"}),
+        instr(
+            "LDG",
+            OpCategory.GLOBAL_LOAD,
+            src={"UR4", "R2", "R3"},
+            dst={"R3"},
+            width=4,
+            base="R2",
+            offset=0,
+        ),
         id="descriptor-load",
     ),
     pytest.param(
         "STG.E desc[UR4][R6.64], R9",
-        instr("STG", OpCategory.GLOBAL_STORE, src={"UR4", "R6", "R7", "R9"}),
+        instr(
+            "STG",
+            OpCategory.GLOBAL_STORE,
+            src={"UR4", "R6", "R7", "R9"},
+            width=4,
+            base="R6",
+            offset=0,
+        ),
         id="descriptor-store",
     ),
     pytest.param(
@@ -307,6 +350,9 @@ WIDTH_CASES = [
             "STG",
             OpCategory.GLOBAL_STORE,
             src={"R2", "R3", "R4", "R5", "R6", "R7"},
+            width=16,
+            base="R2",
+            offset=0,
         ),
         id="store-128-data",
     ),
@@ -317,7 +363,15 @@ WIDTH_CASES = [
     ),
     pytest.param(
         "LDG.E.64 R4, [R2.64]",
-        instr("LDG", OpCategory.GLOBAL_LOAD, src={"R2", "R3"}, dst={"R4", "R5"}),
+        instr(
+            "LDG",
+            OpCategory.GLOBAL_LOAD,
+            src={"R2", "R3"},
+            dst={"R4", "R5"},
+            width=8,
+            base="R2",
+            offset=0,
+        ),
         id="load-64",
     ),
     pytest.param(
@@ -515,6 +569,45 @@ def test_unknown_opcode_is_categorized_unknown(logger):
 
 
 # ---------------------------------------------------------------------------
+# address_base_register / address_offset — arch-dependent address syntax
+# ---------------------------------------------------------------------------
+
+NOT_GLOBAL = (None, None)
+
+BRACKET_ADDRESS_CASES = [
+    pytest.param("LDG.E R0, [R2.64]", ("R2", 0), id="plain"),
+    pytest.param("STG.E [R4.64+0x10], R7", ("R4", 16), id="offset"),
+    pytest.param("LDG.E.SYS R26, [R2+-0x4]", ("R2", -4), id="negative-offset"),
+    pytest.param("LDG.E.CONSTANT R0, [R2.64+UR4]", ("R2", 0), id="uniform-offset"),
+    pytest.param("@P0 LDG.E R0, [R6.64]", ("R6", 0), id="predicated"),
+    pytest.param("LDS R0, [R2]", NOT_GLOBAL, id="shared-load"),
+    pytest.param("FADD R0, R2, R4", NOT_GLOBAL, id="not-memory"),
+]
+
+DESCRIPTOR_ADDRESS_CASES = [
+    pytest.param("LDG.E R0, desc[UR4][R2.64]", ("R2", 0), id="descriptor"),
+    pytest.param("STG.E desc[UR6][R4.64+0x10], R7", ("R4", 16), id="descriptor-offset"),
+    pytest.param("LDG.E R0, gdesc[UR2]", ("UR2", 0), id="global-descriptor"),
+    pytest.param("LDG.E R0, [R2.64+0x8]", ("R2", 8), id="plain"),
+    pytest.param("LDS R0, [R2]", NOT_GLOBAL, id="shared-load"),
+    pytest.param("FADD R0, R2, R4", NOT_GLOBAL, id="not-memory"),
+]
+
+
+@pytest.mark.parametrize("line, expected", BRACKET_ADDRESS_CASES)
+def test_bracket_address(line, expected, logger):
+    parsed = make_parser("sm_80", logger)._parse_instruction(line)
+    assert (parsed.address_base_register, parsed.address_offset) == expected
+
+
+@pytest.mark.parametrize("arch", ["sm_90", "sm_100"])
+@pytest.mark.parametrize("line, expected", DESCRIPTOR_ADDRESS_CASES)
+def test_descriptor_address(arch, line, expected, logger):
+    parsed = make_parser(arch, logger)._parse_instruction(line)
+    assert (parsed.address_base_register, parsed.address_offset) == expected
+
+
+# ---------------------------------------------------------------------------
 # every instruction in the .sass fixtures
 # ---------------------------------------------------------------------------
 
@@ -540,6 +633,9 @@ def test_fixture_instructions_parse_cleanly(arch, path, logger):
     for line in lines:
         parsed = parser._parse_instruction(line)
         assert parsed.category != OpCategory.UNKNOWN, line
+        if parsed.category in GLOBAL_MEMORY_CATEGORIES:
+            assert parsed.address_base_register is not None, line
+            assert parsed.access_width_bytes is not None, line
 
     logger.warning.assert_not_called()
 

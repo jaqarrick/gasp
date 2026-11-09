@@ -8,6 +8,7 @@ from .constants import (
     CARRY_OUT_SLOTS,
     CONVERSION_OPCODES,
     FLOAT_TYPE_MODIFIERS,
+    GLOBAL_MEMORY_CATEGORIES,
     INT_TYPE_MODIFIERS,
     MATRIX_MEMORY_OPCODES,
     SIZE_MODIFIER_TO_REG_COUNT,
@@ -129,6 +130,27 @@ class SASSParser(ABC):
 
         src, dst = self._parse_operands(operands, op_category, raw_opcode)
 
+        access_width_bytes = None
+        if op_category in GLOBAL_MEMORY_CATEGORIES:
+            for mod in raw_opcode.upper().split(".")[1:]:
+                if mod in SIZE_MODIFIER_TO_REG_COUNT:
+                    access_width_bytes = SIZE_MODIFIER_TO_REG_COUNT[mod] * 4
+                    break
+            if access_width_bytes is None:
+                access_width_bytes = 4
+
+        address_base_register = None
+        address_offset = None
+        if op_category in GLOBAL_MEMORY_CATEGORIES:
+            for op in operands:
+                op = self._strip_operand(op)
+                if op.startswith("c["):
+                    continue
+                inner = self._address_inner(op)
+                if inner is not None:
+                    address_base_register, address_offset = self._split_address(inner)
+                    break
+
         dest_registers.update(dst)
         src_registers.update(src)
 
@@ -138,7 +160,28 @@ class SASSParser(ABC):
             predicate=predicate,
             src_registers=src_registers,
             dest_registers=dest_registers,
+            access_width_bytes=access_width_bytes,
+            address_base_register=address_base_register,
+            address_offset=address_offset,
         )
+
+    def _split_address(self, inner: str) -> tuple[str | None, int]:
+        """Base register and immediate offset of an address's contents:
+        R2.64+0x10 -> (R2, 16), R2+-0x4 -> (R2, -4), R2.64+UR4 -> (R2, 0).
+        The base is one name, not the register pair a .64 address reads.
+        Register offsets (UR4) are not part of the offset."""
+        tokens = [t.strip() for t in inner.split("+") if t.strip()]
+        base = None
+        if tokens:
+            tok = re.sub(r"\.X?\d+$", "", tokens[0])
+            tok = self._strip_operand(tok)
+            if re.match(r"^U?R\d+$", tok) and self._is_op_needed(tok):
+                base = tok
+        offset = 0
+        for tok in tokens:
+            if re.match(r"^-?0x[0-9a-fA-F]+$|^-?\d+$", tok):
+                offset += int(tok, 0)
+        return base, offset
 
     def _is_op_needed(self, op: str) -> bool:
         if op in ("RZ", "URZ", "PT", "UPT", "SRZ"):
@@ -334,3 +377,8 @@ class SASSParser(ABC):
     @abstractmethod
     def _parse_operand_address(self, op: str) -> set[str] | None:
         pass
+
+    @abstractmethod
+    def _address_inner(self, op: str) -> str | None:
+        """Contents of a memory address operand, e.g. R2.64+0x10, without the
+        arch-dependent syntax around it. None if op is not an address."""

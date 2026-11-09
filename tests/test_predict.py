@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from gasp.dependency import DependencyOutput
+from gasp.gpuperf import GPUPerf
 from gasp.gpuperf.types import HardwareParameters, LaunchParameters
 from gasp.occupancy import OccupancyOutput
 from gasp.pico import PicoOutput
@@ -76,7 +77,10 @@ def prediction_input(mem_inst_count: int = 2, grid_size: int = 40) -> Prediction
             departure_delay=6,
             sync_factor=24,
             dram_latency=300,
-            cache_hit_latency=30,
+            l1_hit_latency=30,
+            l2_hit_latency=200,
+            l1_cache_size_bytes=96 * 1024,
+            l2_cache_size_bytes=4 * 1024 * 1024,
             bank_penalty=2,
             launch_overhead_base=LAUNCH_BASE,
             launch_overhead_per_thread=LAUNCH_PER_THREAD,
@@ -134,3 +138,65 @@ def test_predict_more_memory_instructions_raise_t_mem():
     more = predict(prediction_input(mem_inst_count=4), logger=MagicMock())
 
     assert more.t_mem > fewer.t_mem
+
+
+# ---------------------------------------------------------------------------
+# two-level AMAT (each latency end-to-end, so no lookup is added on a miss)
+# ---------------------------------------------------------------------------
+
+L1_LAT, L2_LAT, DRAM_LAT, DELTA = 30, 200, 300, 6
+
+
+def amat(h1: float, h2: float, average_trans_warp: float = 1.0) -> float:
+    h = SimpleNamespace(
+        l1_hit_latency=L1_LAT,
+        l2_hit_latency=L2_LAT,
+        dram_latency=DRAM_LAT,
+        departure_delay=DELTA,
+    )
+    o = SimpleNamespace(
+        l1_hit_ratio=h1, l2_hit_ratio=h2, average_trans_warp=average_trans_warp
+    )
+    return GPUPerf(MagicMock(), o, MagicMock(), h, MagicMock())._get_amat()
+
+
+@pytest.mark.parametrize(
+    "h1,h2,expected",
+    [
+        (0.0, 0.0, DRAM_LAT),  # all misses: DRAM only, no L1 lookup on top
+        (1.0, 0.0, L1_LAT),
+        (1.0, 1.0, L1_LAT),
+        (0.0, 1.0, L2_LAT),
+        (0.5, 0.0, (L1_LAT + DRAM_LAT) / 2),
+    ],
+)
+def test_amat_two_level(h1, h2, expected):
+    assert amat(h1, h2) == pytest.approx(expected)
+
+
+def test_amat_uncoalesced_term_only_on_dram():
+    assert amat(0.0, 0.0, average_trans_warp=3.0) == pytest.approx(DRAM_LAT + 2 * DELTA)
+    assert amat(1.0, 0.0, average_trans_warp=3.0) == pytest.approx(L1_LAT)
+
+
+# ---------------------------------------------------------------------------
+# working set -> hit ratios
+# ---------------------------------------------------------------------------
+
+
+def test_predict_working_set_scales_per_thread_bytes():
+    i = prediction_input()
+    i.dependency.global_bytes_per_thread = 12  # vecadd: 2 loads + 1 store of 4 B
+    p = predict(i, logger=MagicMock())
+
+    assert p.working_set_per_sm_bytes == 12 * 256 * 4  # x block_size x blocks/SM
+    assert p.working_set_total_bytes == 12 * 256 * 40  # x block_size x grid_size
+    assert p.l1_hit_ratio == 1.0  # 12 KB under 0.8 x 96 KB
+    assert p.l2_hit_ratio == 1.0
+
+
+def test_predict_no_working_set_estimate_counts_as_resident():
+    # global_bytes_per_thread defaults to 0, which the capacity model calls a hit
+    p = predict(prediction_input(), logger=MagicMock())
+    assert p.l1_hit_ratio == 1.0
+    assert p.amat == pytest.approx(30)

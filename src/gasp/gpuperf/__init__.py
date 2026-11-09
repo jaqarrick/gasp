@@ -81,8 +81,8 @@ class GPUPerf:
         mem_requests_per_sm = (k.mem_inst_count * o.total_warps) / (
             o.active_sms * o.itmlp
         )
-        amat = self._get_amat()
-        return mem_requests_per_sm * amat
+        self.amat = self._get_amat()
+        return mem_requests_per_sm * self.amat
 
     def _get_t_overlap(self, t_memory: float, t_comp: float) -> float:
         o = self.o
@@ -93,11 +93,13 @@ class GPUPerf:
         return t_overlap
 
     def _get_amat(self):
-        # note: average memory access time involves cache hit ratio, which will be performed in a different module
+        # every latency is end-to-end, so a miss costs the next level's latency
+        # with no lookup added on top: all misses gives exactly the DRAM latency
+        h = self.h
+        h1 = self.o.l1_hit_ratio
+        h2 = self.o.l2_hit_ratio
         average_dram_latency = (
-            self.h.dram_latency
-            + (self.o.average_trans_warp - 1) * self.h.departure_delay
+            h.dram_latency + (self.o.average_trans_warp - 1) * h.departure_delay
         )
-        miss_ratio = 1 - self.o.cache_hit_ratio
-        amat = average_dram_latency * miss_ratio + self.h.cache_hit_latency
-        return amat
+        l1_miss_latency = h2 * h.l2_hit_latency + (1 - h2) * average_dram_latency
+        return h1 * h.l1_hit_latency + (1 - h1) * l1_miss_latency

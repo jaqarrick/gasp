@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from gasp.cache import get_cache_hit_rate_from_working_set
 from gasp.dependency import DependencyOutput
 from gasp.gpuperf import GPUPerf
 from gasp.gpuperf.types import (
@@ -34,6 +35,11 @@ class PredictionOutput:
     mwp_peak_bw: float
     itmlp: float
     average_trans_warp: float
+    working_set_per_sm_bytes: int
+    working_set_total_bytes: int
+    l1_hit_ratio: float
+    l2_hit_ratio: float
+    amat: float
     t_comp: float
     t_mem: float
     t_overlap: float
@@ -100,6 +106,17 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         uncoalesced_count = p.uncoalesced_count
         bank_conflict_count = p.bank_conflict_count
 
+    # working set: the blocks resident on one SM share its L1, the whole grid shares L2
+    bytes_per_block = d.global_bytes_per_thread * l.block_size
+    working_set_per_sm = bytes_per_block * occ.blocks_per_sm
+    working_set_total = bytes_per_block * l.grid_size
+    l1_hit_ratio = get_cache_hit_rate_from_working_set(
+        working_set_per_sm, h.l1_cache_size_bytes
+    )
+    l2_hit_ratio = get_cache_hit_rate_from_working_set(
+        working_set_total, h.l2_cache_size_bytes
+    )
+
     k = KernelParameters(
         total_inst_count=d.total_inst_count,
         mem_inst_count=d.mem_inst_count,
@@ -111,7 +128,8 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         ilp=d.ilp,
         mlp=d.mlp,
         average_inst_latency=avg_inst_lat,
-        working_set_size=0,
+        working_set_per_sm_bytes=working_set_per_sm,
+        working_set_total_bytes=working_set_total,
     )
     o = OccupancyParams(
         active_warps=n,
@@ -126,7 +144,8 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         mwp=occ.mwp,
         mwp_cp=mwp_cp,
         average_trans_warp=average_trans_warp,
-        cache_hit_ratio=0.0,
+        l1_hit_ratio=l1_hit_ratio,
+        l2_hit_ratio=l2_hit_ratio,
     )
 
     logger.trace("predict", f"kernel parameters: {k}")
@@ -147,6 +166,11 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         mwp_peak_bw=mwp_peak_bw,
         itmlp=itmlp,
         average_trans_warp=average_trans_warp,
+        working_set_per_sm_bytes=working_set_per_sm,
+        working_set_total_bytes=working_set_total,
+        l1_hit_ratio=l1_hit_ratio,
+        l2_hit_ratio=l2_hit_ratio,
+        amat=model.amat,
         t_comp=model.t_comp,
         t_mem=model.t_mem,
         t_overlap=model.t_overlap,
