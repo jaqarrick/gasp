@@ -9,14 +9,23 @@ from gasp.launch import Dims, check_dims, total
 
 from .constants import DEFAULT_BLOCK_SIZE, DEFAULT_PROBLEM_SIZE
 
-INT_SETTINGS = ("problem_size", "loop_iterations")
+INT_SETTINGS = ("problem_size", "loop_iterations", "footprint")
+# fractions from 0 to 1
+FRACTION_SETTINGS = ("reuse",)
 DIM_SETTINGS = ("block_size", "grid_size")
 LIST_SETTINGS = ("include_dirs", "nvcc_flags", "program_args")
 STR_SETTINGS = ("file", "kernel")
 PARAMS = "params"
 # trips of each loop in the compiled kernel, so only on a kernel entry
 LOOP_COUNTS = "loop_counts"
-DEFAULT_KEYS = {*INT_SETTINGS, *DIM_SETTINGS, *LIST_SETTINGS, *STR_SETTINGS, PARAMS}
+DEFAULT_KEYS = {
+    *INT_SETTINGS,
+    *FRACTION_SETTINGS,
+    *DIM_SETTINGS,
+    *LIST_SETTINGS,
+    *STR_SETTINGS,
+    PARAMS,
+}
 ENTRY_KEYS = {*DEFAULT_KEYS, "name", LOOP_COUNTS}
 
 
@@ -41,6 +50,10 @@ class KernelSpec:
     nvcc_flags: list[str]
     program_args: list[str]
     params: dict[str, int]  # kernel arguments, passed to Pico
+    # distinct global bytes the kernel reads and writes, for the cache model
+    footprint: int | None = None
+    # share of global accesses that hit L1 on data the same block just loaded
+    reuse: float | None = None
 
 
 def check_cu_file(path: str) -> str:
@@ -74,6 +87,9 @@ def _validate_settings(settings: dict[str, Any], where: str, allowed: set[str]) 
         if key in INT_SETTINGS:
             if type(value) is not int or value <= 0:
                 raise ConfigError(f"{where}: {key} must be a positive integer")
+        elif key in FRACTION_SETTINGS:
+            if type(value) not in (int, float) or not 0 <= value <= 1:
+                raise ConfigError(f"{where}: {key} must be a number from 0 to 1")
         elif key in DIM_SETTINGS:
             try:
                 _as_dims(value)
@@ -135,6 +151,8 @@ def _build_spec(
         nvcc_flags=settings.get("nvcc_flags", []),
         program_args=settings.get("program_args", []),
         params=dict(settings.get(PARAMS, {})),
+        footprint=settings.get("footprint"),
+        reuse=settings.get("reuse"),
     )
 
 

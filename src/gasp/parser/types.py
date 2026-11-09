@@ -39,3 +39,9 @@ class SASSInstruction:
     predicate: str | None
     src_registers: set[str]
     dest_registers: set[str]
+    # global memory instructions only
+    access_width_bytes: int | None = None
+    # un-expanded base register of the address e.g. R2 from [R2.64+0x10]
+    address_base_register: str | None = None
+    # immediate byte offset of the address: 16 from [R2.64+0x10]
+    address_offset: int | None = None

@@ -15,7 +15,8 @@ class KernelParameters:
     ilp: float
     mlp: float
     average_inst_latency: float
-    working_set_size: int
+    working_set_per_sm_bytes: int  # feeds the L1 hit rate
+    working_set_total_bytes: int  # feeds the L2 hit rate
 
 
 @dataclass
@@ -39,7 +40,8 @@ class OccupancyParams:
     average_trans_warp: (
         float  # uncoalesced_count / (mem_inst_count * total_warps), floor 1
     )
-    cache_hit_ratio: float  # implement in cache model
+    l1_hit_ratio: float  # from the cache model (gasp.cache)
+    l2_hit_ratio: float  # of the accesses that miss L1
 
 
 @dataclass
@@ -54,7 +56,11 @@ class HardwareParameters:
     # hardware/microbenchmarks/sync_cost.cu measures it per GPU
     sync_factor: float
     dram_latency: float
-    cache_hit_latency: float  # todo: distinguish L1 and L2
+    # end-to-end latencies, like dram_latency: a hit costs only its own latency
+    l1_hit_latency: float
+    l2_hit_latency: float
+    l1_cache_size_bytes: int
+    l2_cache_size_bytes: int
     bank_penalty: float
     launch_overhead_base: float  # cycles per launch
     launch_overhead_per_thread: float  # cycles per launched thread

@@ -21,3 +21,5 @@ class Args:
     run: bool
     program_args: str | None
     param: list[tuple[str, int]]
+    footprint: int | None
+    reuse: float | None

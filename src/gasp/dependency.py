@@ -20,6 +20,15 @@ class DependencyOutput:
     sync_inst_count: int
     # sum of instruction latencies weighted by execution frequency (one thread, no overlap)
     total_latency: float
+    # global memory bytes one thread touches
+    global_bytes_per_thread: int = 0
+    num_address_groups: int = 0
+    # global accesses per thread, weighted by execution frequency
+    global_access_count: int = 0
+    # of those, accesses that can hit in cache:
+    reusable_access_count: int = 0
+    # every global access's width, repeats included, weighted by execution frequency
+    global_bytes_accessed_per_thread: int = 0
 
 
 @dataclass
@@ -33,6 +42,38 @@ class LatencyTable:
 
 def is_memory_load(inst: SASSInstruction) -> bool:
     return inst.category in MEMORY_LOAD_CATEGORIES
+
+
+AddressKey = tuple[int | None, str | None, int]
+
+
+def get_address_groups(instructions: list[SASSInstruction]) -> dict[AddressKey, int]:
+    """Distinct global addresses in one node, keyed by (index of the
+    instruction that last wrote the base, base register, immediate offset).
+
+    Accesses with the same (definition, base) read the same base value, so they
+    are taken as the same array; different offsets from it are different
+    elements, e.g. an unrolled loop's [R2+0x4], [R2+0x8], ... A base with no
+    definition in the node gets None as its index.
+    Value: the largest access width at that address, in bytes.
+    """
+    last_written: dict[str, int] = {}
+    groups: dict[AddressKey, int] = {}
+    for i, inst in enumerate(instructions):
+        if inst.category in GLOBAL_MEMORY_CATEGORIES:
+            base = inst.address_base_register
+            definition = last_written.get(base) if base else None
+            key = (definition, base, inst.address_offset or 0)
+            width = inst.access_width_bytes or 0
+            groups[key] = max(groups.get(key, 0), width)
+        for reg in inst.dest_registers:
+            last_written[reg] = i
+    return groups
+
+
+def count_arrays(groups: dict[AddressKey, int]) -> int:
+    """Distinct (definition, base) pairs: the arrays a node accesses."""
+    return len({(definition, base) for definition, base, _ in groups})
 
 
 def get_ilp_mlp_for_node(instructions: list[SASSInstruction], latency: LatencyTable):
@@ -244,11 +285,43 @@ def analyze(
     mem_inst_count = 0
     sfu_inst_count = 0
     sync_inst_count = 0
+    global_bytes_per_thread = 0
+    num_address_groups = 0
+    global_access_count = 0
+    reusable_access_count = 0
+    global_bytes_accessed_per_thread = 0
 
     latencies = {}
     for node_id, node in all_instructions.items():
         if not node:
             continue
+        groups = get_address_groups(node)
+        num_address_groups += count_arrays(groups)
+        global_bytes_per_thread += sum(groups.values()) * node_iterations[node_id]
+
+        # estimate memory reuse:
+        # an access in a loop may hit data from an earlier iteration;
+        # in a block that runs once, only repeats of an address already
+        # touched in the block can hit, the first touch is always a miss
+        global_insts = [i for i in node if i.category in GLOBAL_MEMORY_CATEGORIES]
+        accesses = len(global_insts)
+        global_access_count += accesses * node_iterations[node_id]
+        global_bytes_accessed_per_thread += (
+            sum(i.access_width_bytes or 0 for i in global_insts)
+            * node_iterations[node_id]
+        )
+        if node_iterations[node_id] > 1:
+            reusable_access_count += accesses * node_iterations[node_id]
+        else:
+            reusable_access_count += (accesses - len(groups)) * node_iterations[node_id]
+        if groups:
+            logger.trace(
+                "dependency",
+                f"node {node_id}: {count_arrays(groups)} array(s), addresses "
+                + ", ".join(
+                    f"{base}@{d}{off:+#x}={w}B" for (d, base, off), w in groups.items()
+                ),
+            )
         # ilp/mlp per node
         ilp, mlp, total_latency = get_ilp_mlp_for_node(node, latency)
         ilps[node_id] = ilp
@@ -301,4 +374,9 @@ def analyze(
         sfu_inst_count=sfu_inst_count,
         sync_inst_count=sync_inst_count,
         total_latency=weight_sum,
+        global_bytes_per_thread=global_bytes_per_thread,
+        num_address_groups=num_address_groups,
+        global_access_count=global_access_count,
+        reusable_access_count=reusable_access_count,
+        global_bytes_accessed_per_thread=global_bytes_accessed_per_thread,
     )

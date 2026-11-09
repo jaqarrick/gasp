@@ -170,6 +170,22 @@ def build_parser() -> argparse.ArgumentParser:
         "--problem-size", type=int, default=None, help="Size of the input"
     )
     parser.add_argument(
+        "--footprint",
+        type=int,
+        default=None,
+        help="Distinct global bytes the kernel reads and writes, such as 12000000 "
+        "for vecadd with 1000000 floats. Without it, the cache model estimates "
+        "reuse per thread",
+    )
+    parser.add_argument(
+        "--reuse",
+        type=float,
+        default=None,
+        help="Share of global accesses (0 to 1) that hit L1 on data the same "
+        "block just loaded, such as 0.94 for a 16x16 matrix multiply where 16 "
+        "threads read each value. Sets the L1 hit ratio directly",
+    )
+    parser.add_argument(
         "--loop-iterations",
         type=int,
         default=None,
@@ -244,6 +260,8 @@ def check_args(parser: argparse.ArgumentParser, args: Args) -> None:
         "--block-size": args.block_size,
         "--grid-size": args.grid_size,
         "--problem-size": args.problem_size,
+        "--footprint": args.footprint,
+        "--reuse": args.reuse,
         "--loop-iterations": args.loop_iterations,
         "--include-dir": args.include_dir or None,
         "--nvcc-flags": args.nvcc_flags,
@@ -261,6 +279,8 @@ def build_specs(args: Args) -> list[KernelSpec]:
 
     settings = {
         "problem_size": args.problem_size,
+        "footprint": args.footprint,
+        "reuse": args.reuse,
         "block_size": list(args.block_size) if args.block_size else None,
         "grid_size": list(args.grid_size) if args.grid_size else None,
         "loop_iterations": args.loop_iterations,
@@ -373,6 +393,8 @@ def analyze_kernel(
             ["Block Size", format_dims(spec.block_dim)],
             ["Grid Size", format_dims(spec.grid_dim)],
             ["Problem Size", str(spec.problem_size)],
+            ["Footprint (bytes)", str(spec.footprint or "Not provided")],
+            ["Reuse", "Not provided" if spec.reuse is None else f"{spec.reuse:g}"],
             ["Loop Iterations", str(spec.loop_iterations or "Not provided")],
             ["Loop Counts", format_loop_counts(spec.loop_counts)],
             ["Kernel Params", format_params(spec.params) or "Not provided"],
@@ -527,8 +549,15 @@ def analyze_kernel(
         trace="dependency",
     )
 
+    if spec.footprint is None:
+        logger.info(
+            f"{name}: no footprint given, so the cache model estimates reuse per thread"
+        )
+
     prediction = predict(
         PredictionInput(
+            footprint_bytes=spec.footprint,
+            block_reuse=spec.reuse,
             dependency=dependency_results,
             occupancy=occupancy_results,
             pico=pico_results,
@@ -539,7 +568,10 @@ def analyze_kernel(
                 departure_delay=hp.departure_delay_cycles,
                 sync_factor=hp.sync_factor,
                 dram_latency=hp.dram_latency_cycles,
-                cache_hit_latency=hp.l1_cache_hit_latency_cycles,
+                l1_hit_latency=hp.l1_cache_hit_latency_cycles,
+                l2_hit_latency=hp.l2_cache_hit_latency_cycles,
+                l1_cache_size_bytes=hp.max_l1_cache_size_bytes,
+                l2_cache_size_bytes=hp.l2_cache_size_bytes,
                 bank_penalty=hp.bank_penalty_cycles,
                 launch_overhead_base=hp.launch_overhead_base_cycles,
                 launch_overhead_per_thread=hp.launch_overhead_per_thread_cycles,
@@ -565,6 +597,12 @@ def analyze_kernel(
             ["MWP_peak_bw", f"{prediction.mwp_peak_bw:.2f}"],
             ["ITMLP", f"{prediction.itmlp:.2f}"],
             ["Avg Trans/Warp", f"{prediction.average_trans_warp:.2f}"],
+            ["Working set/SM (bytes)", str(prediction.working_set_per_sm_bytes)],
+            ["Working set total (bytes)", str(prediction.working_set_total_bytes)],
+            ["Reuse fraction", f"{prediction.reuse_fraction:.3f}"],
+            ["L1 hit ratio", f"{prediction.l1_hit_ratio:.3f}"],
+            ["L2 hit ratio", f"{prediction.l2_hit_ratio:.3f}"],
+            ["AMAT (cycles)", f"{prediction.amat:.1f}"],
             ["T_comp (cycles)", f"{prediction.t_comp:.0f}"],
             ["T_mem (cycles)", f"{prediction.t_mem:.0f}"],
             ["T_overlap (cycles)", f"{prediction.t_overlap:.0f}"],
