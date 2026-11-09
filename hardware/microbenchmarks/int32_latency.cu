@@ -59,6 +59,14 @@ __device__ unsigned long long read_clock64(void) {
     return c;
 }
 
+// Nanoseconds since an arbitrary epoch, independent of the SM clock. Read next to
+// clock64 so the run records the SM clock it ran at (cycles / ns).
+__device__ unsigned long long read_globaltimer(void) {
+    unsigned long long t;
+    asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t) :: "memory");
+    return t;
+}
+
 // One dependent add: x = x + step. "+r"(x) makes x a 32-bit register that is both
 // input and output, so every add must wait for the previous one.
 // add.u32 compiles to IADD3 on Volta and newer (a 3-input add with RZ as the third input).
@@ -66,14 +74,18 @@ __device__ unsigned long long read_clock64(void) {
 
 // out[0] = cycles for CHAIN_OPS dependent integer adds (clock overhead included)
 // out[1] = clock overhead (two back-to-back clock reads)
+// out[2] = globaltimer ns around the timed chain (read outside the clock64 pair)
 // sink[0] = final x, so the host can check that every add ran
 __global__ void int32_latency_kernel(unsigned int step, long long *out, unsigned int *sink) {
     unsigned int x = 1;
     unsigned long long t0 = 0;
     unsigned long long t1 = 0;
+    unsigned long long g0 = 0;
+    unsigned long long g1 = 0;
 
 #pragma unroll 1
     for (int pass = 0; pass < PASSES; pass++) {
+        g0 = read_globaltimer();
         t0 = read_clock64(); // start timer
         // UNROLL=16 dependent adds per iteration (if UNROLL changes, update this body too)
 #pragma unroll 1
@@ -84,6 +96,7 @@ __global__ void int32_latency_kernel(unsigned int step, long long *out, unsigned
             IADD_ONE IADD_ONE IADD_ONE IADD_ONE
         }
         t1 = read_clock64(); // end timer
+        g1 = read_globaltimer();
     }
 
     unsigned long long b0 = read_clock64();
@@ -91,6 +104,7 @@ __global__ void int32_latency_kernel(unsigned int step, long long *out, unsigned
 
     out[0] = (long long)(t1 - t0);
     out[1] = (long long)(b1 - b0);
+    out[2] = (long long)(g1 - g0);
     sink[0] = x;
 }
 
@@ -172,7 +186,7 @@ int main(int argc, char **argv) {
 
     long long *d_out;
     unsigned int *d_sink;
-    CUDA_CHECK(cudaMalloc(&d_out, 2 * sizeof(long long)));
+    CUDA_CHECK(cudaMalloc(&d_out, 3 * sizeof(long long)));
     CUDA_CHECK(cudaMalloc(&d_sink, sizeof(unsigned int)));
 
     // step is passed in at run time so ptxas cannot treat it as a known constant.
@@ -188,6 +202,7 @@ int main(int argc, char **argv) {
     CUDA_CHECK(cudaDeviceSynchronize());
 
     double raw_cycles[REPS];
+    double sum_clock_cycles = 0.0, sum_clock_ns = 0.0;  // for the SM clock
     double overhead_samples[REPS];
 
     for (int r = 0; r < REPS; r++) {
@@ -195,7 +210,7 @@ int main(int argc, char **argv) {
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
 
-        long long h_out[2];
+        long long h_out[3];
         unsigned int h_x;
         CUDA_CHECK(cudaMemcpy(h_out, d_out, sizeof(h_out), cudaMemcpyDeviceToHost));
         CUDA_CHECK(cudaMemcpy(&h_x, d_sink, sizeof(unsigned int), cudaMemcpyDeviceToHost));
@@ -207,10 +222,22 @@ int main(int argc, char **argv) {
         }
         raw_cycles[r] = (double)h_out[0];
         overhead_samples[r] = (double)h_out[1];
+        if (h_out[2] > 0) {
+            sum_clock_cycles += (double)h_out[0];
+            sum_clock_ns += (double)h_out[2];
+        }
     }
 
     // Subtract the median clock overhead from every run, then divide by the
     // number of adds to get cycles per integer add.
+    if (sum_clock_ns <= 0.0) {
+        fprintf(stderr, "ERROR: globaltimer did not advance\n");
+        return 1;
+    }
+    // SM clock over all reps: total cycles / total ns (globaltimer updates every ~1 us,
+    // so one short chain alone would be too coarse).
+    const double sm_clock_ghz = sum_clock_cycles / sum_clock_ns;
+
     double overhead = median_of(overhead_samples, REPS);
     // Per-run breakdown: gross (clock overhead included) -> net (overhead removed) -> per op.
     double net_cycles[REPS];
@@ -309,6 +336,8 @@ int main(int argc, char **argv) {
     for (int r = 0; r < REPS; r++) fprintf(f, "%s%.4f", r ? ", " : "", per_op[r]);
     fprintf(f, "],\n");
     fprintf(f, "  \"uncorrected_value\": %.4f,\n", uncorrected_value);
+    // clock.sm_clock_ghz: total clock64 cycles / total globaltimer ns over all reps
+    fprintf(f, "  \"clock\": {\"sm_clock_ghz\": %.4f},\n", sm_clock_ghz);
     fprintf(f, "  \"cuda_version\": \"%d.%d\",\n", runtime_version / 1000, (runtime_version % 1000) / 10);
     fprintf(f, "  \"nvcc_version\": \"%d.%d\",\n", __CUDACC_VER_MAJOR__, __CUDACC_VER_MINOR__);
     fprintf(f, "  \"driver_version\": \"%s\",\n", driver);
@@ -334,5 +363,7 @@ int main(int argc, char **argv) {
 //     here than for FP: the final-value check still passes if they are combined.
 //   * CS2R clock reads before and after the inner loop, plus a back-to-back
 //     pair after the pass loop
+//   * a globaltimer read (SR_GLOBALTIMER) just before the first CS2R and just after
+//     the second, in the pass loop
 //   * a branch after the 16 IADD3s (the loop was kept, not fully unrolled)
 // ---------------------------------------------------------------------------
