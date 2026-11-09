@@ -49,6 +49,15 @@ def get_reuse_fraction(reusable_access_count: int, global_access_count: int) -> 
     return reusable_access_count / global_access_count
 
 
+def get_footprint_reuse_fraction(footprint_bytes: int, bytes_accessed: int) -> float:
+    """Share of accessed bytes that are not first touches
+    Each byte of the footprint must come from DRAM once (a compulsory miss);
+    every other access to it is a repeat that a cache can serve."""
+    if bytes_accessed <= 0:
+        return 0.0
+    return 1.0 - min(1.0, footprint_bytes / bytes_accessed)
+
+
 def get_hit_ratios(
     reuse_fraction: float, l1_capacity_hit: float, l2_capacity_hit: float
 ) -> tuple[float, float]:

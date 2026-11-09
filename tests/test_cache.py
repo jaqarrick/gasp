@@ -3,7 +3,12 @@
 import pytest
 
 from gasp.cache import get_cache_hit_rate_from_working_set as hit_rate
-from gasp.cache import get_capacity_regime, get_hit_ratios, get_reuse_fraction
+from gasp.cache import (
+    get_capacity_regime,
+    get_footprint_reuse_fraction,
+    get_hit_ratios,
+    get_reuse_fraction,
+)
 
 C = 100_000
 
@@ -65,3 +70,17 @@ def test_hit_rate_no_cache_misses():
 )
 def test_capacity_regime(working_set, size, expected):
     assert get_capacity_regime(working_set, size) == expected
+
+
+@pytest.mark.parametrize(
+    "footprint,accessed,expected",
+    [
+        (12_000_000, 12_000_000, 0.0),  # vecadd good: every byte is a first touch
+        (12_000_000, 24_000_000, 0.5),  # vecadd poor: each byte twice
+        (8, 8_000, 0.999),  # heavy reuse
+        (100, 50, 0.0),  # footprint larger than accesses: clamped, no reuse
+        (100, 0, 0.0),  # no accesses
+    ],
+)
+def test_footprint_reuse_fraction(footprint, accessed, expected):
+    assert get_footprint_reuse_fraction(footprint, accessed) == pytest.approx(expected)

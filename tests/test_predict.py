@@ -233,6 +233,62 @@ def test_predict_traces_cache_line():
         c.args[1] for c in logger.trace.call_args_list if c.args[1].startswith("cache:")
     )
     assert cache_trace == (
-        "cache: r = 3/6 = 0.500; L1 cap 1.000 (resident); "
+        "cache: r = 0.5000 (per thread 3/6 reusable); L1 cap 1.000 (resident); "
         "L2 cap 1.000 (resident); h1 0.500, h2 0.000"
     )
+
+
+# ---------------------------------------------------------------------------
+# footprint: whole-kernel reuse
+# ---------------------------------------------------------------------------
+
+THREADS = 256 * 40  # prediction_input's block_size x grid_size
+
+
+def footprint_input(bytes_per_thread: int, footprint: int) -> PredictionInput:
+    i = vecadd_input(accesses=3, reusable=0)  # per-thread count says no reuse
+    i.dependency.global_bytes_accessed_per_thread = bytes_per_thread
+    i.dependency.global_bytes_per_thread = bytes_per_thread  # no repeats
+    i.footprint_bytes = footprint
+    return i
+
+
+def test_footprint_streaming_has_no_reuse():
+    p = predict(footprint_input(12, 12 * THREADS), logger=MagicMock())
+    assert p.reuse_fraction == 0.0
+    assert p.amat == pytest.approx(DRAM_LAT)
+
+
+def test_footprint_sees_reuse_between_threads():
+    # threads read 1 KB each, but share 8 KB in all: mm-style sharing that the
+    # per-thread count (reusable=0) can't see
+    p = predict(footprint_input(1024, 8 * 1024), logger=MagicMock())
+
+    assert p.reuse_fraction == pytest.approx(1 - 8 * 1024 / (1024 * THREADS))
+    # L1 (96 KB) can't hold the 4 blocks' 1 MB; the 8 KB footprint fits in L2
+    # (4 MB), so what L1 drops hits L2 and only first touches go to DRAM
+    assert p.working_set_total_bytes == 8 * 1024
+    dram_fraction = (1 - p.l1_hit_ratio) * (1 - p.l2_hit_ratio)
+    assert dram_fraction == pytest.approx(1 - p.reuse_fraction)
+
+
+def test_footprint_larger_than_l2_uses_capacity():
+    # 16 MB footprint, 4 MB L2: Jarmusch's streaming branch, cap2 = C / W = 0.25
+    l2 = 4 * 1024 * 1024
+    footprint = 4 * l2
+    p = predict(footprint_input(1024 * 1024, footprint), logger=MagicMock())
+
+    assert p.working_set_total_bytes == footprint
+    r = p.reuse_fraction
+    cap1 = 96 * 1024 / (1024 * 1024 * 256 * 4)  # L1 vs the 4 blocks' bytes
+    reusable_l1_misses = r * (1 - cap1)
+    assert p.l2_hit_ratio == pytest.approx(
+        reusable_l1_misses * 0.25 / (1 - p.l1_hit_ratio)
+    )
+
+
+def test_no_footprint_falls_back_to_per_thread_reuse():
+    i = footprint_input(1024, 8 * 1024)
+    i.footprint_bytes = None
+    p = predict(i, logger=MagicMock())
+    assert p.reuse_fraction == 0.0  # reusable=0 from the per-thread count

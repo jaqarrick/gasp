@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from gasp.cache import (
     get_cache_hit_rate_from_working_set,
     get_capacity_regime,
+    get_footprint_reuse_fraction,
     get_hit_ratios,
     get_reuse_fraction,
 )
@@ -30,6 +31,7 @@ class PredictionInput:
     pico: PicoOutput
     hardware: HardwareParameters
     launch: LaunchParameters
+    footprint_bytes: int | None = None
 
 
 @dataclass
@@ -123,18 +125,40 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         working_set_total, h.l2_cache_size_bytes
     )
     # first touches miss at every level, whatever the working set
-    reuse_fraction = get_reuse_fraction(d.reusable_access_count, d.global_access_count)
+    bytes_accessed = d.global_bytes_accessed_per_thread * l.block_size * l.grid_size
+    if input.footprint_bytes is not None and bytes_accessed > 0:
+        # whole-kernel reuse, so sharing between threads counts too
+        reuse_fraction = get_footprint_reuse_fraction(
+            input.footprint_bytes, bytes_accessed
+        )
+        working_set_total = input.footprint_bytes
+        l2_capacity_hit = get_cache_hit_rate_from_working_set(
+            working_set_total, h.l2_cache_size_bytes
+        )
+        reuse_source = (
+            f"footprint {input.footprint_bytes:,} B / accessed {bytes_accessed:,} B"
+        )
+    else:
+        # per-thread fallback: loop accesses and repeats within a block
+        reuse_fraction = get_reuse_fraction(
+            d.reusable_access_count, d.global_access_count
+        )
+        reuse_source = (
+            f"per thread {d.reusable_access_count}/{d.global_access_count} reusable"
+        )
+    l2_trace = (
+        f"L2 cap {l2_capacity_hit:.3f}"
+        f" ({get_capacity_regime(working_set_total, h.l2_cache_size_bytes)})"
+    )
     l1_hit_ratio, l2_hit_ratio = get_hit_ratios(
         reuse_fraction, l1_capacity_hit, l2_capacity_hit
     )
     logger.trace(
         "predict",
-        f"cache: r = {d.reusable_access_count}/{d.global_access_count}"
-        f" = {reuse_fraction:.3f}; L1 cap {l1_capacity_hit:.3f}"
+        f"cache: r = {reuse_fraction:.4f} ({reuse_source}); L1 cap"
+        f" {l1_capacity_hit:.3f}"
         f" ({get_capacity_regime(working_set_per_sm, h.l1_cache_size_bytes)});"
-        f" L2 cap {l2_capacity_hit:.3f}"
-        f" ({get_capacity_regime(working_set_total, h.l2_cache_size_bytes)});"
-        f" h1 {l1_hit_ratio:.3f}, h2 {l2_hit_ratio:.3f}",
+        f" {l2_trace}; h1 {l1_hit_ratio:.3f}, h2 {l2_hit_ratio:.3f}",
     )
 
     k = KernelParameters(

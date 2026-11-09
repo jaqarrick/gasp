@@ -140,6 +140,8 @@ program_args = ["1000000"]
             '[[kernel]]\nfile = "DIR/good.cu"\nblock_size = [16, 16]\n',
             "needs grid_size",
         ),
+        ('[[kernel]]\nfile = "DIR/good.cu"\nfootprint = 0\n', "footprint"),
+        ('[[kernel]]\nfile = "DIR/good.cu"\nfootprint = 1.5\n', "footprint"),
         ('[[kernel]]\nfile = "DIR/good.cu"\nparams = 8\n', "params"),
         ('[[kernel]]\nfile = "DIR/good.cu"\nparams = { M = "8" }\n', "params"),
         ('[[kernel]]\nfile = "DIR/good.cu"\nparams = { M = true }\n', "params"),
@@ -315,3 +317,27 @@ def test_specs_from_inputs_duplicate_names_point_to_config(cu):
 def test_specs_from_inputs_rejects_non_positive_sizes(cu):
     with pytest.raises(ConfigError, match="block_size"):
         specs_from_inputs([(f"{cu}/good.cu", None)], {"block_size": 0})
+
+
+def test_footprint_from_defaults_and_entries(cu):
+    text = """
+[defaults]
+footprint = 12000000
+
+[[kernel]]
+file = "DIR/good.cu"
+
+[[kernel]]
+file = "DIR/poor.cu"
+footprint = 24000000
+"""
+    good, poor = load_config(write_config(cu, text))
+
+    assert good.footprint == 12_000_000
+    assert poor.footprint == 24_000_000
+
+
+def test_footprint_defaults_to_none(cu):
+    good, _ = load_config(write_config(cu, TWO_KERNELS))
+
+    assert good.footprint is None

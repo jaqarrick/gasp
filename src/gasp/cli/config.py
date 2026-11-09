@@ -9,7 +9,7 @@ from gasp.launch import Dims, check_dims, total
 
 from .constants import DEFAULT_BLOCK_SIZE, DEFAULT_PROBLEM_SIZE
 
-INT_SETTINGS = ("problem_size", "loop_iterations")
+INT_SETTINGS = ("problem_size", "loop_iterations", "footprint")
 DIM_SETTINGS = ("block_size", "grid_size")
 LIST_SETTINGS = ("include_dirs", "nvcc_flags", "program_args")
 STR_SETTINGS = ("file", "kernel")
@@ -41,6 +41,8 @@ class KernelSpec:
     nvcc_flags: list[str]
     program_args: list[str]
     params: dict[str, int]  # kernel arguments, passed to Pico
+    # distinct global bytes the kernel reads and writes, for the cache model
+    footprint: int | None = None
 
 
 def check_cu_file(path: str) -> str:
@@ -135,6 +137,7 @@ def _build_spec(
         nvcc_flags=settings.get("nvcc_flags", []),
         program_args=settings.get("program_args", []),
         params=dict(settings.get(PARAMS, {})),
+        footprint=settings.get("footprint"),
     )
 
 

@@ -350,6 +350,7 @@ def test_config_with_input_file_exits():
         ("--block-size", "256"),
         ("--grid-size", "8"),
         ("--problem-size", "1000"),
+        ("--footprint", "12000000"),
         ("--loop-iterations", "8"),
         ("-I", "inc"),
         ("--nvcc-flags", "-O2"),
@@ -621,3 +622,13 @@ def test_no_loop_table_without_loops(tmp_path, report_logger):
 
 def test_loop_counts_template():
     assert loop_counts_template(3) == "loop_counts = [?, ?, ?]"
+
+
+def test_build_specs_passes_footprint():
+    (spec,) = build_specs(checked_args(VECADD, "--footprint", "12000000"))
+    assert spec.footprint == 12_000_000
+
+
+def test_build_specs_footprint_defaults_to_none():
+    (spec,) = build_specs(checked_args(VECADD))
+    assert spec.footprint is None

@@ -27,6 +27,8 @@ class DependencyOutput:
     global_access_count: int = 0
     # of those, accesses that can hit in cache:
     reusable_access_count: int = 0
+    # every global access's width, repeats included, weighted by execution frequency
+    global_bytes_accessed_per_thread: int = 0
 
 
 @dataclass
@@ -287,6 +289,7 @@ def analyze(
     num_address_groups = 0
     global_access_count = 0
     reusable_access_count = 0
+    global_bytes_accessed_per_thread = 0
 
     latencies = {}
     for node_id, node in all_instructions.items():
@@ -300,8 +303,13 @@ def analyze(
         # an access in a loop may hit data from an earlier iteration;
         # in a block that runs once, only repeats of an address already
         # touched in the block can hit, the first touch is always a miss
-        accesses = sum(inst.category in GLOBAL_MEMORY_CATEGORIES for inst in node)
+        global_insts = [i for i in node if i.category in GLOBAL_MEMORY_CATEGORIES]
+        accesses = len(global_insts)
         global_access_count += accesses * node_iterations[node_id]
+        global_bytes_accessed_per_thread += (
+            sum(i.access_width_bytes or 0 for i in global_insts)
+            * node_iterations[node_id]
+        )
         if node_iterations[node_id] > 1:
             reusable_access_count += accesses * node_iterations[node_id]
         else:
@@ -370,4 +378,5 @@ def analyze(
         num_address_groups=num_address_groups,
         global_access_count=global_access_count,
         reusable_access_count=reusable_access_count,
+        global_bytes_accessed_per_thread=global_bytes_accessed_per_thread,
     )

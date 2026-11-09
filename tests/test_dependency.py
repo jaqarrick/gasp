@@ -699,3 +699,16 @@ def test_loop_accesses_are_all_reusable(logger):
     assert (
         out.reusable_access_count == 2 * 10
     )  # the store after the loop is a first touch
+
+
+def test_bytes_accessed_counts_repeats_and_trips(logger):
+    nodes = ["entry", "body", "exit"]
+    cfg = make_cfg(nodes, [("entry", "body"), ("body", "body"), ("body", "exit")])
+    insts = {
+        "entry": [g_load("R8", "R2"), g_load("R9", "R2")],  # repeat: still 2 x 4 B
+        "body": [g_load("R10", "R4", width=8)],
+        "exit": [g_store("R6", width=16)],
+    }
+    out = analyze(cfg, insts, loop_iterations=10, latency=LATENCY, logger=logger)
+    assert out.global_bytes_accessed_per_thread == 2 * 4 + 8 * 10 + 16
+    assert out.global_bytes_per_thread == 4 + 8 * 10 + 16  # repeats collapsed

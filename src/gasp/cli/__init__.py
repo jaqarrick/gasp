@@ -170,6 +170,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--problem-size", type=int, default=None, help="Size of the input"
     )
     parser.add_argument(
+        "--footprint",
+        type=int,
+        default=None,
+        help="Distinct global bytes the kernel reads and writes, such as 12000000 "
+        "for vecadd with 1000000 floats. Without it, the cache model estimates "
+        "reuse per thread",
+    )
+    parser.add_argument(
         "--loop-iterations",
         type=int,
         default=None,
@@ -244,6 +252,7 @@ def check_args(parser: argparse.ArgumentParser, args: Args) -> None:
         "--block-size": args.block_size,
         "--grid-size": args.grid_size,
         "--problem-size": args.problem_size,
+        "--footprint": args.footprint,
         "--loop-iterations": args.loop_iterations,
         "--include-dir": args.include_dir or None,
         "--nvcc-flags": args.nvcc_flags,
@@ -261,6 +270,7 @@ def build_specs(args: Args) -> list[KernelSpec]:
 
     settings = {
         "problem_size": args.problem_size,
+        "footprint": args.footprint,
         "block_size": list(args.block_size) if args.block_size else None,
         "grid_size": list(args.grid_size) if args.grid_size else None,
         "loop_iterations": args.loop_iterations,
@@ -373,6 +383,7 @@ def analyze_kernel(
             ["Block Size", format_dims(spec.block_dim)],
             ["Grid Size", format_dims(spec.grid_dim)],
             ["Problem Size", str(spec.problem_size)],
+            ["Footprint (bytes)", str(spec.footprint or "Not provided")],
             ["Loop Iterations", str(spec.loop_iterations or "Not provided")],
             ["Loop Counts", format_loop_counts(spec.loop_counts)],
             ["Kernel Params", format_params(spec.params) or "Not provided"],
@@ -527,8 +538,14 @@ def analyze_kernel(
         trace="dependency",
     )
 
+    if spec.footprint is None:
+        logger.info(
+            f"{name}: no footprint given, so the cache model estimates reuse per thread"
+        )
+
     prediction = predict(
         PredictionInput(
+            footprint_bytes=spec.footprint,
             dependency=dependency_results,
             occupancy=occupancy_results,
             pico=pico_results,
