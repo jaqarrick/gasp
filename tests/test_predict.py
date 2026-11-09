@@ -292,3 +292,42 @@ def test_no_footprint_falls_back_to_per_thread_reuse():
     i.footprint_bytes = None
     p = predict(i, logger=MagicMock())
     assert p.reuse_fraction == 0.0  # reusable=0 from the per-thread count
+
+
+# ---------------------------------------------------------------------------
+# --reuse: L1 hit ratio given
+# ---------------------------------------------------------------------------
+
+
+def test_reuse_sets_l1_hit_ratio():
+    # mm_basic-style: L1 capacity term sees far too much, the block reuses 15/16
+    i = footprint_input(1024 * 1024, 8 * 1024)
+    i.block_reuse = 15 / 16
+    p = predict(i, logger=MagicMock())
+
+    assert p.l1_hit_ratio == pytest.approx(15 / 16)
+    # 8 KB footprint fits the 4 MB L2: the rest of the reuse all hits there
+    assert p.l2_hit_ratio == pytest.approx((p.reuse_fraction - 15 / 16) / (1 / 16))
+
+
+def test_reuse_zero_means_no_l1_hits():
+    i = vecadd_input(accesses=6, reusable=3)  # per thread would say h1 = 0.5
+    i.block_reuse = 0.0
+    p = predict(i, logger=MagicMock())
+
+    assert p.l1_hit_ratio == 0.0
+    # the per-thread repeats L1 no longer catches go to L2 (resident here)
+    assert p.l2_hit_ratio == pytest.approx(0.5)
+
+
+def test_reuse_shows_in_trace():
+    logger = MagicMock()
+    i = vecadd_input(accesses=6, reusable=3)
+    i.block_reuse = 0.25
+    predict(i, logger=logger)
+
+    cache_trace = next(
+        c.args[1] for c in logger.trace.call_args_list if c.args[1].startswith("cache:")
+    )
+    assert "L1 from --reuse 0.25" in cache_trace
+    assert "h1 0.250" in cache_trace

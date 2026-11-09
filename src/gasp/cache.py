@@ -68,3 +68,14 @@ def get_hit_ratios(
         return h1, 0.0
     h2 = r * (1.0 - l1_capacity_hit) * l2_capacity_hit / l1_misses
     return h1, h2
+
+
+def get_hit_ratios_given_l1(
+    l1_hit_ratio: float, reuse_fraction: float, l2_capacity_hit: float
+) -> tuple[float, float]:
+    h1 = l1_hit_ratio
+    l1_misses = 1.0 - h1
+    if l1_misses <= 0:
+        return h1, 0.0
+    reusable_misses = max(0.0, reuse_fraction - h1)
+    return h1, reusable_misses * l2_capacity_hit / l1_misses

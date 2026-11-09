@@ -141,6 +141,10 @@ program_args = ["1000000"]
             "needs grid_size",
         ),
         ('[[kernel]]\nfile = "DIR/good.cu"\nfootprint = 0\n', "footprint"),
+        ('[[kernel]]\nfile = "DIR/good.cu"\nreuse = 1.5\n', "reuse"),
+        ('[[kernel]]\nfile = "DIR/good.cu"\nreuse = -0.1\n', "reuse"),
+        ('[[kernel]]\nfile = "DIR/good.cu"\nreuse = "0.5"\n', "reuse"),
+        ('[[kernel]]\nfile = "DIR/good.cu"\nreuse = true\n', "reuse"),
         ('[[kernel]]\nfile = "DIR/good.cu"\nfootprint = 1.5\n', "footprint"),
         ('[[kernel]]\nfile = "DIR/good.cu"\nparams = 8\n', "params"),
         ('[[kernel]]\nfile = "DIR/good.cu"\nparams = { M = "8" }\n', "params"),
@@ -341,3 +345,27 @@ def test_footprint_defaults_to_none(cu):
     good, _ = load_config(write_config(cu, TWO_KERNELS))
 
     assert good.footprint is None
+
+
+def test_reuse_accepts_fractions_and_ends(cu):
+    text = """
+[defaults]
+reuse = 0.94
+
+[[kernel]]
+file = "DIR/good.cu"
+
+[[kernel]]
+file = "DIR/poor.cu"
+reuse = 0
+"""
+    good, poor = load_config(write_config(cu, text))
+
+    assert good.reuse == 0.94
+    assert poor.reuse == 0
+
+
+def test_reuse_defaults_to_none(cu):
+    good, _ = load_config(write_config(cu, TWO_KERNELS))
+
+    assert good.reuse is None

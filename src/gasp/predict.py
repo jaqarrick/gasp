@@ -5,6 +5,7 @@ from gasp.cache import (
     get_capacity_regime,
     get_footprint_reuse_fraction,
     get_hit_ratios,
+    get_hit_ratios_given_l1,
     get_reuse_fraction,
 )
 from gasp.dependency import DependencyOutput
@@ -32,6 +33,9 @@ class PredictionInput:
     hardware: HardwareParameters
     launch: LaunchParameters
     footprint_bytes: int | None = None
+    # share of global accesses that hit L1 on data the same block just loaded
+    # (--reuse), None to use L1's capacity term
+    block_reuse: float | None = None
 
 
 @dataclass
@@ -150,14 +154,24 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         f"L2 cap {l2_capacity_hit:.3f}"
         f" ({get_capacity_regime(working_set_total, h.l2_cache_size_bytes)})"
     )
-    l1_hit_ratio, l2_hit_ratio = get_hit_ratios(
-        reuse_fraction, l1_capacity_hit, l2_capacity_hit
-    )
+    if input.block_reuse is not None:
+        # given by the user (--reuse): replaces L1's capacity term, which only
+        # sees totals and misses data reused within a block right after loading
+        l1_hit_ratio, l2_hit_ratio = get_hit_ratios_given_l1(
+            input.block_reuse, reuse_fraction, l2_capacity_hit
+        )
+        l1_trace = f"L1 from --reuse {input.block_reuse:g}"
+    else:
+        l1_hit_ratio, l2_hit_ratio = get_hit_ratios(
+            reuse_fraction, l1_capacity_hit, l2_capacity_hit
+        )
+        l1_trace = (
+            f"L1 cap {l1_capacity_hit:.3f}"
+            f" ({get_capacity_regime(working_set_per_sm, h.l1_cache_size_bytes)})"
+        )
     logger.trace(
         "predict",
-        f"cache: r = {reuse_fraction:.4f} ({reuse_source}); L1 cap"
-        f" {l1_capacity_hit:.3f}"
-        f" ({get_capacity_regime(working_set_per_sm, h.l1_cache_size_bytes)});"
+        f"cache: r = {reuse_fraction:.4f} ({reuse_source}); {l1_trace};"
         f" {l2_trace}; h1 {l1_hit_ratio:.3f}, h2 {l2_hit_ratio:.3f}",
     )
 

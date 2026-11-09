@@ -178,6 +178,14 @@ def build_parser() -> argparse.ArgumentParser:
         "reuse per thread",
     )
     parser.add_argument(
+        "--reuse",
+        type=float,
+        default=None,
+        help="Share of global accesses (0 to 1) that hit L1 on data the same "
+        "block just loaded, such as 0.94 for a 16x16 matrix multiply where 16 "
+        "threads read each value. Sets the L1 hit ratio directly",
+    )
+    parser.add_argument(
         "--loop-iterations",
         type=int,
         default=None,
@@ -253,6 +261,7 @@ def check_args(parser: argparse.ArgumentParser, args: Args) -> None:
         "--grid-size": args.grid_size,
         "--problem-size": args.problem_size,
         "--footprint": args.footprint,
+        "--reuse": args.reuse,
         "--loop-iterations": args.loop_iterations,
         "--include-dir": args.include_dir or None,
         "--nvcc-flags": args.nvcc_flags,
@@ -271,6 +280,7 @@ def build_specs(args: Args) -> list[KernelSpec]:
     settings = {
         "problem_size": args.problem_size,
         "footprint": args.footprint,
+        "reuse": args.reuse,
         "block_size": list(args.block_size) if args.block_size else None,
         "grid_size": list(args.grid_size) if args.grid_size else None,
         "loop_iterations": args.loop_iterations,
@@ -384,6 +394,7 @@ def analyze_kernel(
             ["Grid Size", format_dims(spec.grid_dim)],
             ["Problem Size", str(spec.problem_size)],
             ["Footprint (bytes)", str(spec.footprint or "Not provided")],
+            ["Reuse", "Not provided" if spec.reuse is None else f"{spec.reuse:g}"],
             ["Loop Iterations", str(spec.loop_iterations or "Not provided")],
             ["Loop Counts", format_loop_counts(spec.loop_counts)],
             ["Kernel Params", format_params(spec.params) or "Not provided"],
@@ -546,6 +557,7 @@ def analyze_kernel(
     prediction = predict(
         PredictionInput(
             footprint_bytes=spec.footprint,
+            block_reuse=spec.reuse,
             dependency=dependency_results,
             occupancy=occupancy_results,
             pico=pico_results,

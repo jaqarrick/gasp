@@ -18,7 +18,7 @@ from gasp.cli import (
     report_measured,
     resolve_traces,
 )
-from gasp.cli.config import KernelSpec
+from gasp.cli.config import ConfigError, KernelSpec
 from gasp.cli.types import Args
 from gasp.cli.utils import GPU_PROFILES, HardwareProfile, load_hardware_profile
 from gasp.dependency import LoopInfo
@@ -351,6 +351,7 @@ def test_config_with_input_file_exits():
         ("--grid-size", "8"),
         ("--problem-size", "1000"),
         ("--footprint", "12000000"),
+        ("--reuse", "0.5"),
         ("--loop-iterations", "8"),
         ("-I", "inc"),
         ("--nvcc-flags", "-O2"),
@@ -632,3 +633,13 @@ def test_build_specs_passes_footprint():
 def test_build_specs_footprint_defaults_to_none():
     (spec,) = build_specs(checked_args(VECADD))
     assert spec.footprint is None
+
+
+def test_build_specs_passes_reuse():
+    (spec,) = build_specs(checked_args(VECADD, "--reuse", "0.94"))
+    assert spec.reuse == 0.94
+
+
+def test_reuse_out_of_range_is_rejected():
+    with pytest.raises(ConfigError, match="reuse"):
+        build_specs(checked_args(VECADD, "--reuse", "1.5"))

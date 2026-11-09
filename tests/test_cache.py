@@ -7,6 +7,7 @@ from gasp.cache import (
     get_capacity_regime,
     get_footprint_reuse_fraction,
     get_hit_ratios,
+    get_hit_ratios_given_l1,
     get_reuse_fraction,
 )
 
@@ -84,3 +85,20 @@ def test_capacity_regime(working_set, size, expected):
 )
 def test_footprint_reuse_fraction(footprint, accessed, expected):
     assert get_footprint_reuse_fraction(footprint, accessed) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    "h1,r,cap2,expected_h2",
+    [
+        (0.94, 0.9985, 1.0, (0.9985 - 0.94) / 0.06),  # what L1 misses of the reuse
+        (0.94, 0.9985, 0.5, (0.9985 - 0.94) * 0.5 / 0.06),
+        (0.5, 0.5, 1.0, 0.0),  # L1 already holds all the reuse
+        (0.5, 0.2, 1.0, 0.0),  # given h1 above r: no reuse left for L2
+        (1.0, 1.0, 1.0, 0.0),  # nothing misses L1
+        (0.0, 0.0, 1.0, 0.0),
+    ],
+)
+def test_hit_ratios_given_l1(h1, r, cap2, expected_h2):
+    got_h1, got_h2 = get_hit_ratios_given_l1(h1, r, cap2)
+    assert got_h1 == h1
+    assert got_h2 == pytest.approx(expected_h2)
