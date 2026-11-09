@@ -1,5 +1,6 @@
 """Tests for gasp.predict — Pico counts → average_trans_warp, T_GPU."""
 
+from dataclasses import replace
 from unittest.mock import MagicMock
 
 import pytest
@@ -114,6 +115,18 @@ def test_predict_has_no_one_thread_baseline():
 
     assert not hasattr(p, "t_one_thread")
     assert not hasattr(p, "speedup")
+
+
+def test_predict_bank_conflicts_scale_by_warps_per_sm():
+    base = prediction_input()
+    conflicted = prediction_input()
+    conflicted.pico = replace(conflicted.pico, bank_conflict_count=31)
+
+    clean = predict(base, logger=MagicMock())
+    banked = predict(conflicted, logger=MagicMock())
+
+    # 31 extra accesses per warp x 320 warps / 10 SMs x penalty 2
+    assert banked.t_comp - clean.t_comp == pytest.approx(31 * 320 / 10 * 2)
 
 
 def test_predict_more_memory_instructions_raise_t_mem():

@@ -65,7 +65,11 @@ class GPUPerf:
 
         # todo: implement our own model for overhead / bank conflict overhead since GPUPerf uses emulation
         o_cfdiv = k.divergent_inst_count * k.average_inst_latency
-        o_bank = k.bank_conflict_count * h.bank_penalty
+        # Pico's count is per warp (extra shared accesses, N - 1 for an N-way
+        # conflict), so it scales by warps per SM like the other W_serial terms.
+        o_bank = (
+            (k.bank_conflict_count * o.total_warps) / o.active_sms
+        ) * h.bank_penalty
 
         w_serial = o_sync + o_sfu + o_cfdiv + o_bank
 
