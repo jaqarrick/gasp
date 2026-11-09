@@ -1,6 +1,7 @@
 import shlex
 from dataclasses import dataclass
 
+from gasp.predict import PredictionOutput
 from gasp.profiler import ProfileOutput
 
 
@@ -54,4 +55,22 @@ def work_mismatches(
         warnings.append(
             f"Kernels may not do the same work, kernel params differ: {values}"
         )
+    return warnings
+
+
+def carveout_mismatches(
+    predictions: dict[str, PredictionOutput], measured: dict[str, ProfileOutput]
+) -> list[str]:
+    """Kernels whose measured shared-memory carveout isn't the predicted one,
+    so the L1 size the cache model used is wrong for them."""
+    warnings = []
+    for name, prediction in predictions.items():
+        actual = measured[name].shared_mem_config_bytes
+        predicted = prediction.shared_mem_carveout_bytes
+        if actual is not None and actual != predicted:
+            warnings.append(
+                f"{name}: the driver picked a {actual:,} B shared-memory "
+                f"carveout, the model assumed {predicted:,} B, so its L1 size "
+                f"({prediction.l1_cache_size_bytes:,} B) is off"
+            )
     return warnings

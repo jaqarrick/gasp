@@ -59,7 +59,9 @@ class HardwareParameters:
     # end-to-end latencies, like dram_latency: a hit costs only its own latency
     l1_hit_latency: float
     l2_hit_latency: float
-    l1_cache_size_bytes: int
+    # L1 gets what the shared-memory carveout leaves of this array
+    l1_shared_array_bytes: int
+    shared_mem_carveouts_bytes: list[int]
     l2_cache_size_bytes: int
     bank_penalty: float
     launch_overhead_base: float  # cycles per launch

@@ -18,11 +18,13 @@ DURATION_METRIC = "gpu__time_duration.sum"
 CYCLES_METRIC = "gpc__cycles_elapsed.max"
 GRID_SIZE_METRIC = "launch__grid_size"
 BLOCK_SIZE_METRIC = "launch__block_size"
+SHARED_CONFIG_METRIC = "launch__shared_mem_config_size"
 METRICS: list[str] = [
     DURATION_METRIC,
     CYCLES_METRIC,
     GRID_SIZE_METRIC,
     BLOCK_SIZE_METRIC,
+    SHARED_CONFIG_METRIC,
     "smsp__inst_executed.sum",
     "smsp__inst_executed_op_global_ld.sum",
     "smsp__inst_executed_op_global_st.sum",
@@ -87,6 +89,12 @@ class ProfileOutput:
     @property
     def cycles(self) -> float:
         return statistics.median(run.cycles for run in self.runs)
+
+    @property
+    def shared_mem_config_bytes(self) -> int | None:
+        """Carveout ncu reported on the first run, None if it didn't report one."""
+        value = self.runs[0].metrics.get(SHARED_CONFIG_METRIC) if self.runs else None
+        return None if value is None else int(value)
 
     @property
     def cycles_min(self) -> float:

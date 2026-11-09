@@ -1,0 +1,17 @@
+[defaults]
+problem_size = 278528
+block_size = 256
+grid_size = 1088
+footprint = 12255232
+
+[[kernel]]
+name = "small"
+file = "benchmarks/smem/smem_reuse.cu"
+loop_counts = [4]  # the PASSES loop; the slice and shared loops are unrolled
+nvcc_flags = ["-DSMEM_FLOATS=1024"]   # 4 KB/block x 4 blocks = 16 KB -> 32 KB carveout on Turing
+
+[[kernel]]
+name = "large"
+file = "benchmarks/smem/smem_reuse.cu"
+loop_counts = [4]
+nvcc_flags = ["-DSMEM_FLOATS=3072"]   # 12 KB/block x 4 blocks = 48 KB -> 64 KB carveout on Turing

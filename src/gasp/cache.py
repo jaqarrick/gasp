@@ -42,6 +42,21 @@ def get_cache_hit_rate_from_working_set(
         return C / W
 
 
+def get_l1_size(
+    array_bytes: int, carveouts_bytes: list[int], shared_needed_bytes: int
+) -> tuple[int, int]:
+    """L1 bytes per SM and the shared-memory carveout that leaves them.
+
+    L1 and shared memory are one array per SM. The driver picks the smallest
+    supported carveout that holds the resident blocks' shared memory; if none
+    does (occupancy should prevent it), the largest."""
+    options = sorted(carveouts_bytes)
+    if not options:
+        return max(0, array_bytes), 0
+    carveout = next((c for c in options if c >= shared_needed_bytes), options[-1])
+    return max(0, array_bytes - carveout), carveout
+
+
 def get_reuse_fraction(reusable_access_count: int, global_access_count: int) -> float:
     """Share of global accesses that can hit in any cache"""
     if global_access_count <= 0:
