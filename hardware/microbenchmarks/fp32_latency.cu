@@ -52,19 +52,31 @@ __device__ unsigned long long read_clock64(void) {
     return c;
 }
 
+// Nanoseconds since an arbitrary epoch, independent of the SM clock. Read next to
+// clock64 so the run records the SM clock it ran at (cycles / ns).
+__device__ unsigned long long read_globaltimer(void) {
+    unsigned long long t;
+    asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t) :: "memory");
+    return t;
+}
+
 // One dependent add: x = x + step. "+f"(x) makes x both input and output, so every FADD must wait for the previous one.
 #define FADD_ONE asm volatile("add.rn.f32 %0, %0, %1;" : "+f"(x) : "f"(step) : "memory");
 
 // out[0] = cycles for CHAIN_OPS dependent FADDs (clock overhead included)
 // out[1] = clock overhead (two back-to-back clock reads)
+// out[2] = globaltimer ns around the timed chain (read outside the clock64 pair)
 // sink[0] = final x, so the host can check that every add ran
 __global__ void fp32_latency_kernel(float step, long long *out, float *sink) {
     float x = 1.0f;
     unsigned long long t0 = 0;
     unsigned long long t1 = 0;
+    unsigned long long g0 = 0;
+    unsigned long long g1 = 0;
 
 #pragma unroll 1
     for (int pass = 0; pass < PASSES; pass++) {
+        g0 = read_globaltimer();
         t0 = read_clock64(); // start timer
         // do UNROLL=16 dependent adds (this means if we change the UNROLL value, this will no longer work)
 #pragma unroll 1
@@ -75,6 +87,7 @@ __global__ void fp32_latency_kernel(float step, long long *out, float *sink) {
             FADD_ONE FADD_ONE FADD_ONE FADD_ONE
         }
         t1 = read_clock64(); // end timer
+        g1 = read_globaltimer();
     }
 
     unsigned long long b0 = read_clock64();
@@ -82,6 +95,7 @@ __global__ void fp32_latency_kernel(float step, long long *out, float *sink) {
 
     out[0] = (long long)(t1 - t0);
     out[1] = (long long)(b1 - b0);
+    out[2] = (long long)(g1 - g0);
     sink[0] = x;
 }
 
@@ -163,7 +177,7 @@ int main(int argc, char **argv) {
 
     long long *d_out;
     float *d_sink;
-    CUDA_CHECK(cudaMalloc(&d_out, 2 * sizeof(long long)));
+    CUDA_CHECK(cudaMalloc(&d_out, 3 * sizeof(long long)));
     CUDA_CHECK(cudaMalloc(&d_sink, sizeof(float)));
 
     const float step = 1.0f;
@@ -178,6 +192,7 @@ int main(int argc, char **argv) {
     CUDA_CHECK(cudaDeviceSynchronize());
 
     double raw_cycles[REPS];
+    double sum_clock_cycles = 0.0, sum_clock_ns = 0.0;  // for the SM clock
     double overhead_samples[REPS];
 
     for (int r = 0; r < REPS; r++) {
@@ -185,7 +200,7 @@ int main(int argc, char **argv) {
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
 
-        long long h_out[2];
+        long long h_out[3];
         float h_x;
         CUDA_CHECK(cudaMemcpy(h_out, d_out, sizeof(h_out), cudaMemcpyDeviceToHost));
         CUDA_CHECK(cudaMemcpy(&h_x, d_sink, sizeof(float), cudaMemcpyDeviceToHost));
@@ -197,10 +212,22 @@ int main(int argc, char **argv) {
         }
         raw_cycles[r] = (double)h_out[0];
         overhead_samples[r] = (double)h_out[1];
+        if (h_out[2] > 0) {
+            sum_clock_cycles += (double)h_out[0];
+            sum_clock_ns += (double)h_out[2];
+        }
     }
 
     // Subtract the median clock overhead from every run, then divide by the
     // number of adds to get cycles per FADD.
+    if (sum_clock_ns <= 0.0) {
+        fprintf(stderr, "ERROR: globaltimer did not advance\n");
+        return 1;
+    }
+    // SM clock over all reps: total cycles / total ns (globaltimer updates every ~1 us,
+    // so one short chain alone would be too coarse).
+    const double sm_clock_ghz = sum_clock_cycles / sum_clock_ns;
+
     double overhead = median_of(overhead_samples, REPS);
     // Per-run breakdown: gross (clock overhead included) -> net (overhead removed) -> per op.
     double net_cycles[REPS];
@@ -298,6 +325,8 @@ int main(int argc, char **argv) {
     for (int r = 0; r < REPS; r++) fprintf(f, "%s%.4f", r ? ", " : "", per_op[r]);
     fprintf(f, "],\n");
     fprintf(f, "  \"uncorrected_value\": %.4f,\n", uncorrected_value);
+    // clock.sm_clock_ghz: total clock64 cycles / total globaltimer ns over all reps
+    fprintf(f, "  \"clock\": {\"sm_clock_ghz\": %.4f},\n", sm_clock_ghz);
     fprintf(f, "  \"cuda_version\": \"%d.%d\",\n", runtime_version / 1000, (runtime_version % 1000) / 10);
     fprintf(f, "  \"nvcc_version\": \"%d.%d\",\n", __CUDACC_VER_MAJOR__, __CUDACC_VER_MINOR__);
     fprintf(f, "  \"driver_version\": \"%s\",\n", driver);
@@ -321,5 +350,7 @@ int main(int argc, char **argv) {
 //   * no FFMA / FMUL replacing the chain, and no constant-folded result
 //   * CS2R clock reads before and after the inner loop, plus a back-to-back
 //     pair after the pass loop
+//   * a globaltimer read (SR_GLOBALTIMER) just before the first CS2R and just after
+//     the second, in the pass loop
 //   * a branch after the 16 FADDs (the loop was kept, not fully unrolled)
 // ---------------------------------------------------------------------------

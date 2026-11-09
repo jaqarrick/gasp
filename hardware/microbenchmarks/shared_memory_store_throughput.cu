@@ -34,13 +34,21 @@ static_assert(STORE_INSTRUCTIONS % UNROLL == 0,
               "STORE_INSTRUCTIONS must be a multiple of UNROLL");
 
 static const char* PARAMETER = "shared_mem_store_throughput_cycles";
-static const char* SCHEMA_VERSION = "1.0.0";
-static const char* BENCH_VERSION = "1.0.0";
+static const char* SCHEMA_VERSION = "1.1.0";
+static const char* BENCH_VERSION = "1.1.0";
 
 __device__ __forceinline__ uint64_t read_clock64() {
     uint64_t cycles;
     asm volatile("mov.u64 %0, %%clock64;" : "=l"(cycles) :: "memory");
     return cycles;
+}
+
+// Nanoseconds since an arbitrary epoch, independent of the SM clock. Read next to
+// clock64 so the run records the SM clock it ran at (cycles / ns).
+__device__ __forceinline__ uint64_t read_globaltimer() {
+    uint64_t t;
+    asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t) :: "memory");
+    return t;
 }
 
 __device__ __forceinline__ void store_shared_volatile(
@@ -69,7 +77,8 @@ __device__ __forceinline__ void shared_memory_fence() {
     STORE_AT(8); STORE_AT(9); STORE_AT(10); STORE_AT(11);                     \
     STORE_AT(12); STORE_AT(13); STORE_AT(14); STORE_AT(15)
 
-__global__ void shared_store_kernel(unsigned long long* out) {
+// clock_out[0..1] = lane 0's clock64 cycles and globaltimer ns around the timed region
+__global__ void shared_store_kernel(unsigned long long* out, unsigned long long* clock_out) {
     __shared__ uint32_t shared_words[STORE_SLOTS * WARP_THREADS];
 
     const int lane = threadIdx.x;
@@ -95,6 +104,7 @@ __global__ void shared_store_kernel(unsigned long long* out) {
     shared_memory_fence();
     const uint64_t baseline_stop = read_clock64();
 
+    const uint64_t g0 = read_globaltimer();
     const uint64_t start = read_clock64();
 #pragma unroll 1
     for (int i = 0; i < STORE_INSTRUCTIONS; i += UNROLL) {
@@ -102,6 +112,11 @@ __global__ void shared_store_kernel(unsigned long long* out) {
     }
     shared_memory_fence();
     const uint64_t stop = read_clock64();
+    const uint64_t g1 = read_globaltimer();
+    if (lane == 0) {
+        clock_out[0] = stop - start;
+        clock_out[1] = g1 - g0;
+    }
 
     // Store one timing sample per lane for host-side aggregation.
     out[lane] = stop - start;
@@ -241,6 +256,9 @@ int main(int argc, char** argv) {
     const std::string architecture = architecture_name(prop.major);
 
     unsigned long long* device_output = nullptr;
+    unsigned long long* device_clock = nullptr;  // lane 0's cycles and ns, for the SM clock
+    CUDA_CHECK(cudaMalloc(&device_clock, 2 * sizeof(unsigned long long)));
+    double sum_clock_cycles = 0.0, sum_clock_ns = 0.0;
     CUDA_CHECK(cudaMalloc(
         &device_output, 2 * WARP_THREADS * sizeof(unsigned long long)));
 
@@ -250,9 +268,16 @@ int main(int argc, char** argv) {
     fence_baseline_samples.reserve(reps);
 
     for (int rep = 0; rep < reps; ++rep) {
-        shared_store_kernel<<<1, WARP_THREADS>>>(device_output);
+        shared_store_kernel<<<1, WARP_THREADS>>>(device_output, device_clock);
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
+        unsigned long long host_clock[2] = {0, 0};
+        CUDA_CHECK(cudaMemcpy(host_clock, device_clock, sizeof(host_clock),
+                              cudaMemcpyDeviceToHost));
+        if (host_clock[1] > 0) {
+            sum_clock_cycles += static_cast<double>(host_clock[0]);
+            sum_clock_ns += static_cast<double>(host_clock[1]);
+        }
 
         std::array<unsigned long long, 2 * WARP_THREADS> host_output{};
         CUDA_CHECK(cudaMemcpy(host_output.data(), device_output,
@@ -360,10 +385,13 @@ int main(int argc, char** argv) {
     }
 
     json << "],\n"
+         // clock.sm_clock_ghz: total clock64 cycles / total globaltimer ns over all reps
+         << "  \"clock\": {\"sm_clock_ghz\": "
+         << (sum_clock_ns > 0.0 ? sum_clock_cycles / sum_clock_ns : 0.0) << "},\n"
          << "  \"measurement\": {\n"
          << "    \"method\": \"back-to-back conflict-free warp shared stores with CTA fence\",\n"
          << "    \"store_instruction\": \"st.volatile.shared.u32\",\n"
-         << "    \"timer\": \"clock64\",\n"
+         << "    \"timer\": \"clock64 (cycles), globaltimer (SM clock)\",\n"
          << "    \"store_instructions_per_rep\": " << STORE_INSTRUCTIONS << ",\n"
          << "    \"store_slots_per_lane\": " << STORE_SLOTS << ",\n"
          << "    \"threads_per_block\": " << WARP_THREADS << ",\n"
@@ -416,5 +444,6 @@ int main(int argc, char** argv) {
     fprintf(stderr, "Saved results to %s\n", output_path.string().c_str());
 
     CUDA_CHECK(cudaFree(device_output));
+    CUDA_CHECK(cudaFree(device_clock));
     return 0;
 }

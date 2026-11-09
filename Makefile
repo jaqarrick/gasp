@@ -6,8 +6,11 @@ IMAGE := gasp
 PLATFORM := linux/amd64
 ARGS ?=
 DOCKER_FLAGS ?=
+GPU ?=
+VERSION ?=
+ARCH ?=
 
-.PHONY: all build install run test lint lint-fix format pre-commit clean docker-clean docker-run help
+.PHONY: all build install run test lint lint-fix format pre-commit clean docker-clean docker-run help microbenchmarks
 
 $(VENV):
 	PYTHON=$(PYTHON) ./scripts/init_python.sh
@@ -36,6 +39,11 @@ test:
 run:
 	$(PY) -m gasp $(ARGS)
 
+# Every microbenchmark under ncu at base clock, plus a profile; needs a GPU, nvcc and ncu.
+microbenchmarks:
+	@test -n "$(GPU)" -a -n "$(VERSION)" || { echo "usage: make microbenchmarks GPU=<gpu> VERSION=<label> [ARCH=sm_XX] [ARGS='--only ... --force']"; exit 1; }
+	$(PYTHON) hardware/microbenchmarks/run_all.py --gpu $(GPU) --version $(VERSION) $(if $(ARCH),--arch $(ARCH)) $(ARGS)
+
 # FOR DOCKER
 build:
 	docker build --platform $(PLATFORM) -t $(IMAGE) .
@@ -58,6 +66,7 @@ help:
 	@echo "make install                       - create venv and install deps"
 	@echo "make run ARGS='...'              - run locally"
 	@echo "make test                        - run tests"
+	@echo "make microbenchmarks GPU=.. VERSION=.. - run all microbenchmarks at base clock, build a profile"
 	@echo "make lint                        - lint Python code"
 	@echo "make format                      - format Python code"
 	@echo "make pre-commit                  - run all pre-commit hooks on all files"

@@ -37,8 +37,8 @@ static_assert(CHASE_LOADS % UNROLL == 0,
 __constant__ uint64_t c_ring[NUM_NODES];
 
 static const char* PARAMETER = "const_mem_latency_cycles";
-static const char* SCHEMA_VERSION = "1.0.0";
-static const char* BENCH_VERSION = "1.0.0";
+static const char* SCHEMA_VERSION = "1.1.0";
+static const char* BENCH_VERSION = "1.1.0";
 
 // increment address to next item in ring
 #define CHASE_ONE p = load_constant_pointer(p)
@@ -47,6 +47,14 @@ __device__ __forceinline__ uint64_t read_clock64() {
     uint64_t cycles;
     asm volatile("mov.u64 %0, %%clock64;" : "=l"(cycles) :: "memory");
     return cycles;
+}
+
+// Nanoseconds since an arbitrary epoch, independent of the SM clock. Read next to
+// clock64 so the run records the SM clock it ran at (cycles / ns).
+__device__ __forceinline__ uint64_t read_globaltimer() {
+    uint64_t t;
+    asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t) :: "memory");
+    return t;
 }
 
 __device__ __forceinline__ uint64_t load_constant_pointer(uint64_t address) {
@@ -59,7 +67,8 @@ __device__ __forceinline__ uint64_t load_constant_pointer(uint64_t address) {
     return next;
 }
 
-__global__ void constant_chase_kernel(unsigned long long* out) {
+// clock_out[0..1] = lane 0's clock64 cycles and globaltimer ns around the timed region
+__global__ void constant_chase_kernel(unsigned long long* out, unsigned long long* clock_out) {
     const int lane = threadIdx.x;
     uint64_t p = reinterpret_cast<uint64_t>(c_ring);
 
@@ -72,6 +81,7 @@ __global__ void constant_chase_kernel(unsigned long long* out) {
     const uint64_t baseline_start = read_clock64();
     const uint64_t baseline_stop = read_clock64();
 
+    const uint64_t g0 = read_globaltimer();
     const uint64_t start = read_clock64();
 #pragma unroll 1
     for (int i = 0; i < CHASE_LOADS; i += UNROLL) {
@@ -93,6 +103,11 @@ __global__ void constant_chase_kernel(unsigned long long* out) {
         CHASE_ONE;
     }
     const uint64_t stop = read_clock64();
+    const uint64_t g1 = read_globaltimer();
+    if (lane == 0) {
+        clock_out[0] = stop - start;
+        clock_out[1] = g1 - g0;
+    }
 
     // reads the timing and final index of the first lane in warp
     if (lane == 0) {
@@ -252,6 +267,9 @@ int main(int argc, char** argv) {
                                   sizeof(host_ring)));
 
     unsigned long long* device_output = nullptr;
+    unsigned long long* device_clock = nullptr;  // lane 0's cycles and ns, for the SM clock
+    CUDA_CHECK(cudaMalloc(&device_clock, 2 * sizeof(unsigned long long)));
+    double sum_clock_cycles = 0.0, sum_clock_ns = 0.0;
     CUDA_CHECK(cudaMalloc(&device_output, 3 * sizeof(unsigned long long)));
 
     std::vector<double> raw_cycles;
@@ -261,9 +279,16 @@ int main(int argc, char** argv) {
 
     //run the kernel for X reps
     for (int rep = 0; rep < reps; ++rep) {
-        constant_chase_kernel<<<1, WARP_THREADS>>>(device_output);
+        constant_chase_kernel<<<1, WARP_THREADS>>>(device_output, device_clock);
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
+        unsigned long long host_clock[2] = {0, 0};
+        CUDA_CHECK(cudaMemcpy(host_clock, device_clock, sizeof(host_clock),
+                              cudaMemcpyDeviceToHost));
+        if (host_clock[1] > 0) {
+            sum_clock_cycles += static_cast<double>(host_clock[0]);
+            sum_clock_ns += static_cast<double>(host_clock[1]);
+        }
 
         unsigned long long output[3]{};
         CUDA_CHECK(cudaMemcpy(output, device_output, sizeof(output),
@@ -362,10 +387,13 @@ int main(int argc, char** argv) {
     }
 
     json << "],\n"
+         // clock.sm_clock_ghz: total clock64 cycles / total globaltimer ns over all reps
+         << "  \"clock\": {\"sm_clock_ghz\": "
+         << (sum_clock_ns > 0.0 ? sum_clock_cycles / sum_clock_ns : 0.0) << "},\n"
          << "  \"measurement\": {\n"
          << "    \"method\": \"dependent uniform constant-cache-hit pointer chase\",\n"
          << "    \"load_instruction\": \"ld.const.u64\",\n"
-         << "    \"timer\": \"clock64\",\n"
+         << "    \"timer\": \"clock64 (cycles), globaltimer (SM clock)\",\n"
          << "    \"nodes\": " << NUM_NODES << ",\n"
          << "    \"loads_per_rep\": " << CHASE_LOADS << ",\n"
          << "    \"threads_per_block\": " << WARP_THREADS << ",\n"
@@ -416,5 +444,6 @@ int main(int argc, char** argv) {
     fprintf(stderr, "Saved results to %s\n", output_path.string().c_str());
 
     CUDA_CHECK(cudaFree(device_output));
+    CUDA_CHECK(cudaFree(device_clock));
     return 0;
 }

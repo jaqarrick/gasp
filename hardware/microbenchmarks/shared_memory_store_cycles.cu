@@ -62,13 +62,21 @@ static_assert(UNROLL == 16, "the unrolled bodies below have 16 steps");
 
 static const char* PARAMETER = "shared_mem_store_latency_cycles";
 static const char* LOAD_PARAMETER = "shared_mem_load_latency_cycles";
-static const char* SCHEMA_VERSION = "1.0.0";
-static const char* BENCH_VERSION = "1.0.0";
+static const char* SCHEMA_VERSION = "1.1.0";
+static const char* BENCH_VERSION = "1.1.0";
 
 __device__ __forceinline__ uint64_t read_clock64() {
     uint64_t cycles;
     asm volatile("mov.u64 %0, %%clock64;" : "=l"(cycles) :: "memory");
     return cycles;
+}
+
+// Nanoseconds since an arbitrary epoch, independent of the SM clock. Read next to
+// clock64 so the run records the SM clock it ran at (cycles / ns).
+__device__ __forceinline__ uint64_t read_globaltimer() {
+    uint64_t t;
+    asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t) :: "memory");
+    return t;
 }
 
 __device__ __forceinline__ uint32_t load_shared(uint32_t address) {
@@ -102,7 +110,8 @@ __device__ __forceinline__ void store_shared(uint32_t address, uint32_t value) {
 // out[1*32 + lane] = cycles for CHAIN_STEPS load-only steps (clock overhead included)
 // out[2*32 + lane] = clock overhead (two back-to-back clock reads)
 // out[3*32 + lane] = final p, so every step has an observable result
-__global__ void shared_store_latency_kernel(unsigned long long* out) {
+// clock_out[0..1] = lane 0's clock64 cycles and globaltimer ns around the timed region
+__global__ void shared_store_latency_kernel(unsigned long long* out, unsigned long long* clock_out) {
     __shared__ uint32_t slots[WARP_THREADS];
 
     const int lane = threadIdx.x;
@@ -123,16 +132,19 @@ __global__ void shared_store_latency_kernel(unsigned long long* out) {
     __syncthreads();
 
     uint64_t store_start = 0, store_stop = 0;
+    uint64_t g0 = 0, g1 = 0;
     uint64_t load_start = 0, load_stop = 0;
 
 #pragma unroll 1
     for (int pass = 0; pass < PASSES; ++pass) {
+        g0 = read_globaltimer();
         store_start = read_clock64();
 #pragma unroll 1
         for (int i = 0; i < CHAIN_STEPS; i += UNROLL) {
             REPEAT_16(STORE_STEP);
         }
         store_stop = read_clock64();
+        g1 = read_globaltimer();
 
         load_start = read_clock64();
 #pragma unroll 1
@@ -145,6 +157,10 @@ __global__ void shared_store_latency_kernel(unsigned long long* out) {
     const uint64_t baseline_start = read_clock64();
     const uint64_t baseline_stop = read_clock64();
 
+    if (lane == 0) {
+        clock_out[0] = store_stop - store_start;
+        clock_out[1] = g1 - g0;
+    }
     out[lane] = store_stop - store_start;
     out[WARP_THREADS + lane] = load_stop - load_start;
     out[2 * WARP_THREADS + lane] = baseline_stop - baseline_start;
@@ -307,6 +323,9 @@ int main(int argc, char** argv) {
 
     constexpr int OUT_WORDS = 4 * WARP_THREADS;
     unsigned long long* device_output = nullptr;
+    unsigned long long* device_clock = nullptr;  // lane 0's cycles and ns, for the SM clock
+    CUDA_CHECK(cudaMalloc(&device_clock, 2 * sizeof(unsigned long long)));
+    double sum_clock_cycles = 0.0, sum_clock_ns = 0.0;
     CUDA_CHECK(cudaMalloc(&device_output,
                           OUT_WORDS * sizeof(unsigned long long)));
 
@@ -318,9 +337,16 @@ int main(int argc, char** argv) {
     clock_overhead_samples.reserve(reps);
 
     for (int rep = 0; rep < reps; ++rep) {
-        shared_store_latency_kernel<<<1, WARP_THREADS>>>(device_output);
+        shared_store_latency_kernel<<<1, WARP_THREADS>>>(device_output, device_clock);
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
+        unsigned long long host_clock[2] = {0, 0};
+        CUDA_CHECK(cudaMemcpy(host_clock, device_clock, sizeof(host_clock),
+                              cudaMemcpyDeviceToHost));
+        if (host_clock[1] > 0) {
+            sum_clock_cycles += static_cast<double>(host_clock[0]);
+            sum_clock_ns += static_cast<double>(host_clock[1]);
+        }
 
         std::array<unsigned long long, OUT_WORDS> host_output{};
         CUDA_CHECK(cudaMemcpy(host_output.data(), device_output,
@@ -460,11 +486,14 @@ int main(int argc, char** argv) {
     append_array(json, per_store_cycles);
 
     json << ",\n"
+         // clock.sm_clock_ghz: total clock64 cycles / total globaltimer ns over all reps
+         << "  \"clock\": {\"sm_clock_ghz\": "
+         << (sum_clock_ns > 0.0 ? sum_clock_cycles / sum_clock_ns : 0.0) << "},\n"
          << "  \"measurement\": {\n"
          << "    \"method\": \"dependent st.shared->ld.shared chain minus ld.shared-only chain\",\n"
          << "    \"store_instruction\": \"st.volatile.shared.u32\",\n"
          << "    \"load_instruction\": \"ld.volatile.shared.u32\",\n"
-         << "    \"timer\": \"clock64\",\n"
+         << "    \"timer\": \"clock64 (cycles), globaltimer (SM clock)\",\n"
          << "    \"clock_overhead_cycles\": " << clock_overhead << ",\n"
          << "    \"value_formula\": \"per_store = (raw_store_chain_cycles[i] - raw_load_only_cycles[i]) / steps_per_rep; value = median(per_store)\",\n"
          << "    \"load_reference_file\": \""
@@ -520,6 +549,7 @@ int main(int argc, char** argv) {
     fprintf(stderr, "Saved results to %s\n", output_path.string().c_str());
 
     CUDA_CHECK(cudaFree(device_output));
+    CUDA_CHECK(cudaFree(device_clock));
     return 0;
 }
 
@@ -533,7 +563,8 @@ int main(int argc, char** argv) {
 //   * Load-only timed loop: 16 dependent `LDS Rp, [Rp]`.
 //   * Both loops have the same loop overhead (counter IADD3, ISETP, BRA), so
 //     it cancels in the difference.
-//   * CS2R (clock) right before and right after each timed loop.
+//   * CS2R (clock) right before and right after each timed loop, and a
+//     globaltimer read (SR_GLOBALTIMER) just outside the store loop's pair.
 // If ptxas drops the LDS after the STS (store-to-load forwarding in the
 // compiler) or adds instructions to only one loop, the result is not a store
 // latency.
