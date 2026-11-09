@@ -16,8 +16,7 @@ Output, for `--gpu rtx2080ti --version 1.2`:
 Benchmarks run in dependency order: shared_memory_store_cycles reads the shared
 load latency, and sync_cost needs DRAM latency and bandwidth. A dependency is
 taken from this run, or from an earlier run in the same version directory.
-Fields no benchmark measures (the spec section, bank_penalty_cycles) are copied
-from a base profile.
+Fields no benchmark measures (the spec section) are copied from a base profile.
 """
 
 from __future__ import annotations
@@ -96,6 +95,7 @@ BENCHMARKS = [
         "shared_memory_load.cu",
         ["shared_mem_load_latency_cycles"],
     ),
+    Benchmark("bank_conflict", "bank_conflict.cu", ["bank_penalty_cycles"]),
     Benchmark(
         "shared_memory_store_cycles",
         "shared_memory_store_cycles.cu",

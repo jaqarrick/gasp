@@ -83,12 +83,21 @@ __device__ __forceinline__ uint64_t read_clock64() {
     return c;
 }
 
+// Nanoseconds since an arbitrary epoch, independent of the SM clock. Read next to
+// clock64 so the run records the SM clock it ran at (cycles / ns).
+__device__ __forceinline__ uint64_t read_globaltimer() {
+    uint64_t t;
+    asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t)::"memory");
+    return t;
+}
+
 // Dependent shared-memory load: the register holds a shared-memory address and
 // receives the address of the next word, so there is no arithmetic between loads.
 #define CHASE_ONE asm volatile("ld.shared.u32 %0, [%0];" : "+r"(p)::"memory");
 
 // out[0] = gross cycles of the timed chain (clock overhead included)
 // out[1] = clock overhead (two back-to-back clock reads, nothing between)
+// out[2] = globaltimer ns around the timed chain (for the SM clock)
 __global__ void bank_kernel(int stride_words, long long* out, unsigned* sink) {
     __shared__ unsigned smem[SMEM_WORDS];
     const int lane = threadIdx.x;   // launched with exactly one warp
@@ -121,6 +130,7 @@ __global__ void bank_kernel(int stride_words, long long* out, unsigned* sink) {
     uint64_t b1 = read_clock64();
 
     // Timed region: CHASE_LOADS strictly dependent shared loads.
+    uint64_t g0 = read_globaltimer();
     uint64_t t0 = read_clock64();
 #pragma unroll 1
     for (int i = 0; i < CHASE_LOADS; i += UNROLL) {
@@ -130,10 +140,12 @@ __global__ void bank_kernel(int stride_words, long long* out, unsigned* sink) {
         CHASE_ONE CHASE_ONE CHASE_ONE CHASE_ONE
     }
     uint64_t t1 = read_clock64();
+    uint64_t g1 = read_globaltimer();
 
     if (lane == 0) {
         out[0] = static_cast<long long>(t1 - t0);
         out[1] = static_cast<long long>(b1 - b0);
+        out[2] = static_cast<long long>(g1 - g0);
     }
     sink[lane] = p;   // keep the chain observable
 }
@@ -248,11 +260,13 @@ int main(int argc, char** argv) {
 
     long long* d_out = nullptr;
     unsigned* d_sink = nullptr;
-    CUDA_CHECK(cudaMalloc(&d_out, 2 * sizeof(long long)));
+    CUDA_CHECK(cudaMalloc(&d_out, 3 * sizeof(long long)));
     CUDA_CHECK(cudaMalloc(&d_sink, 32 * sizeof(unsigned)));
 
     // raw[s][r] = gross cycles, ovh[s][r] = clock overhead, for stride s, repetition r.
     std::vector<std::vector<long long>> raw(NUM_STRIDES), ovh(NUM_STRIDES);
+    // Totals over every timed run, for the SM clock (cycles / ns).
+    double sum_clock_cycles = 0.0, sum_clock_ns = 0.0;
     for (int s = 0; s < NUM_STRIDES; ++s) {
         for (int w = 0; w < 3; ++w) {                 // untimed warm-up launches
             bank_kernel<<<1, 32>>>(STRIDES[s], d_out, d_sink);
@@ -260,14 +274,18 @@ int main(int argc, char** argv) {
         }
         CUDA_CHECK(cudaDeviceSynchronize());
         for (int r = 0; r < reps; ++r) {
-            CUDA_CHECK(cudaMemset(d_out, 0, 2 * sizeof(long long)));
+            CUDA_CHECK(cudaMemset(d_out, 0, 3 * sizeof(long long)));
             bank_kernel<<<1, 32>>>(STRIDES[s], d_out, d_sink);
             CUDA_CHECK(cudaGetLastError());
             CUDA_CHECK(cudaDeviceSynchronize());
-            long long h[2];
+            long long h[3];
             CUDA_CHECK(cudaMemcpy(h, d_out, sizeof(h), cudaMemcpyDeviceToHost));
             raw[s].push_back(h[0]);
             ovh[s].push_back(h[1]);
+            if (h[2] > 0) {
+                sum_clock_cycles += static_cast<double>(h[0]);
+                sum_clock_ns += static_cast<double>(h[2]);
+            }
         }
     }
 
@@ -376,6 +394,9 @@ int main(int argc, char** argv) {
     j << "  ],\n";
     j << "  \"fit_through_medians\": {\"slope\": " << mfit.slope << ", \"intercept\": " << mfit.intercept
       << ", \"r_squared\": " << mfit.r2 << "},\n";
+    // clock.sm_clock_ghz: total clock64 cycles / total globaltimer ns over all timed runs
+    j << "  \"clock\": {\"sm_clock_ghz\": "
+      << (sum_clock_ns > 0.0 ? sum_clock_cycles / sum_clock_ns : 0.0) << "},\n";
     j << "  \"cuda_version\": \"" << cuda_ver_string(rt_ver) << "\",\n";
     j << "  \"nvcc_version\": \"" << __CUDACC_VER_MAJOR__ << "." << __CUDACC_VER_MINOR__ << "\",\n";
     j << "  \"driver_version\": \"" << json_escape(driver) << "\",\n";
@@ -408,7 +429,8 @@ int main(int argc, char** argv) {
 //   cuobjdump -sass bank_conflict.cubin
 // In bank_kernel you should see:
 //   * a clock read (CS2R) pair for the baseline, then one clock read before and
-//     one after the timed loop
+//     one after the timed loop, with a globaltimer read just outside each of
+//     those two (the SM clock record; not inside the timed region)
 //   * inside the timed loop, 16 consecutive shared-memory loads (LDS or LDS.U)
 //     where each address register is the previous instruction's destination
 //   * no IADD/IMAD/LEA between those loads
