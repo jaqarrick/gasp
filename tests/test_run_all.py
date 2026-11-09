@@ -88,6 +88,7 @@ def test_every_profile_parameter_maps_to_a_profile_key():
         "dram_bandwidth_bytes_per_cycle",
         "const_mem_latency_cycles",
         "shared_mem_load_latency_cycles",
+        "bank_penalty_cycles",
         "shared_mem_store_latency_cycles",
         "departure_delay_cycles",
         "sync_factor",
