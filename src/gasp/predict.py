@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from gasp.cache import (
     get_cache_hit_rate_from_working_set,
+    get_capacity_regime,
     get_hit_ratios,
     get_reuse_fraction,
 )
@@ -125,6 +126,15 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
     reuse_fraction = get_reuse_fraction(d.reusable_access_count, d.global_access_count)
     l1_hit_ratio, l2_hit_ratio = get_hit_ratios(
         reuse_fraction, l1_capacity_hit, l2_capacity_hit
+    )
+    logger.trace(
+        "predict",
+        f"cache: r = {d.reusable_access_count}/{d.global_access_count}"
+        f" = {reuse_fraction:.3f}; L1 cap {l1_capacity_hit:.3f}"
+        f" ({get_capacity_regime(working_set_per_sm, h.l1_cache_size_bytes)});"
+        f" L2 cap {l2_capacity_hit:.3f}"
+        f" ({get_capacity_regime(working_set_total, h.l2_cache_size_bytes)});"
+        f" h1 {l1_hit_ratio:.3f}, h2 {l2_hit_ratio:.3f}",
     )
 
     k = KernelParameters(

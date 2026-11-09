@@ -223,3 +223,16 @@ def test_predict_no_global_accesses_has_no_hits():
     p = predict(prediction_input(), logger=MagicMock())
     assert p.reuse_fraction == 0.0
     assert p.amat == pytest.approx(DRAM_LAT)
+
+
+def test_predict_traces_cache_line():
+    logger = MagicMock()
+    predict(vecadd_input(accesses=6, reusable=3), logger=logger)
+
+    cache_trace = next(
+        c.args[1] for c in logger.trace.call_args_list if c.args[1].startswith("cache:")
+    )
+    assert cache_trace == (
+        "cache: r = 3/6 = 0.500; L1 cap 1.000 (resident); "
+        "L2 cap 1.000 (resident); h1 0.500, h2 0.000"
+    )

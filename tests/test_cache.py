@@ -3,7 +3,7 @@
 import pytest
 
 from gasp.cache import get_cache_hit_rate_from_working_set as hit_rate
-from gasp.cache import get_hit_ratios, get_reuse_fraction
+from gasp.cache import get_capacity_regime, get_hit_ratios, get_reuse_fraction
 
 C = 100_000
 
@@ -51,3 +51,17 @@ def test_hit_ratios(r, cap1, cap2, h1, h2):
 def test_hit_rate_no_cache_misses():
     assert hit_rate(0, 0) == 0.0
     assert hit_rate(1024, 0) == 0.0
+
+
+@pytest.mark.parametrize(
+    "working_set,size,expected",
+    [
+        (0, C, "resident"),
+        (int(0.8 * C), C, "transition"),
+        (C, C, "transition"),
+        (C + 1, C, "streaming"),
+        (10, 0, "no cache"),
+    ],
+)
+def test_capacity_regime(working_set, size, expected):
+    assert get_capacity_regime(working_set, size) == expected

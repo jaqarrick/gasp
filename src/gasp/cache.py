@@ -1,3 +1,17 @@
+TRANSITION_START = 0.8  # from jarmusch
+
+
+def get_capacity_regime(working_set_size_bytes: int, cache_size_bytes: int) -> str:
+    """Which branch of the capacity model applies, for traces."""
+    if cache_size_bytes <= 0:
+        return "no cache"
+    if working_set_size_bytes < TRANSITION_START * cache_size_bytes:
+        return "resident"
+    if working_set_size_bytes <= cache_size_bytes:
+        return "transition"
+    return "streaming"
+
+
 def get_cache_hit_rate_from_working_set(
     working_set_size_bytes: int,
     cache_size_bytes: int,
@@ -14,8 +28,7 @@ def get_cache_hit_rate_from_working_set(
     if C <= 0:
         return 0.0
 
-    # Transition zone starts at ~80% of cache capacity
-    transition_start = 0.8 * C
+    transition_start = TRANSITION_START * C
 
     if W < transition_start:
         # Fully resident
