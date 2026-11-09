@@ -82,21 +82,30 @@ __device__ __forceinline__ uint64_t read_clock64() {
     return c;
 }
 
+// Nanoseconds since an arbitrary epoch, independent of the SM clock. Read next to
+// clock64 so the run records the SM clock it ran at (cycles / ns).
+__device__ __forceinline__ uint64_t read_globaltimer() {
+    uint64_t t;
+    asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t)::"memory");
+    return t;
+}
+
 // out[0] = gross cycles of the timed loop (clock + barrier overhead included)
 // out[1] = clock overhead (two back-to-back clock reads, nothing between)
+// out[2] = globaltimer ns around the timed loop (read outside the clock64 pair)
 __global__ void departure_kernel(const unsigned* __restrict__ buf, long long* out, unsigned* sink) {
     const int warp = threadIdx.x >> 5;
     const int lane = threadIdx.x & 31;
     // This warp owns ITERS_PER_WARP consecutive 128-byte lines; lane reads word `lane` of each.
     const unsigned* base = buf + static_cast<size_t>(warp) * ITERS_PER_WARP * 32 + lane;
 
-    uint64_t b0 = 0, b1 = 0, t0 = 0;
+    uint64_t b0 = 0, b1 = 0, t0 = 0, g0 = 0;
     unsigned acc = 0;
 
     __syncthreads();
     if (threadIdx.x == 0) { b0 = read_clock64(); b1 = read_clock64(); }   // baseline
     __syncthreads();
-    if (threadIdx.x == 0) t0 = read_clock64();
+    if (threadIdx.x == 0) { g0 = read_globaltimer(); t0 = read_clock64(); }
 
     for (int i = 0; i < ITERS_PER_WARP; i += UNROLL) {
         unsigned v[UNROLL];
@@ -115,7 +124,9 @@ __global__ void departure_kernel(const unsigned* __restrict__ buf, long long* ou
     __syncthreads();   // the block ends when its slowest warp ends
     if (threadIdx.x == 0) {
         out[0] = static_cast<long long>(read_clock64() - t0);
+        const uint64_t g1 = read_globaltimer();
         out[1] = static_cast<long long>(b1 - b0);
+        out[2] = static_cast<long long>(g1 - g0);
     }
     sink[threadIdx.x] = acc;   // keeps the loaded data observable
 }
@@ -215,11 +226,14 @@ int main(int argc, char** argv) {
     long long* d_out = nullptr;
     unsigned* d_sink = nullptr;
     CUDA_CHECK(cudaMalloc(&d_buf, buf_bytes));
-    CUDA_CHECK(cudaMalloc(&d_out, 2 * sizeof(long long)));
+    CUDA_CHECK(cudaMalloc(&d_out, 3 * sizeof(long long)));
     CUDA_CHECK(cudaMalloc(&d_sink, MAX_WARPS * 32 * sizeof(unsigned)));
     CUDA_CHECK(cudaMemset(d_buf, 0x01, buf_bytes));
 
     std::vector<SweepResult> sweep;
+    // SM clock over every timed launch: total clock64 cycles / total globaltimer ns.
+    // One launch is only tens of us, so per-launch values are coarse (~1 us updates).
+    double sum_clock_cycles = 0.0, sum_clock_ns = 0.0;
     for (int warps : WARP_SWEEP) {
         SweepResult sr;
         sr.warps = warps;
@@ -233,14 +247,18 @@ int main(int argc, char** argv) {
         CUDA_CHECK(cudaDeviceSynchronize());
 
         for (int r = 0; r < reps; ++r) {
-            CUDA_CHECK(cudaMemset(d_out, 0, 2 * sizeof(long long)));
+            CUDA_CHECK(cudaMemset(d_out, 0, 3 * sizeof(long long)));
             departure_kernel<<<1, threads>>>(d_buf, d_out, d_sink);
             CUDA_CHECK(cudaGetLastError());
             CUDA_CHECK(cudaDeviceSynchronize());
-            long long h[2];
+            long long h[3];
             CUDA_CHECK(cudaMemcpy(h, d_out, sizeof(h), cudaMemcpyDeviceToHost));
             sr.raw_cycles.push_back(h[0]);
             sr.overheads.push_back(h[1]);
+            if (h[2] > 0) {
+                sum_clock_cycles += static_cast<double>(h[0]);
+                sum_clock_ns += static_cast<double>(h[2]);
+            }
         }
         std::vector<double> ov(sr.overheads.begin(), sr.overheads.end());
         sr.overhead = median_of(ov);
@@ -251,6 +269,11 @@ int main(int argc, char** argv) {
         sr.median = median_of(sr.per_request);
         sweep.push_back(std::move(sr));
     }
+
+    if (sum_clock_ns <= 0.0) { fprintf(stderr, "ERROR: globaltimer did not advance\n"); return 1; }
+    // Departure delay is SM-side, but it is measured against L2, which runs on its own
+    // clock; the profile needs runs at the clock the validation runs at (README "Base clock").
+    const double clock_ghz_all = sum_clock_cycles / sum_clock_ns;
 
     // Report the saturated (smallest) per-request time.
     size_t best = 0;
@@ -340,6 +363,8 @@ int main(int argc, char** argv) {
     for (size_t i = 0; i < sweep.size(); ++i)
         j << (i ? ", " : "") << "\"" << sweep[i].warps << "_warps\": " << sweep[i].median;
     j << "},\n";
+    // sm_clock_ghz: total clock64 cycles / total globaltimer ns over every timed launch
+    j << "  \"clock\": {\"sm_clock_ghz\": " << clock_ghz_all << "},\n";
     j << "  \"cuda_version\": \"" << cuda_ver_string(rt_ver) << "\",\n";
     j << "  \"nvcc_version\": \"" << __CUDACC_VER_MAJOR__ << "." << __CUDACC_VER_MINOR__ << "\",\n";
     j << "  \"driver_version\": \"" << json_escape(driver) << "\",\n";
@@ -359,8 +384,9 @@ int main(int argc, char** argv) {
     fclose(f);
 
     printf("%s", j.str().c_str());
-    fprintf(stderr, "\nDeparture delay: %.3f cycles per warp request (std %.4f, overhead %.1f cycles subtracted)\nSaved: %s\n",
-            median, stddev, S.overhead, out_path.string().c_str());
+    fprintf(stderr, "\nDeparture delay: %.3f cycles per warp request at %.3f GHz SM clock (std %.4f, "
+                    "overhead %.1f cycles subtracted)\nSaved: %s\n",
+            median, clock_ghz_all, stddev, S.overhead, out_path.string().c_str());
 
     CUDA_CHECK(cudaFree(d_buf));
     CUDA_CHECK(cudaFree(d_out));
@@ -373,7 +399,8 @@ int main(int argc, char** argv) {
 //   cuobjdump -sass departure_delay.cubin
 // In departure_kernel you should see:
 //   * a clock read (CS2R) pair for the baseline, then one clock read before and
-//     one after the timed loop, only for thread 0
+//     one after the timed loop, only for thread 0, with a globaltimer read
+//     (SR_GLOBALTIMER) just outside each of the timed pair
 //   * inside the loop, 8 consecutive 32-bit global loads (LDG.E, carrying the
 //     same cache-operator modifier as l2_latency, e.g. .STRONG.GPU on Turing)
 //     issued before any of their results is used
