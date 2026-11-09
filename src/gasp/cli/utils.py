@@ -1,6 +1,6 @@
 import json
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 
 from gasp.dependency import LatencyTable
@@ -59,21 +59,94 @@ class HardwareProfile:
     const_mem_latency_cycles: int
 
 
-def load_hardware_profile(gpu: str, logger: Logger):
+def load_hardware_profile(gpu: str, logger: Logger) -> HardwareProfile:
     path = GPU_PROFILES.get(gpu)
 
     if path is None:
         logger.error(f"No profile defined for gpu: {gpu}")
         sys.exit(1)
-    else:
-        logger.info(f"loading {gpu} hardware profile from {path}")
 
-    with open(path) as f:
-        profile = json.load(f)
+    return load_profile_file(path, logger)
+
+
+def _is_number(value: object) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _has_type(value: object, kind: object) -> bool:
+    if kind is str:
+        return isinstance(value, str)
+    if kind in (int, float):
+        # measured values may be fractional even where the model uses ints
+        return _is_number(value)
+    # list[int]
+    return isinstance(value, list) and all(_is_number(v) for v in value)
+
+
+def _fail(logger: Logger, msg: str) -> None:
+    logger.error(msg)
+    sys.exit(1)
+
+
+def load_profile_file(path: str | Path, logger: Logger) -> HardwareProfile:
+    path = Path(path)
+    logger.info(f"loading hardware profile from {path}")
+
+    if not path.is_file():
+        _fail(logger, f"hardware profile not found: {path}")
+
+    try:
+        with open(path) as f:
+            profile = json.load(f)
+    except json.JSONDecodeError as e:
+        _fail(
+            logger,
+            f"hardware profile {path} is not valid JSON "
+            f"(line {e.lineno}, column {e.colno}): {e.msg}",
+        )
+    if not isinstance(profile, dict):
+        _fail(logger, f"hardware profile {path} must be a JSON object")
+
+    for section in ("spec", "profiled"):
+        if not isinstance(profile.get(section), dict):
+            _fail(
+                logger,
+                f"hardware profile {path} needs a '{section}' object",
+            )
     spec = profile.pop("spec")
     profiled = profile.pop("profiled")
     flat = {**profile, **spec, **profiled}
-    return HardwareProfile(**flat)
+
+    expected = {f.name: f.type for f in fields(HardwareProfile)}
+    missing = [name for name in expected if name not in flat]
+    if missing:
+        _fail(
+            logger,
+            f"hardware profile {path} is missing field(s): {', '.join(missing)}",
+        )
+    unknown = [name for name in flat if name not in expected]
+    if unknown:
+        _fail(
+            logger,
+            f"hardware profile {path} has unknown field(s): {', '.join(unknown)}",
+        )
+    wrong = [
+        f"{name} (expected {getattr(kind, '__name__', kind)}, got {flat[name]!r})"
+        for name, kind in expected.items()
+        if not _has_type(flat[name], kind)
+    ]
+    if wrong:
+        _fail(
+            logger,
+            f"hardware profile {path} has field(s) of the wrong type: "
+            f"{', '.join(wrong)}",
+        )
+
+    hp = HardwareProfile(**flat)
+    logger.trace("config", f"hardware profile {path}: chip {hp.chip}, arch {hp.arch}")
+    for name in expected:
+        logger.trace("config", f"  {name} = {getattr(hp, name)}")
+    return hp
 
 
 def build_latency_table(hp: HardwareProfile) -> LatencyTable:

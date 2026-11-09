@@ -40,7 +40,13 @@ from .config import (
 )
 from .constants import DEFAULT_REPEATS
 from .types import Args
-from .utils import HardwareProfile, build_latency_table, load_hardware_profile
+from .utils import (
+    GPU_PROFILES,
+    HardwareProfile,
+    build_latency_table,
+    load_hardware_profile,
+    load_profile_file,
+)
 
 
 @dataclass
@@ -113,9 +119,9 @@ def build_parser() -> argparse.ArgumentParser:
         prog="gasp", description="GASP: GPU Analytical Static Predictor"
     )
 
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--gpu", help="built-in GPU name (e.g., b200)")
-    group.add_argument("--profile", help="path to custom hardware profile JSON")
+    # exclusive, but checked in main() so passing both warns instead of a usage error
+    parser.add_argument("--gpu", help="built-in GPU name (e.g., b200)")
+    parser.add_argument("--profile", help="path to custom hardware profile JSON")
     parser.add_argument(
         "--version", action="version", version=f"%(prog)s {__version__}"
     )
@@ -251,6 +257,9 @@ def relative_error(predicted: float, measured: float) -> str:
 
 
 def check_args(parser: argparse.ArgumentParser, args: Args) -> None:
+    if args.gpu is None and args.profile is None:
+        parser.error("give --gpu or --profile")
+
     if args.repeats is not None and not args.run:
         parser.error("--repeats requires --run")
 
@@ -725,15 +734,31 @@ def main() -> None:
     args = Args(**vars(raw))
     check_args(parser, args)
 
-    profile = args.profile
-    gpu = args.gpu.lower()
     repeats = args.repeats or DEFAULT_REPEATS
 
     traces, trace_file = resolve_traces(args.trace, args.trace_file)
     logger = Logger(args.verbose, traces=traces, trace_file=trace_file)
     logger.info("Verbose mode enabled")
     logger.trace("config", f"command: {shlex.join(sys.argv)}")
-    logger.trace("config", f"gpu: {gpu}, profile: {profile or 'Not provided'}")
+
+    if args.gpu is not None and args.profile is not None:
+        logger.warning("--gpu and --profile are mutually exclusive; pass only one")
+        sys.exit(1)
+
+    if args.profile is not None:
+        hp = load_profile_file(args.profile, logger)
+        gpu = hp.chip
+        arch = hp.arch
+        source = args.profile
+    else:
+        gpu = args.gpu.lower()
+        arch = GPU_TO_ARCH.get(gpu)
+        if arch is None:
+            logger.error(f"No architecture defined for GPU {gpu}")
+            sys.exit(1)
+        hp = load_hardware_profile(gpu, logger)
+        source = str(GPU_PROFILES[gpu])
+    logger.trace("config", f"gpu: {gpu}, profile: {source}, arch: {arch}")
 
     try:
         specs = build_specs(args)
@@ -749,11 +774,6 @@ def main() -> None:
         )
         sys.exit(1)
 
-    arch = GPU_TO_ARCH.get(gpu)
-    if arch is None:
-        logger.error(f"No architecture defined for GPU {gpu}")
-        sys.exit(1)
-
     for warning in work_mismatches(
         {spec.name: spec.problem_size for spec in specs},
         {spec.name: spec.program_args for spec in specs},
@@ -761,7 +781,6 @@ def main() -> None:
     ):
         logger.warning(warning)
 
-    hp = load_hardware_profile(gpu, logger)
     results = [
         analyze_kernel(spec, arch, hp, warn_shared_program=args.run, logger=logger)
         for spec in specs

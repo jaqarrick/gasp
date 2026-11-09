@@ -13,6 +13,7 @@ from gasp.cli import (
     build_specs,
     check_args,
     loop_counts_template,
+    main,
     report_comparison,
     report_loops,
     report_measured,
@@ -20,7 +21,12 @@ from gasp.cli import (
 )
 from gasp.cli.config import ConfigError, KernelSpec
 from gasp.cli.types import Args
-from gasp.cli.utils import GPU_PROFILES, HardwareProfile, load_hardware_profile
+from gasp.cli.utils import (
+    GPU_PROFILES,
+    HardwareProfile,
+    load_hardware_profile,
+    load_profile_file,
+)
 from gasp.dependency import LoopInfo
 from gasp.predict import PredictionOutput
 from gasp.profiler import KernelMeasurement, ProfileOutput
@@ -75,7 +81,7 @@ VALID_PROFILE = {
 
 @pytest.fixture
 def logger():
-    return MagicMock(spec=["info", "error", "warn", "debug"])
+    return MagicMock(spec=["info", "error", "warn", "warning", "debug", "trace"])
 
 
 @pytest.fixture
@@ -186,7 +192,7 @@ class TestLoadHardwareProfile:
             assert getattr(hp, field) == value, f"profiled.{field} mismatch"
 
     def test_missing_json_field_raises(self, tmp_path, monkeypatch, logger):
-        """JSON missing a profiled key → TypeError from dataclass."""
+        """JSON missing a profiled key → error and exit."""
         bad = json.loads(json.dumps(VALID_PROFILE))
         del bad["profiled"]["dram_latency_cycles"]
 
@@ -194,11 +200,12 @@ class TestLoadHardwareProfile:
         p.write_text(json.dumps(bad))
         monkeypatch.setitem(GPU_PROFILES, "bad", p)
 
-        with pytest.raises(TypeError):
+        with pytest.raises(SystemExit):
             load_hardware_profile("bad", logger)
+        logger.error.assert_called_once()
 
     def test_extra_json_field_raises(self, tmp_path, monkeypatch, logger):
-        """Extra unexpected key in JSON → TypeError from dataclass."""
+        """Extra unexpected key in JSON → error and exit."""
         bad = json.loads(json.dumps(VALID_PROFILE))
         bad["profiled"]["turbo_boost_factor"] = 1.5
 
@@ -206,22 +213,25 @@ class TestLoadHardwareProfile:
         p.write_text(json.dumps(bad))
         monkeypatch.setitem(GPU_PROFILES, "extra", p)
 
-        with pytest.raises(TypeError):
+        with pytest.raises(SystemExit):
             load_hardware_profile("extra", logger)
+        logger.error.assert_called_once()
 
     def test_file_not_found_raises(self, monkeypatch, logger):
         monkeypatch.setitem(GPU_PROFILES, "ghost", Path("/no/such/file.json"))
 
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(SystemExit):
             load_hardware_profile("ghost", logger)
+        logger.error.assert_called_once()
 
     def test_malformed_json_raises(self, tmp_path, monkeypatch, logger):
         p = tmp_path / "bad.json"
         p.write_text("{ not valid json !!!")
         monkeypatch.setitem(GPU_PROFILES, "corrupt", p)
 
-        with pytest.raises(json.JSONDecodeError):
+        with pytest.raises(SystemExit):
             load_hardware_profile("corrupt", logger)
+        logger.error.assert_called_once()
 
     def test_flattening_merges_correctly(self, monkeypatch, profile_file, logger):
         """spec and profiled are merged into a flat namespace — no collisions."""
@@ -235,6 +245,112 @@ class TestLoadHardwareProfile:
         # profiled keys survive
         assert hp.launch_overhead_base_cycles == 5000
         assert hp.launch_overhead_per_thread_cycles == 0.002
+
+
+def write_profile(tmp_path, data) -> Path:
+    p = tmp_path / "custom.json"
+    p.write_text(data if isinstance(data, str) else json.dumps(data))
+    return p
+
+
+def error_message(logger) -> str:
+    logger.error.assert_called_once()
+    return logger.error.call_args.args[0]
+
+
+class TestLoadProfileFile:
+    def test_loads_valid_file(self, profile_file, logger):
+        hp = load_profile_file(profile_file, logger)
+        assert hp.chip == "a100"
+        assert hp.arch == "sm_80"
+        logger.error.assert_not_called()
+        logger.trace.assert_called()
+
+    def test_missing_file_exits(self, tmp_path, logger):
+        with pytest.raises(SystemExit):
+            load_profile_file(tmp_path / "nope.json", logger)
+        assert "not found" in error_message(logger)
+
+    def test_invalid_json_exits(self, tmp_path, logger):
+        with pytest.raises(SystemExit):
+            load_profile_file(write_profile(tmp_path, "{not json"), logger)
+        assert "not valid JSON" in error_message(logger)
+
+    def test_non_object_exits(self, tmp_path, logger):
+        with pytest.raises(SystemExit):
+            load_profile_file(write_profile(tmp_path, [1, 2]), logger)
+
+    def test_missing_section_exits(self, tmp_path, logger):
+        data = dict(VALID_PROFILE)
+        del data["spec"]
+        with pytest.raises(SystemExit):
+            load_profile_file(write_profile(tmp_path, data), logger)
+        assert "'spec'" in error_message(logger)
+
+    def test_missing_fields_all_reported(self, tmp_path, logger):
+        data = json.loads(json.dumps(VALID_PROFILE))
+        del data["profiled"]["dram_latency_cycles"]
+        del data["spec"]["warp_size"]
+        del data["chip"]
+        with pytest.raises(SystemExit):
+            load_profile_file(write_profile(tmp_path, data), logger)
+        msg = error_message(logger)
+        for name in ("dram_latency_cycles", "warp_size", "chip"):
+            assert name in msg
+
+    def test_unknown_field_exits(self, tmp_path, logger):
+        data = json.loads(json.dumps(VALID_PROFILE))
+        data["profiled"]["bogus_field"] = 1
+        with pytest.raises(SystemExit):
+            load_profile_file(write_profile(tmp_path, data), logger)
+        assert "bogus_field" in error_message(logger)
+
+    def test_wrong_type_exits(self, tmp_path, logger):
+        data = json.loads(json.dumps(VALID_PROFILE))
+        data["profiled"]["dram_latency_cycles"] = "fast"
+        data["spec"]["shared_mem_carveouts_bytes"] = 65536
+        with pytest.raises(SystemExit):
+            load_profile_file(write_profile(tmp_path, data), logger)
+        msg = error_message(logger)
+        assert "dram_latency_cycles" in msg
+        assert "shared_mem_carveouts_bytes" in msg
+
+    def test_bool_is_not_a_number(self, tmp_path, logger):
+        data = json.loads(json.dumps(VALID_PROFILE))
+        data["spec"]["warp_size"] = True
+        with pytest.raises(SystemExit):
+            load_profile_file(write_profile(tmp_path, data), logger)
+
+    def test_float_in_int_field_accepted(self, tmp_path, logger):
+        data = json.loads(json.dumps(VALID_PROFILE))
+        data["profiled"]["dram_latency_cycles"] = 406.36
+        hp = load_profile_file(write_profile(tmp_path, data), logger)
+        assert hp.dram_latency_cycles == 406.36
+
+
+class TestGpuProfileFlags:
+    def test_both_flags_warn_and_exit(self, monkeypatch, profile_file, capsys):
+        monkeypatch.setattr(
+            "sys.argv",
+            ["gasp", "--gpu", "b200", "--profile", str(profile_file), VECADD],
+        )
+        with pytest.raises(SystemExit) as e:
+            main()
+        assert e.value.code == 1
+        assert "mutually exclusive" in capsys.readouterr().err
+
+    def test_neither_flag_exits(self):
+        parser = build_parser()
+        args = Args(**vars(parser.parse_intermixed_args([VECADD])))
+        with pytest.raises(SystemExit):
+            check_args(parser, args)
+
+    def test_profile_alone_passes_check(self, profile_file):
+        parser = build_parser()
+        argv = ["--profile", str(profile_file), VECADD]
+        args = Args(**vars(parser.parse_intermixed_args(argv)))
+        check_args(parser, args)
+        assert args.gpu is None
 
 
 # --trace / --trace-file
