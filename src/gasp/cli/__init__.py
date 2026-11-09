@@ -7,7 +7,12 @@ from pathlib import Path
 from gasp import __version__
 from gasp.cfg import filter_cfg, format_cfg, gen_cfg_from_raw
 from gasp.common.constants import GPU_TO_ARCH
-from gasp.compare import measured_speedup, speedup, work_mismatches
+from gasp.compare import (
+    carveout_mismatches,
+    measured_speedup,
+    speedup,
+    work_mismatches,
+)
 from gasp.cuda_toolkit import CUDAExtractor, LabelLines
 from gasp.dependency import (
     LoopCountMismatchError,
@@ -570,7 +575,8 @@ def analyze_kernel(
                 dram_latency=hp.dram_latency_cycles,
                 l1_hit_latency=hp.l1_cache_hit_latency_cycles,
                 l2_hit_latency=hp.l2_cache_hit_latency_cycles,
-                l1_cache_size_bytes=hp.max_l1_cache_size_bytes,
+                l1_shared_array_bytes=hp.l1_shared_array_bytes,
+                shared_mem_carveouts_bytes=hp.shared_mem_carveouts_bytes,
                 l2_cache_size_bytes=hp.l2_cache_size_bytes,
                 bank_penalty=hp.bank_penalty_cycles,
                 launch_overhead_base=hp.launch_overhead_base_cycles,
@@ -599,6 +605,8 @@ def analyze_kernel(
             ["Avg Trans/Warp", f"{prediction.average_trans_warp:.2f}"],
             ["Working set/SM (bytes)", str(prediction.working_set_per_sm_bytes)],
             ["Working set total (bytes)", str(prediction.working_set_total_bytes)],
+            ["L1 size (bytes)", str(prediction.l1_cache_size_bytes)],
+            ["Shared carveout (bytes)", str(prediction.shared_mem_carveout_bytes)],
             ["Reuse fraction", f"{prediction.reuse_fraction:.3f}"],
             ["L1 hit ratio", f"{prediction.l1_hit_ratio:.3f}"],
             ["L2 hit ratio", f"{prediction.l2_hit_ratio:.3f}"],
@@ -782,6 +790,9 @@ def main() -> None:
         for r in results
     }
     report_measured(results, measured, reference, repeats, logger)
+    predictions = {r.spec.name: r.prediction for r in results}
+    for warning in carveout_mismatches(predictions, measured):
+        logger.warning(warning)
 
 
 if __name__ == "__main__":

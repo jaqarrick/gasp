@@ -34,7 +34,10 @@ class HardwareProfile:
     max_registers_per_sm: int
     max_shared_mem_per_sm_bytes: int
     l2_cache_size_bytes: int
-    max_l1_cache_size_bytes: int
+    # one on-chip array per SM, split between shared memory and L1
+    l1_shared_array_bytes: int
+    # shared-memory sizes the driver can pick from, ascending
+    shared_mem_carveouts_bytes: list[int]
 
     # profiled
     launch_overhead_base_cycles: float

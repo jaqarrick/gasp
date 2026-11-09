@@ -80,7 +80,8 @@ def prediction_input(mem_inst_count: int = 2, grid_size: int = 40) -> Prediction
             dram_latency=300,
             l1_hit_latency=30,
             l2_hit_latency=200,
-            l1_cache_size_bytes=96 * 1024,
+            l1_shared_array_bytes=96 * 1024,
+            shared_mem_carveouts_bytes=[32 * 1024, 64 * 1024],
             l2_cache_size_bytes=4 * 1024 * 1024,
             bank_penalty=2,
             launch_overhead_base=LAUNCH_BASE,
@@ -234,7 +235,7 @@ def test_predict_traces_cache_line():
         c.args[1] for c in logger.trace.call_args_list if c.args[1].startswith("cache:")
     )
     assert cache_trace == (
-        "cache: r = 0.5000 (per thread 3/6 reusable); L1 cap 1.000 (resident); "
+        "cache: L1 65,536 B (carveout 32,768 B); r = 0.5000 (per thread 3/6 reusable); L1 cap 1.000 (resident); "
         "L2 cap 1.000 (resident); h1 0.500, h2 0.000"
     )
 
@@ -266,7 +267,7 @@ def test_footprint_sees_reuse_between_threads():
     p = predict(footprint_input(1024, 8 * 1024), logger=MagicMock())
 
     assert p.reuse_fraction == pytest.approx(1 - 8 * 1024 / (1024 * THREADS))
-    # L1 (96 KB) can't hold the 4 blocks' 1 MB; the 8 KB footprint fits in L2
+    # L1 (64 KB) can't hold the 4 blocks' 1 MB; the 8 KB footprint fits in L2
     # (4 MB), so what L1 drops hits L2 and only first touches go to DRAM
     assert p.working_set_total_bytes == 8 * 1024
     dram_fraction = (1 - p.l1_hit_ratio) * (1 - p.l2_hit_ratio)
@@ -281,7 +282,8 @@ def test_footprint_larger_than_l2_uses_capacity():
 
     assert p.working_set_total_bytes == footprint
     r = p.reuse_fraction
-    cap1 = 96 * 1024 / (1024 * 1024 * 256 * 4)  # L1 vs the 4 blocks' bytes
+    # L1 = 96 KB array - 32 KB carveout, vs the 4 blocks' bytes
+    cap1 = 64 * 1024 / (1024 * 1024 * 256 * 4)
     reusable_l1_misses = r * (1 - cap1)
     assert p.l2_hit_ratio == pytest.approx(
         reusable_l1_misses * 0.25 / (1 - p.l1_hit_ratio)
@@ -332,3 +334,34 @@ def test_reuse_shows_in_trace():
     )
     assert "L1 from --reuse 0.25" in cache_trace
     assert "h1 0.250" in cache_trace
+
+
+# ---------------------------------------------------------------------------
+# L1 size: what the shared-memory carveout leaves of the array
+# ---------------------------------------------------------------------------
+
+
+def test_l1_size_without_shared_memory_keeps_smallest_carveout():
+    p = predict(prediction_input(), logger=MagicMock())  # 96 KB, splits 32/64 KB
+
+    assert p.shared_mem_carveout_bytes == 32 * 1024
+    assert p.l1_cache_size_bytes == 64 * 1024
+
+
+def test_l1_size_shrinks_when_blocks_need_more_shared_memory():
+    i = prediction_input()  # 4 blocks per SM
+    i.launch = replace(i.launch, shared_mem_per_block_bytes=12 * 1024)  # 48 KB
+    p = predict(i, logger=MagicMock())
+
+    assert p.shared_mem_carveout_bytes == 64 * 1024
+    assert p.l1_cache_size_bytes == 32 * 1024
+
+
+def test_l1_size_shows_in_trace():
+    logger = MagicMock()
+    predict(prediction_input(), logger=logger)
+
+    cache_trace = next(
+        c.args[1] for c in logger.trace.call_args_list if c.args[1].startswith("cache:")
+    )
+    assert "L1 65,536 B (carveout 32,768 B)" in cache_trace

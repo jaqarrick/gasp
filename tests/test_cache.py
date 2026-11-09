@@ -8,6 +8,7 @@ from gasp.cache import (
     get_footprint_reuse_fraction,
     get_hit_ratios,
     get_hit_ratios_given_l1,
+    get_l1_size,
     get_reuse_fraction,
 )
 
@@ -102,3 +103,32 @@ def test_hit_ratios_given_l1(h1, r, cap2, expected_h2):
     got_h1, got_h2 = get_hit_ratios_given_l1(h1, r, cap2)
     assert got_h1 == h1
     assert got_h2 == pytest.approx(expected_h2)
+
+
+KB = 1024
+TURING = (96 * KB, [32 * KB, 64 * KB])
+AMPERE = (
+    192 * KB,
+    [0, 8 * KB, 16 * KB, 32 * KB, 64 * KB, 100 * KB, 132 * KB, 164 * KB],
+)
+
+
+@pytest.mark.parametrize(
+    "array,carveouts,shared_needed,expected",
+    [
+        (*TURING, 0, (64 * KB, 32 * KB)),  # Turing always reserves 32 KB of shared
+        (*TURING, 8 * KB, (64 * KB, 32 * KB)),  # mm_tiled: 4 blocks x 2 KB
+        (*TURING, 32 * KB + 1, (32 * KB, 64 * KB)),  # one byte over: next split
+        (*TURING, 128 * KB, (32 * KB, 64 * KB)),  # over every option: the largest
+        (*AMPERE, 0, (192 * KB, 0)),  # no shared memory: the whole array is L1
+        (*AMPERE, 8 * KB, (184 * KB, 8 * KB)),
+        (*AMPERE, 9 * KB, (176 * KB, 16 * KB)),
+        (64 * KB, [], 0, (64 * KB, 0)),  # no carveout list: the whole array
+    ],
+)
+def test_l1_size(array, carveouts, shared_needed, expected):
+    assert get_l1_size(array, carveouts, shared_needed) == expected
+
+
+def test_l1_size_options_need_not_be_sorted():
+    assert get_l1_size(96 * KB, [64 * KB, 32 * KB], 0) == (64 * KB, 32 * KB)

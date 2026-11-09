@@ -6,6 +6,7 @@ from gasp.cache import (
     get_footprint_reuse_fraction,
     get_hit_ratios,
     get_hit_ratios_given_l1,
+    get_l1_size,
     get_reuse_fraction,
 )
 from gasp.dependency import DependencyOutput
@@ -48,6 +49,8 @@ class PredictionOutput:
     average_trans_warp: float
     working_set_per_sm_bytes: int
     working_set_total_bytes: int
+    l1_cache_size_bytes: int
+    shared_mem_carveout_bytes: int
     reuse_fraction: float
     l1_hit_ratio: float
     l2_hit_ratio: float
@@ -122,9 +125,12 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
     bytes_per_block = d.global_bytes_per_thread * l.block_size
     working_set_per_sm = bytes_per_block * occ.blocks_per_sm
     working_set_total = bytes_per_block * l.grid_size
-    l1_capacity_hit = get_cache_hit_rate_from_working_set(
-        working_set_per_sm, h.l1_cache_size_bytes
+    l1_size, carveout = get_l1_size(
+        h.l1_shared_array_bytes,
+        h.shared_mem_carveouts_bytes,
+        occ.blocks_per_sm * l.shared_mem_per_block_bytes,
     )
+    l1_capacity_hit = get_cache_hit_rate_from_working_set(working_set_per_sm, l1_size)
     l2_capacity_hit = get_cache_hit_rate_from_working_set(
         working_set_total, h.l2_cache_size_bytes
     )
@@ -167,11 +173,12 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         )
         l1_trace = (
             f"L1 cap {l1_capacity_hit:.3f}"
-            f" ({get_capacity_regime(working_set_per_sm, h.l1_cache_size_bytes)})"
+            f" ({get_capacity_regime(working_set_per_sm, l1_size)})"
         )
     logger.trace(
         "predict",
-        f"cache: r = {reuse_fraction:.4f} ({reuse_source}); {l1_trace};"
+        f"cache: L1 {l1_size:,} B (carveout {carveout:,} B);"
+        f" r = {reuse_fraction:.4f} ({reuse_source}); {l1_trace};"
         f" {l2_trace}; h1 {l1_hit_ratio:.3f}, h2 {l2_hit_ratio:.3f}",
     )
 
@@ -226,6 +233,8 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         average_trans_warp=average_trans_warp,
         working_set_per_sm_bytes=working_set_per_sm,
         working_set_total_bytes=working_set_total,
+        l1_cache_size_bytes=l1_size,
+        shared_mem_carveout_bytes=carveout,
         reuse_fraction=reuse_fraction,
         l1_hit_ratio=l1_hit_ratio,
         l2_hit_ratio=l2_hit_ratio,
