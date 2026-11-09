@@ -80,4 +80,5 @@ help:
 	@echo "  make run ARGS='--gpu b200 good.cu poor.cu'"
 	@echo "  make run ARGS='--gpu b200 kernels.cu::good kernels.cu::poor'"
 	@echo "  make run ARGS='--gpu b200 --config benchmarks/vecadd/vecadd.toml'"
+	@echo "  make run ARGS='--profile hardware/profiles/rtx2080ti.json kernel.cu'"
 	@echo "  make docker-run DOCKER_FLAGS='--gpus all' ARGS='--gpu b200 --run --config benchmarks/vecadd/vecadd.toml'"

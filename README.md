@@ -78,6 +78,12 @@ A single kernel prints its predicted time with no speedup:
 make run ARGS="--gpu b200 benchmarks/vecadd/vecadd.cu"
 ```
 
+Use your own hardware profile instead of a built-in GPU. It uses the same format as [`hardware/profiles/*.json`](hardware/profiles/README.md), and the target architecture comes from its `arch` field:
+
+```bash
+make run ARGS="--profile hardware/profiles/rtx2080ti.json benchmarks/vecadd/vecadd.cu"
+```
+
 ### How kernels are compared
 
 - **Reference:** the first kernel, unless `--reference NAME` is given.
@@ -143,6 +149,7 @@ make docker-run DOCKER_FLAGS="--gpus all" ARGS="--gpu rtx2080ti --run --config b
 ```
 
 - `docker-run` mounts only `benchmarks/` and `hardware/`. Kernels and configs must be there, or already be in the image from the last `make build`.
+- A `--profile` file has to be under `hardware/` or `benchmarks/` so the container can see it.
 - `src/` isn't mounted, so code changes need `make build`.
 - Traces are lost when the container exits unless they go to a mounted path, such as `--trace-file benchmarks/traces.log`.
 - `--run` needs a GPU in the container, which `DOCKER_FLAGS="--gpus all"` requests. This needs the NVIDIA container runtime, and running `ncu` in a container hasn't been tested yet.
@@ -155,7 +162,7 @@ These apply to the whole run:
 | Flag                  | Description                                              |
 |-----------------------|----------------------------------------------------------|
 | `--gpu`               | Target GPU: `rtx2080ti` (measured profile), `b200`, `h100`, `a100` (placeholders) |
-| `--profile`           | Path to hardware profile JSON                            |
+| `--profile`           | Path to a hardware profile JSON (same format as `hardware/profiles/*.json`); can't be combined with `--gpu` |
 | `--config`            | TOML file listing the kernels and their settings         |
 | `--reference`         | Kernel the others are compared with (default: the first) |
 | `--run`               | Run each program under `ncu` and compare with the prediction |
