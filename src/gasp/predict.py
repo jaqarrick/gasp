@@ -1,6 +1,10 @@
 from dataclasses import dataclass
 
-from gasp.cache import get_cache_hit_rate_from_working_set
+from gasp.cache import (
+    get_cache_hit_rate_from_working_set,
+    get_hit_ratios,
+    get_reuse_fraction,
+)
 from gasp.dependency import DependencyOutput
 from gasp.gpuperf import GPUPerf
 from gasp.gpuperf.types import (
@@ -37,6 +41,7 @@ class PredictionOutput:
     average_trans_warp: float
     working_set_per_sm_bytes: int
     working_set_total_bytes: int
+    reuse_fraction: float
     l1_hit_ratio: float
     l2_hit_ratio: float
     amat: float
@@ -110,11 +115,16 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
     bytes_per_block = d.global_bytes_per_thread * l.block_size
     working_set_per_sm = bytes_per_block * occ.blocks_per_sm
     working_set_total = bytes_per_block * l.grid_size
-    l1_hit_ratio = get_cache_hit_rate_from_working_set(
+    l1_capacity_hit = get_cache_hit_rate_from_working_set(
         working_set_per_sm, h.l1_cache_size_bytes
     )
-    l2_hit_ratio = get_cache_hit_rate_from_working_set(
+    l2_capacity_hit = get_cache_hit_rate_from_working_set(
         working_set_total, h.l2_cache_size_bytes
+    )
+    # first touches miss at every level, whatever the working set
+    reuse_fraction = get_reuse_fraction(d.reusable_access_count, d.global_access_count)
+    l1_hit_ratio, l2_hit_ratio = get_hit_ratios(
+        reuse_fraction, l1_capacity_hit, l2_capacity_hit
     )
 
     k = KernelParameters(
@@ -168,6 +178,7 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         average_trans_warp=average_trans_warp,
         working_set_per_sm_bytes=working_set_per_sm,
         working_set_total_bytes=working_set_total,
+        reuse_fraction=reuse_fraction,
         l1_hit_ratio=l1_hit_ratio,
         l2_hit_ratio=l2_hit_ratio,
         amat=model.amat,

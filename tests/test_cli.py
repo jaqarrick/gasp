@@ -442,6 +442,7 @@ def result(name: str, t_gpu: float, pico_error: bool = False) -> KernelResult:
             average_trans_warp=1.0,
             working_set_per_sm_bytes=0,
             working_set_total_bytes=0,
+            reuse_fraction=0.0,
             l1_hit_ratio=0.0,
             l2_hit_ratio=0.0,
             amat=300.0,

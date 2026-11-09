@@ -3,6 +3,7 @@
 import pytest
 
 from gasp.cache import get_cache_hit_rate_from_working_set as hit_rate
+from gasp.cache import get_hit_ratios, get_reuse_fraction
 
 C = 100_000
 
@@ -20,6 +21,31 @@ C = 100_000
 )
 def test_hit_rate(working_set, expected):
     assert hit_rate(working_set, C) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    "reusable,accesses,expected",
+    [(0, 3, 0.0), (3, 6, 0.5), (10, 10, 1.0), (0, 0, 0.0)],
+)
+def test_reuse_fraction(reusable, accesses, expected):
+    assert get_reuse_fraction(reusable, accesses) == expected
+
+
+@pytest.mark.parametrize(
+    "r,cap1,cap2,h1,h2",
+    [
+        (0.0, 1.0, 1.0, 0.0, 0.0),  # all first touches: nothing hits anywhere
+        (0.5, 1.0, 1.0, 0.5, 0.0),  # L1 keeps every reuse, L2 sees first touches only
+        (1.0, 1.0, 1.0, 1.0, 0.0),  # everything hits L1, no misses left
+        (1.0, 0.0, 1.0, 0.0, 1.0),  # too big for L1, fits in L2
+        (1.0, 0.0, 0.0, 0.0, 0.0),  # too big for both
+        # half reusable, L1 keeps half of that: h1 = 0.25, and of the 0.75 that
+        # miss L1, the 0.25 reusable ones all hit L2
+        (0.5, 0.5, 1.0, 0.25, 0.25 / 0.75),
+    ],
+)
+def test_hit_ratios(r, cap1, cap2, h1, h2):
+    assert get_hit_ratios(r, cap1, cap2) == pytest.approx((h1, h2))
 
 
 def test_hit_rate_no_cache_misses():

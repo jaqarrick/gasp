@@ -184,19 +184,42 @@ def test_amat_uncoalesced_term_only_on_dram():
 # ---------------------------------------------------------------------------
 
 
+def vecadd_input(accesses: int, reusable: int) -> PredictionInput:
+    i = prediction_input(mem_inst_count=accesses)
+    i.dependency.global_bytes_per_thread = 12  # 2 loads + 1 store of 4 B
+    i.dependency.global_access_count = accesses
+    i.dependency.reusable_access_count = reusable
+    return i
+
+
 def test_predict_working_set_scales_per_thread_bytes():
-    i = prediction_input()
-    i.dependency.global_bytes_per_thread = 12  # vecadd: 2 loads + 1 store of 4 B
-    p = predict(i, logger=MagicMock())
+    p = predict(vecadd_input(accesses=3, reusable=0), logger=MagicMock())
 
     assert p.working_set_per_sm_bytes == 12 * 256 * 4  # x block_size x blocks/SM
     assert p.working_set_total_bytes == 12 * 256 * 40  # x block_size x grid_size
-    assert p.l1_hit_ratio == 1.0  # 12 KB under 0.8 x 96 KB
-    assert p.l2_hit_ratio == 1.0
 
 
-def test_predict_no_working_set_estimate_counts_as_resident():
-    # global_bytes_per_thread defaults to 0, which the capacity model calls a hit
+def test_predict_streaming_kernel_misses_though_it_fits():
+    # vecadd good: 12 KB per SM fits in L1, but every access is a first touch
+    p = predict(vecadd_input(accesses=3, reusable=0), logger=MagicMock())
+
+    assert p.reuse_fraction == 0.0
+    assert p.l1_hit_ratio == 0.0
+    assert p.l2_hit_ratio == 0.0
+    assert p.amat == pytest.approx(DRAM_LAT)
+
+
+def test_predict_repeat_accesses_hit_l1():
+    # vecadd poor: 6 accesses to 3 addresses, the repeats hit (ncu: 47% L1)
+    p = predict(vecadd_input(accesses=6, reusable=3), logger=MagicMock())
+
+    assert p.reuse_fraction == 0.5
+    assert p.l1_hit_ratio == 0.5
+    assert p.l2_hit_ratio == 0.0  # what L1 misses is all first touches
+    assert p.amat == pytest.approx((L1_LAT + DRAM_LAT) / 2)
+
+
+def test_predict_no_global_accesses_has_no_hits():
     p = predict(prediction_input(), logger=MagicMock())
-    assert p.l1_hit_ratio == 1.0
-    assert p.amat == pytest.approx(30)
+    assert p.reuse_fraction == 0.0
+    assert p.amat == pytest.approx(DRAM_LAT)

@@ -21,11 +21,12 @@ class DependencyOutput:
     # sum of instruction latencies weighted by execution frequency (one thread, no overlap)
     total_latency: float
     # global memory bytes one thread touches
-    # assume one access width per distinct (definition, base, offset) per execution;
-    # assume every execution touches new data (no reuse)
-    # may need to change this model
     global_bytes_per_thread: int = 0
     num_address_groups: int = 0
+    # global accesses per thread, weighted by execution frequency
+    global_access_count: int = 0
+    # of those, accesses that can hit in cache:
+    reusable_access_count: int = 0
 
 
 @dataclass
@@ -284,6 +285,8 @@ def analyze(
     sync_inst_count = 0
     global_bytes_per_thread = 0
     num_address_groups = 0
+    global_access_count = 0
+    reusable_access_count = 0
 
     latencies = {}
     for node_id, node in all_instructions.items():
@@ -292,6 +295,17 @@ def analyze(
         groups = get_address_groups(node)
         num_address_groups += count_arrays(groups)
         global_bytes_per_thread += sum(groups.values()) * node_iterations[node_id]
+
+        # estimate memory reuse:
+        # an access in a loop may hit data from an earlier iteration;
+        # in a block that runs once, only repeats of an address already
+        # touched in the block can hit, the first touch is always a miss
+        accesses = sum(inst.category in GLOBAL_MEMORY_CATEGORIES for inst in node)
+        global_access_count += accesses * node_iterations[node_id]
+        if node_iterations[node_id] > 1:
+            reusable_access_count += accesses * node_iterations[node_id]
+        else:
+            reusable_access_count += (accesses - len(groups)) * node_iterations[node_id]
         if groups:
             logger.trace(
                 "dependency",
@@ -354,4 +368,6 @@ def analyze(
         total_latency=weight_sum,
         global_bytes_per_thread=global_bytes_per_thread,
         num_address_groups=num_address_groups,
+        global_access_count=global_access_count,
+        reusable_access_count=reusable_access_count,
     )

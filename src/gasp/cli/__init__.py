@@ -570,6 +570,7 @@ def analyze_kernel(
             ["Avg Trans/Warp", f"{prediction.average_trans_warp:.2f}"],
             ["Working set/SM (bytes)", str(prediction.working_set_per_sm_bytes)],
             ["Working set total (bytes)", str(prediction.working_set_total_bytes)],
+            ["Reuse fraction", f"{prediction.reuse_fraction:.3f}"],
             ["L1 hit ratio", f"{prediction.l1_hit_ratio:.3f}"],
             ["L2 hit ratio", f"{prediction.l2_hit_ratio:.3f}"],
             ["AMAT (cycles)", f"{prediction.amat:.1f}"],

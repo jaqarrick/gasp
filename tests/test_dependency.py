@@ -643,3 +643,59 @@ def test_working_set_counts_unrolled_offsets(logger):
     )
     assert out.global_bytes_per_thread == 8
     assert out.num_address_groups == 1
+
+
+# ---------------------------------------------------------------------------
+# reuse counts (GitHub #63)
+# ---------------------------------------------------------------------------
+
+
+def test_straight_line_first_touches_are_not_reusable(logger):
+    # vecadd good: three addresses, each touched once
+    insts = {"entry": [g_load("R8", "R2"), g_load("R9", "R4"), g_store("R6")]}
+    out = analyze(
+        make_cfg(["entry"], []),
+        insts,
+        loop_iterations=None,
+        latency=LATENCY,
+        logger=logger,
+    )
+    assert out.global_access_count == 3
+    assert out.reusable_access_count == 0
+
+
+def test_straight_line_repeats_are_reusable(logger):
+    insts = {
+        "entry": [
+            g_load("R9", "R2"),
+            g_load("R0", "R4"),
+            g_store("R6"),
+            g_load("R0", "R4"),
+            g_load("R11", "R2"),
+            g_store("R6"),
+        ]
+    }
+    out = analyze(
+        make_cfg(["entry"], []),
+        insts,
+        loop_iterations=None,
+        latency=LATENCY,
+        logger=logger,
+    )
+    assert out.global_access_count == 6
+    assert out.reusable_access_count == 3
+
+
+def test_loop_accesses_are_all_reusable(logger):
+    nodes = ["entry", "body", "exit"]
+    cfg = make_cfg(nodes, [("entry", "body"), ("body", "body"), ("body", "exit")])
+    insts = {
+        "entry": [ffma("R0", "R1")],
+        "body": [g_load("R8", "R2"), g_load("R9", "R4")],
+        "exit": [g_store("R6")],
+    }
+    out = analyze(cfg, insts, loop_iterations=10, latency=LATENCY, logger=logger)
+    assert out.global_access_count == 2 * 10 + 1
+    assert (
+        out.reusable_access_count == 2 * 10
+    )  # the store after the loop is a first touch
