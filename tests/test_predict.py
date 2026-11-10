@@ -556,6 +556,23 @@ def test_mem_classes_stores_never_hit_l1():
     assert p.t_mem == pytest.approx((165 + 300) * WARPS / (SMS * p.itmlp))
 
 
+def test_repeated_stores_hit_l2_whatever_the_footprint():
+    base = prediction_input()
+    # half of the accesses are repeats, and the data is far larger than L2
+    base.dependency = replace(
+        base.dependency,
+        global_access_count=4,
+        reusable_access_count=2,
+        global_bytes_per_thread=1 << 20,
+        global_store_inst_count=1,
+    )
+
+    p = with_options("mem-classes", base=base)
+
+    assert p.reuse_fraction == pytest.approx(0.5)
+    assert p.class_amats["stores"] == pytest.approx(0.5 * 200 + 0.5 * 300)
+
+
 def test_mem_classes_only_stores():
     p = with_options("mem-classes", base=half_l1_hits(stores=2))
 

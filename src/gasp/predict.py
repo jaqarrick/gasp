@@ -255,8 +255,9 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         f" r = {reuse_fraction:.4f} ({reuse_source}); {l1_trace};"
         f" {l2_trace}; h1 {l1_hit_ratio:.3f}, h2 {l2_hit_ratio:.3f}",
     )
-    # stores skip L1, so they see the cache model with no L1 in front of L2
-    _, store_l2_hit_ratio = get_hit_ratios(reuse_fraction, 0.0, l2_capacity_hit)
+    # stores skip L1. A repeated store is taken to find its line still in L2,
+    # whatever the footprint: the repeat follows the first store closely
+    store_l2_hit_ratio = reuse_fraction
 
     static = ModelInputs(
         total_inst_count=d.total_inst_count,

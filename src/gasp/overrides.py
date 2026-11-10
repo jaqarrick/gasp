@@ -27,6 +27,8 @@ GROUPS: dict[str, tuple[str, ...]] = {
 L1_HIT_RATE_PCT = "l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate.pct"
 L2_READ_HITS = "lts__t_sectors_srcunit_tex_op_read_lookup_hit.sum"
 L2_READ_MISSES = "lts__t_sectors_srcunit_tex_op_read_lookup_miss.sum"
+L2_WRITE_HITS = "lts__t_sectors_srcunit_tex_op_write_lookup_hit.sum"
+L2_WRITE_MISSES = "lts__t_sectors_srcunit_tex_op_write_lookup_miss.sum"
 GLOBAL_LOAD_SECTORS = "l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum"
 GLOBAL_LOAD_REQUESTS = "l1tex__t_requests_pipe_lsu_mem_global_op_ld.sum"
 SHARED_LOAD_BANK_CONFLICTS = "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum"
@@ -39,6 +41,8 @@ PROFILED_METRICS: tuple[str, ...] = (
     L1_HIT_RATE_PCT,
     L2_READ_HITS,
     L2_READ_MISSES,
+    L2_WRITE_HITS,
+    L2_WRITE_MISSES,
     GLOBAL_LOAD_SECTORS,
     GLOBAL_LOAD_REQUESTS,
     SHARED_LOAD_BANK_CONFLICTS,
@@ -62,6 +66,7 @@ class ModelOverrides:
     # cache
     l1_hit_ratio: float | None = None
     l2_hit_ratio: float | None = None
+    store_l2_hit_ratio: float | None = None
     # coalescing
     average_trans_warp: float | None = None
     # bank
@@ -131,11 +136,20 @@ def _metric(metrics: dict[str, float], name: str, group: str) -> float:
 def _cache(metrics: dict[str, float]) -> dict[str, float]:
     hits = _metric(metrics, L2_READ_HITS, "cache")
     lookups = hits + _metric(metrics, L2_READ_MISSES, "cache")
-    return {
+    values = {
         "l1_hit_ratio": _metric(metrics, L1_HIT_RATE_PCT, "cache") / 100,
         # of the reads that missed L1
         "l2_hit_ratio": hits / lookups if lookups > 0 else 0.0,
     }
+    # stores go straight to L2. Metrics files saved before the write lookups
+    # were collected don't have them; the store ratio then stays static
+    if L2_WRITE_HITS in metrics and L2_WRITE_MISSES in metrics:
+        write_hits = metrics[L2_WRITE_HITS]
+        write_lookups = write_hits + metrics[L2_WRITE_MISSES]
+        values["store_l2_hit_ratio"] = (
+            write_hits / write_lookups if write_lookups > 0 else 0.0
+        )
+    return values
 
 
 def _coalescing(metrics: dict[str, float]) -> dict[str, float]:

@@ -155,7 +155,7 @@ make run ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --metrics 
 
 | Group        | Inputs replaced                          | `profiled` (from the metrics file)                     | `crude`       |
 |--------------|------------------------------------------|--------------------------------------------------------|---------------|
-| `cache`      | L1 and L2 hit ratios                     | ncu's L1 hit rate for global loads; L2 read lookup hits / lookups | -  |
+| `cache`      | L1 and L2 hit ratios, and the stores' L2 hit ratio | ncu's L1 hit rate for global loads; L2 read lookup hits / lookups; L2 write lookup hits / lookups (kept static if the file has no write lookups) | -  |
 | `coalescing` | Transactions per warp access             | Global-load sectors / requests / 4, at least 1         | 1 (coalesced) |
 | `bank`       | Bank conflicts per warp                  | Shared load + store bank conflicts / warps             | 0             |
 | `counts`     | Total, global memory and SFU instructions per warp | ncu's executed instruction counts / warps    | -             |
