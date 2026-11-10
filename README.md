@@ -140,6 +140,32 @@ make run ARGS="--gpu rtx2080ti --run benchmarks/vecadd/vecadd_good.cu benchmarks
 - Measured speedup is the ratio of the medians. Its range is the widest the runs allow, so treat a gap inside the range as no measured difference.
 - Every run has to launch the requested grid and block size, or GASP stops. See [the benchmark notes](benchmarks/README.md) for how to write a program for `--run`.
 
+### Overrides
+
+An override replaces a group of the model's static inputs with what ncu measured, to see how much of the error that input causes. Profile once and save the measurements, then replay them with any override. Replaying needs no GPU:
+
+```bash
+make run ARGS="--gpu rtx2080ti --run --config benchmarks/vecadd/vecadd.toml --save-metrics vecadd.metrics.json"
+make run ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --metrics vecadd.metrics.json --override cache=profiled"
+```
+
+`--override GROUP=SOURCE` is repeatable. A group not named stays static.
+
+| Group        | Inputs replaced                          | `profiled` (from the metrics file)                     | `crude`       |
+|--------------|------------------------------------------|--------------------------------------------------------|---------------|
+| `cache`      | L1 and L2 hit ratios                     | ncu's L1 hit rate for global loads; L2 read lookup hits / lookups | -  |
+| `coalescing` | Transactions per warp access             | Global-load sectors / requests / 4, at least 1         | 1 (coalesced) |
+| `bank`       | Bank conflicts per warp                  | Shared load + store bank conflicts / warps             | 0             |
+| `counts`     | Total, global memory and SFU instructions per warp | ncu's executed instruction counts / warps    | -             |
+
+- `all=profiled` sets every group. `crude` is what the model assumes without Pico.
+- ILP, MLP and the sync instruction count have no profiled source, so they're always static.
+- The metrics file holds ncu's raw values for every run, keyed by kernel name. GASP stops if the GPU, a kernel name, or a kernel's block or grid size differs from the file, or if a metric a `profiled` override needs is missing.
+- `--metrics` also prints the predicted vs measured table from the file. It can't be combined with `--run`.
+- The comparison table's Overrides column and the `predict` trace (`override l1_hit_ratio: static 0.5 → 0.472`) show what was replaced.
+
+The full ablation, one row per override set, is in [`experiments/ablation`](experiments/ablation/README.md): `make ablation ARGS="..."`.
+
 ### Docker
 
 ```bash
@@ -154,6 +180,7 @@ make docker-run DOCKER_FLAGS="--gpus all" ARGS="--gpu rtx2080ti --run --config b
 - Traces are lost when the container exits unless they go to a mounted path, such as `--trace-file benchmarks/traces.log`.
 - `--run` needs a GPU in the container, which `DOCKER_FLAGS="--gpus all"` requests. This needs the NVIDIA container runtime, and running `ncu` in a container hasn't been tested yet.
 - The Dev Container has no GPU access, so `--run` isn't available there.
+- Replaying a metrics file (`--metrics`, `--override`) needs no GPU, so it works in any container. The file has to be under `benchmarks/` or `hardware/` to be visible to `docker-run`. `--save-metrics` has to write to one of those paths too, or the file is lost with the container. `make ablation` runs locally only.
 
 ### Options
 
@@ -167,6 +194,9 @@ These apply to the whole run:
 | `--reference`         | Kernel the others are compared with (default: the first) |
 | `--run`               | Run each program under `ncu` and compare with the prediction |
 | `--repeats`           | `ncu` runs per kernel with `--run` (default: 3)          |
+| `--save-metrics FILE` | With `--run`: save the ncu measurements to `FILE` (JSON) |
+| `--metrics FILE`      | Use the measurements in `FILE` instead of running `ncu`; can't be combined with `--run` |
+| `--override GROUP=SOURCE` | Replace a group of static inputs (repeatable), see [Overrides](#overrides) |
 | `--verbose`           | Verbose output                                           |
 | `--trace`             | Write traces to the trace file; optional comma-separated modules (`config,cuda,cfg,sass,occupancy,pico,dependency,predict,profiler`), default `all` |
 | `--trace-file`        | Trace file path (default `./traces.log`); implies `--trace all` |

@@ -10,6 +10,7 @@ from gasp.dependency import DependencyOutput
 from gasp.gpuperf import GPUPerf
 from gasp.gpuperf.types import HardwareParameters, LaunchParameters
 from gasp.occupancy import OccupancyOutput
+from gasp.overrides import ModelOverrides, build_overrides
 from gasp.pico import PicoOutput
 from gasp.predict import PredictionInput, get_average_trans_warp, predict
 
@@ -365,3 +366,90 @@ def test_l1_size_shows_in_trace():
         c.args[1] for c in logger.trace.call_args_list if c.args[1].startswith("cache:")
     )
     assert "L1 65,536 B (carveout 32,768 B)" in cache_trace
+
+
+# overrides
+
+
+def overridden(**values: float):
+    base = prediction_input()
+    base.overrides = ModelOverrides(**values)
+    return predict(base, logger=MagicMock())
+
+
+def test_empty_overrides_change_nothing():
+    plain = predict(prediction_input(), logger=MagicMock())
+
+    assert overridden() == plain
+
+
+def test_cache_override_replaces_only_the_hit_ratios():
+    plain = predict(prediction_input(), logger=MagicMock())
+    p = overridden(l1_hit_ratio=0.25, l2_hit_ratio=0.5)
+
+    assert (p.l1_hit_ratio, p.l2_hit_ratio) == (0.25, 0.5)
+    # h1 x L1 + (1 - h1) x (h2 x L2 + (1 - h2) x DRAM), coalesced
+    assert p.amat == pytest.approx(0.25 * 30 + 0.75 * (0.5 * 200 + 0.5 * 300))
+    assert p.t_comp == plain.t_comp
+    assert (p.itilp, p.cwp, p.itmlp) == (plain.itilp, plain.cwp, plain.itmlp)
+    assert p.average_trans_warp == plain.average_trans_warp
+
+
+def test_cache_override_wins_over_reuse():
+    base = prediction_input()
+    base.block_reuse = 0.9
+    base.overrides = ModelOverrides(l1_hit_ratio=0.25, l2_hit_ratio=0.5)
+
+    assert predict(base, logger=MagicMock()).l1_hit_ratio == 0.25
+
+
+def test_coalescing_override_replaces_only_average_trans_warp():
+    plain = predict(prediction_input(), logger=MagicMock())
+    p = overridden(average_trans_warp=8.0)
+
+    assert p.average_trans_warp == 8.0
+    assert p.t_comp == plain.t_comp
+    assert (p.l1_hit_ratio, p.l2_hit_ratio) == (plain.l1_hit_ratio, plain.l2_hit_ratio)
+
+
+def test_bank_override_adds_only_bank_overhead():
+    plain = predict(prediction_input(), logger=MagicMock())
+    p = overridden(bank_conflict_count=1.5)
+
+    # 1.5 extra accesses per warp x 320 warps / 10 SMs x penalty 2
+    assert p.t_comp - plain.t_comp == pytest.approx(1.5 * 320 / 10 * 2)
+    assert p.t_mem == plain.t_mem
+
+
+def test_counts_override_keeps_the_static_instruction_latency():
+    plain = predict(prediction_input(), logger=MagicMock())
+    # twice the static total of 10, with no serial overheads in this input
+    p = overridden(total_inst_count=20.0)
+
+    assert p.itilp == plain.itilp
+    assert p.t_comp == pytest.approx(2 * plain.t_comp)
+
+
+def test_crude_overrides_match_the_pico_fallback():
+    uncoalesced = prediction_input()
+    uncoalesced.pico = replace(pico(96, 3), bank_conflict_count=31)
+    fallback = prediction_input()
+    fallback.pico = replace(uncoalesced.pico, error=True)
+    uncoalesced.overrides = build_overrides(
+        {"coalescing": "crude", "bank": "crude"}, None, total_warps=320
+    )
+
+    assert predict(uncoalesced, logger=MagicMock()) == predict(
+        fallback, logger=MagicMock()
+    )
+
+
+def test_each_override_is_traced():
+    base = prediction_input()
+    base.pico = pico(96, 3)
+    base.overrides = ModelOverrides(average_trans_warp=1.0)
+    logger = MagicMock()
+
+    predict(base, logger=logger)
+
+    logger.trace.assert_any_call("predict", "override average_trans_warp: static 8 → 1")
