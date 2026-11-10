@@ -2,6 +2,8 @@
 
 The files within this directory contain the hardware profiles for targeted GPUs against our microbenchmark kernels as well as the official spec from NVIDIA. All `*.placeholder.json` will be replaced once we have finished the runs. The rtx2080 placeholder profile is for running / testing on CIMS.
 
+The `l4` and `v100` placeholders have their own `spec` values, but their `profiled` values are copied from another GPU until the microbenchmarks run on them: `l4` from the `a100` placeholder, `v100` from the `rtx2080ti` placeholder.
+
 ## Format
 
 Every profile, built-in or passed with `--profile`, needs:
@@ -18,4 +20,7 @@ The required fields are the ones in `HardwareProfile` (`src/gasp/cli/utils.py`).
 - Source for a100 L1/shared size and carveout options: https://docs.nvidia.com/cuda/ampere-tuning-guide/index.html
 - Source for h100 L1/shared size and carveout options: https://docs.nvidia.com/cuda/hopper-tuning-guide/index.html
 - Source for b200 L1/shared size and carveout options: https://docs.nvidia.com/cuda/blackwell-tuning-guide/index.html
-- Same values for all four in one table: https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html
+- Source for l4 L1/shared size and carveout options: https://docs.nvidia.com/cuda/ada-tuning-guide/index.html
+- Source for v100 L1/shared size and carveout options: https://docs.nvidia.com/cuda/volta-tuning-guide/index.html
+- l4 L2 size (48 MB) is not from an NVIDIA document; check it against `cudaDeviceProp::l2CacheSize` on the card
+- Same values for all of them in one table: https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/compute-capabilities.html

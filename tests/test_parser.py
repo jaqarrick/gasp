@@ -76,6 +76,7 @@ def make_parser(arch, logger, cfg=None):
 @pytest.mark.parametrize(
     "arch, parser_cls",
     [
+        ("sm_70", BracketSASSParser),
         ("sm_75", BracketSASSParser),
         ("sm_80", BracketSASSParser),
         ("sm_86", BracketSASSParser),
@@ -94,7 +95,12 @@ def test_ldcu_only_in_sm100_table(logger):
     assert "LDCU" not in make_parser("sm_90", logger).opcode_table
 
 
-@pytest.mark.parametrize("arch", ["sm_70", "compute_80", "80"])
+def test_async_copy_ops_not_in_volta_table(logger):
+    assert "LDGSTS" in make_parser("sm_89", logger).opcode_table
+    assert "LDGSTS" not in make_parser("sm_70", logger).opcode_table
+
+
+@pytest.mark.parametrize("arch", ["sm_52", "compute_80", "80"])
 def test_get_parser_rejects_unsupported_arch(arch, logger):
     with pytest.raises(SystemExit):
         make_parser(arch, logger)
@@ -614,6 +620,7 @@ def test_descriptor_address(arch, line, expected, logger):
 SASS_FIXTURES = [
     pytest.param(arch, SASS_DIR / name, id=name)
     for arch, name in [
+        ("sm_70", "vecadd.sm_70.sass"),
         ("sm_80", "vecadd.sm_80.sass"),
         ("sm_90", "vecadd.sm_90.sass"),
         ("sm_100", "vecadd.sm_100.sass"),

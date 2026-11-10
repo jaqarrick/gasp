@@ -27,6 +27,7 @@ from gasp.cli.utils import (
     load_hardware_profile,
     load_profile_file,
 )
+from gasp.common.constants import GPU_TO_ARCH
 from gasp.dependency import LoopInfo
 from gasp.predict import PredictionOutput
 from gasp.profiler import KernelMeasurement, ProfileOutput
@@ -140,7 +141,7 @@ class TestHardwareProfile:
 
 class TestGPUProfiles:
     def test_known_gpus(self):
-        for gpu in ("a100", "h100", "b200"):
+        for gpu in ("a100", "h100", "b200", "l4", "v100", "rtx2080ti"):
             assert gpu in GPU_PROFILES, f"{gpu} missing from GPU_PROFILES"
 
     def test_paths_are_json(self):
@@ -153,7 +154,9 @@ class TestGPUProfiles:
 
     def test_every_profile_loads(self, logger):
         for gpu in GPU_PROFILES:
-            load_hardware_profile(gpu, logger)
+            hp = load_hardware_profile(gpu, logger)
+            assert hp.chip == gpu
+            assert hp.arch == GPU_TO_ARCH[gpu]
 
 
 class TestLoadHardwareProfile:
