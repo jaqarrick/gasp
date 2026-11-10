@@ -69,6 +69,7 @@ class ModelOverrides:
     # counts
     total_inst_count: float | None = None
     mem_inst_count: float | None = None
+    store_inst_count: float | None = None
     sfu_inst_count: float | None = None
 
 
@@ -154,12 +155,12 @@ def _bank(metrics: dict[str, float], total_warps: int) -> dict[str, float]:
 
 
 def _counts(metrics: dict[str, float], total_warps: int) -> dict[str, float]:
-    global_accesses = _metric(metrics, GLOBAL_LOADS_EXECUTED, "counts") + _metric(
-        metrics, GLOBAL_STORES_EXECUTED, "counts"
-    )
+    global_stores = _metric(metrics, GLOBAL_STORES_EXECUTED, "counts")
+    global_accesses = _metric(metrics, GLOBAL_LOADS_EXECUTED, "counts") + global_stores
     return {
         "total_inst_count": _metric(metrics, INSTS_EXECUTED, "counts") / total_warps,
         "mem_inst_count": global_accesses / total_warps,
+        "store_inst_count": global_stores / total_warps,
         "sfu_inst_count": _metric(metrics, SFU_INSTS_EXECUTED, "counts") / total_warps,
     }
 

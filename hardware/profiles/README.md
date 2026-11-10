@@ -12,7 +12,24 @@ Every profile, built-in or passed with `--profile`, needs:
 - a `spec` object with the NVIDIA spec values
 - a `profiled` object with the microbenchmark results
 
-The required fields are the ones in `HardwareProfile` (`src/gasp/cli/utils.py`). GASP stops with an error that lists any missing, unknown, or non-numeric fields.
+The required fields are the ones in `HardwareProfile` (`src/gasp/cli/utils.py`) without a default; the four throughput fields below are optional. GASP stops with an error that lists any missing, unknown, or non-numeric fields.
+
+## Throughput placeholders
+
+Four optional `profiled` fields feed the `--model-opts` floors. A profile that leaves one out, or sets it to `null`, gets no floor from it. No microbenchmark measures the first three yet, so the `*.placeholder.json` profiles hold best-effort values from published sources. The measured `rtx2080ti.json` holds none of them: guessed values stay out of it, and the three floors are left out for `--gpu rtx2080ti` until the benchmarks exist.
+
+| Profile | `l1_throughput_sectors_per_cycle_per_sm` | `l2_bandwidth_bytes_per_cycle` | `shared_mem_load_throughput_cycles` |
+|---|---|---|---|
+| v100 (sm_70) | 4.0, high: 128 B/clk, Volta whitepaper | 2200, medium: about 2.1 TB/s, clock-adjusted | 1.0, high: 128 B/clk = 1 warp load per clock |
+| rtx2080ti.placeholder (sm_75) | 2.0, high: 64 B/clk, Turing whitepaper | 1200, low: no published figure | 2.0, medium: 64 B/clk = 2 clocks per warp load |
+| a100 (sm_80) | 4.0, high: 128 B/clk, Ampere whitepaper | 5120, high: A100 whitepaper | 1.0, high: 128 B/clk |
+| l4 (sm_89) | 4.0, medium: same SM design as Ampere | 5000, low: no published B/clk | 1.0, medium: same SM design |
+| h100 (sm_90) | 8.0, medium: 256 B/clk from 2x scaling | 6912, medium: ncu peak sustained metric | 1.0, low: MIO pipe unknown |
+| b200 (sm_100) | 4.0, medium: 128 KB L1, Ampere-class | 10000, medium: 21 TB/s local partition | 1.0, medium: 128 B/clk |
+
+Confidence: high = whitepaper or measured, medium = derived, low = interpolated. A sector is 32 bytes, so the L1 rate is bytes per clock per SM / 32.
+
+`shared_mem_store_throughput_cycles` is 4.46 on the RTX 2080 Ti, measured by `shared_memory_store_throughput.cu` with a single warp (run `1_0`); it is in both `rtx2080ti.json` and `rtx2080ti.placeholder.json`. The other profiles have no value for it and copy their shared load placeholder.
 
 ## Sources
 

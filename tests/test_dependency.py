@@ -425,8 +425,30 @@ def test_category_counts(logger):
     assert out.total_inst_count == 5
     # shared memory is on-chip: not in #mem_insts
     assert out.mem_inst_count == 2
+    assert out.global_store_inst_count == 1
+    assert out.shared_load_inst_count == 1
+    assert out.shared_store_inst_count == 0
     assert out.sfu_inst_count == 1
     assert out.sync_inst_count == 1
+
+
+def test_store_and_shared_counts_weighted_by_iterations(logger):
+    nodes = ["entry", "body"]
+    cfg = make_cfg(nodes, [("entry", "body"), ("body", "body")])
+    insts = {
+        "entry": [instr("STG", OpCategory.GLOBAL_STORE, ["R2", "R0"])],
+        "body": [
+            instr("LDS", OpCategory.SHARED_LOAD, ["R4"], ["R5"]),
+            instr("STS", OpCategory.SHARED_STORE, ["R4", "R5"]),
+            instr("STG", OpCategory.GLOBAL_STORE, ["R2", "R5"]),
+        ],
+    }
+    out = analyze(cfg, insts, loop_iterations=5, latency=LATENCY, logger=logger)
+
+    assert out.global_store_inst_count == 1 + 5
+    assert out.mem_inst_count == 1 + 5
+    assert out.shared_load_inst_count == 5
+    assert out.shared_store_inst_count == 5
 
 
 def test_counts_and_latency_weighted_by_iterations(logger):

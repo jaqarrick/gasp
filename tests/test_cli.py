@@ -76,6 +76,10 @@ VALID_PROFILE = {
         "shared_mem_load_latency_cycles": 23,
         "shared_mem_store_latency_cycles": 19,
         "const_mem_latency_cycles": 4,
+        "l1_throughput_sectors_per_cycle_per_sm": 4.0,
+        "l2_bandwidth_bytes_per_cycle": 5120,
+        "shared_mem_load_throughput_cycles": 1.0,
+        "shared_mem_store_throughput_cycles": 1.0,
     },
 }
 
@@ -157,6 +161,39 @@ class TestGPUProfiles:
             hp = load_hardware_profile(gpu, logger)
             assert hp.chip == gpu
             assert hp.arch == GPU_TO_ARCH[gpu]
+
+
+def test_profile_without_throughput_rates_loads_them_as_none(tmp_path, logger):
+    profile = json.loads(json.dumps(VALID_PROFILE))
+    del profile["profiled"]["l1_throughput_sectors_per_cycle_per_sm"]
+    profile["profiled"]["l2_bandwidth_bytes_per_cycle"] = None
+    path = tmp_path / "partial.json"
+    path.write_text(json.dumps(profile))
+
+    hp = load_profile_file(path, logger)
+
+    assert hp.l1_throughput_sectors_per_cycle_per_sm is None
+    assert hp.l2_bandwidth_bytes_per_cycle is None
+    assert hp.shared_mem_load_throughput_cycles == 1.0
+
+
+def test_throughput_rate_of_the_wrong_type_exits(tmp_path, logger):
+    profile = json.loads(json.dumps(VALID_PROFILE))
+    profile["profiled"]["l2_bandwidth_bytes_per_cycle"] = "fast"
+    path = tmp_path / "bad.json"
+    path.write_text(json.dumps(profile))
+
+    with pytest.raises(SystemExit):
+        load_profile_file(path, logger)
+
+
+def test_measured_rtx2080ti_profile_has_no_guessed_rates(logger):
+    hp = load_hardware_profile("rtx2080ti", logger)
+
+    assert hp.l1_throughput_sectors_per_cycle_per_sm is None
+    assert hp.l2_bandwidth_bytes_per_cycle is None
+    assert hp.shared_mem_load_throughput_cycles is None
+    assert hp.shared_mem_store_throughput_cycles == 4.46
 
 
 class TestLoadHardwareProfile:
@@ -547,6 +584,26 @@ def test_invalid_override_exits(values):
         checked_args(VECADD, "--metrics", "m.json", *flags)
 
 
+def test_model_opts_are_repeatable_and_comma_separated():
+    args = checked_args(
+        VECADD, "--model-opts", "mem-classes,amat-mem-l", "--model-opts", "dram-floor"
+    )
+    assert args.model_opts == ["mem-classes,amat-mem-l", "dram-floor"]
+
+
+def test_model_opts_default_to_none():
+    assert checked_args(VECADD).model_opts == []
+
+
+def test_unknown_model_opt_exits():
+    with pytest.raises(SystemExit):
+        checked_args(VECADD, "--model-opts", "bogus")
+
+
+def test_config_with_model_opts_is_accepted():
+    checked_args("--config", "kernels.toml", "--model-opts", "all")
+
+
 def test_config_with_metrics_and_overrides_is_accepted():
     checked_args(
         "--config", "kernels.toml", "--metrics", "m.json", "--override", "all=profiled"
@@ -702,6 +759,14 @@ def test_comparison_shows_overrides(report_logger):
     _, rows = table(report_logger)
 
     assert [row["Overrides"] for row in rows] == ["none", "cache=profiled"]
+
+
+def test_comparison_shows_model_opts(report_logger):
+    changed = dataclasses.replace(result("poor", 200.0), model_opts="dram-floor")
+    report_comparison([result("good", 100.0), changed], "good", report_logger)
+    _, rows = table(report_logger)
+
+    assert [row["Model opts"] for row in rows] == ["none", "dram-floor"]
 
 
 def test_comparison_no_warning_when_pico_fell_back_on_all(report_logger):

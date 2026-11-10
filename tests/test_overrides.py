@@ -164,7 +164,10 @@ def test_profiled_counts_are_per_warp():
     o = build_overrides({"counts": "profiled"}, metrics(), TOTAL_WARPS)
 
     assert o == ModelOverrides(
-        total_inst_count=12.5, mem_inst_count=3.0, sfu_inst_count=0.5
+        total_inst_count=12.5,
+        mem_inst_count=3.0,
+        store_inst_count=1.0,
+        sfu_inst_count=0.5,
     )
 
 

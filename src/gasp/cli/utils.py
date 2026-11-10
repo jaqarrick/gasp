@@ -1,6 +1,6 @@
 import json
 import sys
-from dataclasses import dataclass, fields
+from dataclasses import MISSING, dataclass, fields
 from pathlib import Path
 
 from gasp.dependency import LatencyTable
@@ -59,6 +59,12 @@ class HardwareProfile:
     shared_mem_load_latency_cycles: int
     shared_mem_store_latency_cycles: int
     const_mem_latency_cycles: int
+    # throughput limits for the --model-opts floors. Optional: a profile
+    # without one (or with null) leaves that floor out
+    l1_throughput_sectors_per_cycle_per_sm: float | None = None
+    l2_bandwidth_bytes_per_cycle: float | None = None
+    shared_mem_load_throughput_cycles: float | None = None
+    shared_mem_store_throughput_cycles: float | None = None
 
 
 def load_hardware_profile(gpu: str, logger: Logger) -> HardwareProfile:
@@ -75,7 +81,10 @@ def _is_number(value: object) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
-def _has_type(value: object, kind: object) -> bool:
+def _has_type(value: object, kind: object, optional: bool = False) -> bool:
+    if optional:
+        # float | None
+        return value is None or _is_number(value)
     if kind is str:
         return isinstance(value, str)
     if kind in (int, float):
@@ -120,7 +129,8 @@ def load_profile_file(path: str | Path, logger: Logger) -> HardwareProfile:
     flat = {**profile, **spec, **profiled}
 
     expected = {f.name: f.type for f in fields(HardwareProfile)}
-    missing = [name for name in expected if name not in flat]
+    optional = {f.name for f in fields(HardwareProfile) if f.default is not MISSING}
+    missing = [name for name in expected if name not in flat and name not in optional]
     if missing:
         _fail(
             logger,
@@ -135,7 +145,7 @@ def load_profile_file(path: str | Path, logger: Logger) -> HardwareProfile:
     wrong = [
         f"{name} (expected {getattr(kind, '__name__', kind)}, got {flat[name]!r})"
         for name, kind in expected.items()
-        if not _has_type(flat[name], kind)
+        if name in flat and not _has_type(flat[name], kind, name in optional)
     ]
     if wrong:
         _fail(

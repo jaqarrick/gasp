@@ -167,6 +167,33 @@ make run ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --metrics 
 
 The full ablation, one row per override set, is in [`experiments/ablation`](experiments/ablation/README.md): `make ablation ARGS="..."`.
 
+### Model options (temporary while calibrating)
+
+An override replaces the model's inputs; a model option changes one of its formulas. All are off by default, which is GPUPerf as published, so a prediction can be compared with and without each change:
+
+```bash
+make run ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --model-opts dram-floor"
+make run ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --model-opts mem-classes,amat-mem-l"
+make run ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --model-opts all"
+```
+
+`--model-opts NAME[,NAME...]` is repeatable, and `all` turns every option on.
+
+| Option         | What changes                                                                 | Rate it uses (hardware profile)                |
+|----------------|------------------------------------------------------------------------------|------------------------------------------------|
+| `mem-classes`  | T_mem sums one AMAT per access class: global loads, and global stores, which never hit L1 | -                                 |
+| `amat-mem-l`   | MWP and CWP use AMAT as the memory wait, not the DRAM latency               | -                                              |
+| `dram-floor`   | DRAM bandwidth limits only the bytes that miss L2: T_mem is at least those bytes / bandwidth, and the bandwidth cap leaves ITMLP | `dram_bandwidth_bytes_per_cycle` (measured on the RTX 2080 Ti) |
+| `l2-floor`     | T_mem is at least the bytes that miss L1 / L2 bandwidth                      | `l2_bandwidth_bytes_per_cycle` (placeholder)   |
+| `l1-floor`     | T_mem is at least the global load sectors per SM / L1 sector rate            | `l1_throughput_sectors_per_cycle_per_sm` (placeholder) |
+| `shared-floor` | W_parallel is at least shared loads and stores per SM × their cycles each    | `shared_mem_load_throughput_cycles` (placeholder), `shared_mem_store_throughput_cycles` |
+
+- T_mem is the largest of the latency term and the floors that are on. The prediction table's "T_mem set by" row names it.
+- With no cache hits and coalesced accesses, `dram-floor` gives the same T_mem as the default. An uncoalesced access counts as that many 128-byte lines.
+- The L1, L2 and shared load rates are placeholders from published sources; no microbenchmark measures them yet (see [`hardware/profiles`](hardware/profiles/README.md)). Only the `*.placeholder.json` profiles hold them. The measured `rtx2080ti.json` does not, so with `--gpu rtx2080ti` the `l1-floor`, `l2-floor` and `shared-floor` options are left out with a warning. To try them, pass a profile that has the rates with `--profile`.
+- The four rate fields are optional in a profile. A floor whose rate is missing or `null` is left out, and the prediction table's "Floors left out" row lists it.
+- Options combine with `--override`, `--metrics` and `--config`, and `make ablation` takes the same flag.
+
 ### Docker
 
 ```bash
@@ -198,6 +225,7 @@ These apply to the whole run:
 | `--save-metrics FILE` | With `--run`: save the ncu measurements to `FILE` (JSON) |
 | `--metrics FILE`      | Use the measurements in `FILE` instead of running `ncu`; can't be combined with `--run` |
 | `--override GROUP=SOURCE` | Replace a group of static inputs (repeatable), see [Overrides](#overrides) |
+| `--model-opts NAME[,NAME...]` | Turn on changes to the model's formulas (repeatable), see [Model options](#model-options) |
 | `--verbose`           | Verbose output                                           |
 | `--trace`             | Write traces to the trace file; optional comma-separated modules (`config,cuda,cfg,sass,occupancy,pico,dependency,predict,profiler`), default `all` |
 | `--trace-file`        | Trace file path (default `./traces.log`); implies `--trace all` |

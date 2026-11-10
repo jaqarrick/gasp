@@ -26,3 +26,4 @@ class Args:
     save_metrics: str | None
     metrics: str | None
     override: list[str]
+    model_opts: list[str]

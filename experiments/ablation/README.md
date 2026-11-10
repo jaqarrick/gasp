@@ -28,6 +28,15 @@ Measures which static inputs matter: the model is run once per row below, each r
    make ablation ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --metrics vecadd.metrics.json --out vecadd.ablation.csv"
    ```
 
+3. To measure a model change, run the same ablation again with `--model-opts` (see the main README). Every row is then predicted with those options, and the `model_opts` column records them:
+
+   ```bash
+   make ablation ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --metrics vecadd.metrics.json --model-opts dram-floor --out vecadd.dram-floor.csv"
+   make ablation ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --metrics vecadd.metrics.json --model-opts all --out vecadd.all.csv"
+   ```
+
+   Comparing a row across the CSVs gives the effect of the option; `all-static` is the headline, and `all-profiled` shows what the formula change does once the inputs are right.
+
 It prints one line per (row, kernel) and writes the same to the CSV: predicted and measured cycles, their error, predicted and measured speedup against the reference kernel, and whether Pico fell back. When Pico fell back on a kernel, its static coalescing and bank values already are the crude ones.
 
 The GPU, the config's kernel names and each kernel's block and grid size have to match the metrics file, or the script stops. A single row can be tried through the CLI with `--metrics FILE --override GROUP=SOURCE` (see the main README).

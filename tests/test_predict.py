@@ -7,12 +7,18 @@ from unittest.mock import MagicMock
 import pytest
 
 from gasp.dependency import DependencyOutput
-from gasp.gpuperf import GPUPerf
+from gasp.gpuperf import BOUND_DRAM, BOUND_L1, BOUND_L2, BOUND_LATENCY, GPUPerf
 from gasp.gpuperf.types import HardwareParameters, LaunchParameters
+from gasp.model_opts import ModelOptions, parse_model_opts
 from gasp.occupancy import OccupancyOutput
 from gasp.overrides import ModelOverrides, build_overrides
 from gasp.pico import PicoOutput
-from gasp.predict import PredictionInput, get_average_trans_warp, predict
+from gasp.predict import (
+    BOUND_ITMLP_CAP,
+    PredictionInput,
+    get_average_trans_warp,
+    predict,
+)
 
 
 def pico(ua: int, count: int, error: bool = False) -> PicoOutput:
@@ -88,6 +94,10 @@ def prediction_input(mem_inst_count: int = 2, grid_size: int = 40) -> Prediction
             launch_overhead_base=LAUNCH_BASE,
             launch_overhead_per_thread=LAUNCH_PER_THREAD,
             dram_bandwidth=450,
+            l1_sector_rate=2.0,
+            l2_bandwidth=1200,
+            shared_load_throughput=2.0,
+            shared_store_throughput=4.0,
         ),
         launch=LaunchParameters(
             block_size=256,
@@ -473,3 +483,231 @@ def test_each_override_is_traced():
     predict(base, logger=logger)
 
     logger.trace.assert_any_call("predict", "override average_trans_warp: static 8 → 1")
+
+
+# model options (--model-opts)
+#
+# prediction_input(): 2 global accesses per warp, 320 warps on 10 SMs, coalesced,
+# no cache hits, so AMAT = 300 and ITMLP = MLP 1 x MWP_cp 29 (not bandwidth-bound)
+
+WARPS, SMS = 320, 10
+BYTES = 2 * WARPS * 128  # one coalesced warp access moves 128 bytes
+
+
+def with_options(*names: str, base: PredictionInput | None = None, **hardware: float):
+    base = base or prediction_input()
+    base.options = parse_model_opts(list(names))
+    base.hardware = replace(base.hardware, **hardware)
+    return predict(base, logger=MagicMock())
+
+
+def half_l1_hits(stores: int = 0) -> PredictionInput:
+    base = prediction_input()
+    base.dependency = replace(base.dependency, global_store_inst_count=stores)
+    base.overrides = ModelOverrides(l1_hit_ratio=0.5, l2_hit_ratio=0.0)
+    return base
+
+
+def test_no_model_options_is_the_default():
+    plain = predict(prediction_input(), logger=MagicMock())
+    explicit = prediction_input()
+    explicit.options = ModelOptions()
+
+    assert predict(explicit, logger=MagicMock()) == plain
+    assert plain.model_opts == "none"
+    assert plain.class_amats == {"global": pytest.approx(300)}
+    assert plain.t_mem_bound == BOUND_LATENCY
+    assert plain.mem_l == 300
+
+
+def test_every_option_without_hits_stores_or_shared_changes_nothing():
+    plain = predict(prediction_input(), logger=MagicMock())
+    p = with_options("all")
+
+    assert p.model_opts == "all"
+    assert p.t_mem == pytest.approx(plain.t_mem)
+    assert p.t_comp == pytest.approx(plain.t_comp)
+    assert p.t_gpu == pytest.approx(plain.t_gpu)
+    assert p.t_mem_bound == BOUND_LATENCY
+    assert not p.shared_floor_binds
+
+
+def test_mem_classes_without_stores_is_one_class_of_loads():
+    plain = predict(prediction_input(), logger=MagicMock())
+    p = with_options("mem-classes")
+
+    assert list(p.class_amats) == ["loads"]
+    assert p.t_mem == pytest.approx(plain.t_mem)
+    assert p.amat == pytest.approx(plain.amat)
+
+
+def test_mem_classes_stores_never_hit_l1():
+    single = predict(half_l1_hits(stores=1), logger=MagicMock())
+    p = with_options("mem-classes", base=half_l1_hits(stores=1))
+
+    # one h1 for both accesses, against h1 on the load only
+    assert single.amat == pytest.approx(0.5 * 30 + 0.5 * 300)
+    assert p.class_amats == {
+        "loads": pytest.approx(0.5 * 30 + 0.5 * 300),
+        "stores": pytest.approx(300),
+    }
+    assert p.amat == pytest.approx((165 + 300) / 2)
+    assert p.itmlp == single.itmlp
+    assert p.t_mem == pytest.approx((165 + 300) * WARPS / (SMS * p.itmlp))
+
+
+def test_mem_classes_only_stores():
+    p = with_options("mem-classes", base=half_l1_hits(stores=2))
+
+    assert p.class_amats == {"stores": pytest.approx(300)}
+
+
+def test_amat_mem_l_without_hits_is_the_dram_latency():
+    plain = predict(prediction_input(), logger=MagicMock())
+    p = with_options("amat-mem-l")
+
+    assert p.mem_l == pytest.approx(300)
+    assert (p.mwp, p.cwp, p.itmlp) == (plain.mwp, plain.cwp, plain.itmlp)
+    assert p.t_gpu == pytest.approx(plain.t_gpu)
+
+
+def test_amat_mem_l_with_hits_lowers_mwp_and_cwp():
+    plain = predict(half_l1_hits(), logger=MagicMock())
+    p = with_options("amat-mem-l", base=half_l1_hits())
+
+    assert (plain.mem_l, plain.mwp, plain.cwp) == (300, 32.0, 30.0)
+    assert p.mem_l == pytest.approx(165)
+    assert p.mwp == pytest.approx(165 / 6)  # Mem_L / departure delay, below N = 32
+    assert p.cwp == pytest.approx(165 / 10)  # 10 compute cycles per access
+    assert p.itmlp == pytest.approx(15.5)
+    assert p.t_mem > plain.t_mem
+
+
+def test_dram_floor_without_hits_matches_the_itmlp_cap():
+    # bandwidth 45 B/cycle: MWP_peak_bw = 10.5, below MLP x MWP_cp = 29
+    plain = with_options(dram_bandwidth=45)
+    p = with_options("dram-floor", dram_bandwidth=45)
+
+    assert plain.t_mem_bound == BOUND_ITMLP_CAP
+    assert p.t_mem_bound == BOUND_DRAM
+    assert p.itmlp == pytest.approx(29)
+    assert p.t_mem == pytest.approx(BYTES / 45)
+    assert p.t_mem == pytest.approx(plain.t_mem)
+
+
+def test_dram_floor_charges_only_the_bytes_that_miss():
+    plain = with_options(base=half_l1_hits(), dram_bandwidth=45)
+    p = with_options("dram-floor", base=half_l1_hits(), dram_bandwidth=45)
+
+    assert p.t_mem == pytest.approx(BYTES * 0.5 / 45)
+    assert p.t_mem < plain.t_mem
+
+
+def test_dram_floor_counts_uncoalesced_lines():
+    base = prediction_input()
+    base.pico = pico(96, 3)  # 8 lines per warp access
+
+    p = with_options("dram-floor", base=base, dram_bandwidth=45)
+
+    assert p.t_mem == pytest.approx(BYTES * 8 / 45)
+
+
+def test_dram_floor_does_not_bind_with_enough_bandwidth():
+    plain = predict(prediction_input(), logger=MagicMock())
+    p = with_options("dram-floor")
+
+    assert p.t_mem_bound == BOUND_LATENCY
+    assert p.t_mem == pytest.approx(plain.t_mem)
+
+
+def test_l2_floor_binds_on_bytes_that_miss_l1():
+    p = with_options("l2-floor", base=half_l1_hits(), l2_bandwidth=10)
+
+    assert p.t_mem_bound == BOUND_L2
+    assert p.t_mem == pytest.approx(BYTES * 0.5 / 10)
+
+
+def test_l1_floor_binds_on_load_sectors_per_sm():
+    base = prediction_input()
+    base.dependency = replace(base.dependency, global_store_inst_count=1)
+
+    p = with_options("l1-floor", base=base, l1_sector_rate=0.01)
+
+    # 1 load per warp x 32 warps per SM x 4 sectors, stores left out
+    assert p.t_mem_bound == BOUND_L1
+    assert p.t_mem == pytest.approx(1 * WARPS / SMS * 4 / 0.01)
+
+
+def test_floors_are_off_without_their_option():
+    plain = predict(prediction_input(), logger=MagicMock())
+    p = with_options(l1_sector_rate=0.01, l2_bandwidth=10)
+
+    assert p.t_mem == plain.t_mem
+
+
+def shared_input(loads: int, stores: int) -> PredictionInput:
+    base = prediction_input()
+    base.dependency = replace(
+        base.dependency, shared_load_inst_count=loads, shared_store_inst_count=stores
+    )
+    return base
+
+
+def test_shared_floor_raises_t_comp_when_it_exceeds_w_parallel():
+    plain = predict(shared_input(5, 1), logger=MagicMock())
+    p = with_options("shared-floor", base=shared_input(5, 1))
+
+    # W_parallel: 10 insts x 32 warps per SM x latency 4 / ITILP 4 = 320
+    # floor: (5 loads x 2 + 1 store x 4) cycles x 32 warps per SM = 448
+    assert plain.t_comp == pytest.approx(320)
+    assert p.t_comp == pytest.approx(448)
+    assert p.shared_floor_binds
+
+
+def test_shared_floor_below_w_parallel_changes_nothing():
+    plain = predict(shared_input(1, 1), logger=MagicMock())
+    p = with_options("shared-floor", base=shared_input(1, 1))
+
+    assert p.t_comp == plain.t_comp
+    assert not p.shared_floor_binds
+
+
+def test_floor_without_a_profile_rate_is_left_out_with_a_warning():
+    plain = predict(prediction_input(), logger=MagicMock())
+    base = prediction_input()
+    base.options = parse_model_opts(["l1-floor", "l2-floor", "shared-floor"])
+    base.hardware = replace(
+        base.hardware,
+        l1_sector_rate=None,
+        l2_bandwidth=None,
+        shared_load_throughput=None,
+    )
+    logger = MagicMock()
+
+    p = predict(base, logger=logger)
+
+    assert p.t_gpu == plain.t_gpu
+    assert p.skipped_floors == [
+        "l1-floor (no l1_throughput_sectors_per_cycle_per_sm)",
+        "l2-floor (no l2_bandwidth_bytes_per_cycle)",
+        "shared-floor (no shared_mem_load_throughput_cycles)",
+    ]
+    logger.warning.assert_called_once()
+
+
+def test_missing_rate_is_not_reported_when_its_floor_is_off():
+    base = prediction_input()
+    base.hardware = replace(base.hardware, l1_sector_rate=None)
+
+    p = with_options("dram-floor", base=base)
+
+    assert p.skipped_floors == []
+
+
+def test_store_count_override_feeds_the_classes():
+    base = prediction_input()
+    base.overrides = ModelOverrides(mem_inst_count=4.0, store_inst_count=1.0)
+
+    p = with_options("mem-classes", base=base)
+
+    assert list(p.class_amats) == ["loads", "stores"]

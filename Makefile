@@ -87,5 +87,6 @@ help:
 	@echo "  make run ARGS='--profile hardware/profiles/rtx2080ti.json kernel.cu'"
 	@echo "  make run ARGS='--gpu rtx2080ti --run --config benchmarks/vecadd/vecadd.toml --save-metrics vecadd.metrics.json'"
 	@echo "  make run ARGS='--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --metrics vecadd.metrics.json --override cache=profiled'"
+	@echo "  make run ARGS='--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --model-opts dram-floor,mem-classes'"
 	@echo "  make ablation ARGS='--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --metrics vecadd.metrics.json'"
 	@echo "  make docker-run DOCKER_FLAGS='--gpus all' ARGS='--gpu b200 --run --config benchmarks/vecadd/vecadd.toml'"

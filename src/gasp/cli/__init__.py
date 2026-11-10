@@ -35,6 +35,13 @@ from gasp.metrics_file import (
     median_metrics,
     save_metrics,
 )
+from gasp.model_opts import NAMES as MODEL_OPT_NAMES
+from gasp.model_opts import (
+    ModelOptions,
+    ModelOptsError,
+    format_model_opts,
+    parse_model_opts,
+)
 from gasp.occupancy import OccupancyInput, OccupancyOutput, calculate_occupancy
 from gasp.overrides import (
     GROUPS,
@@ -88,6 +95,7 @@ class KernelResult:
     prediction: PredictionOutput
     pico_error: bool
     overrides: str = "none"  # label, see overrides.format_overrides
+    model_opts: str = "none"  # label, see model_opts.format_model_opts
 
 
 def kernel_input(value: str) -> tuple[str, str | None]:
@@ -299,6 +307,16 @@ def build_parser() -> argparse.ArgumentParser:
         "crude for coalescing and bank (no Pico: coalesced, no conflicts)",
     )
 
+    parser.add_argument(
+        "--model-opts",
+        action="append",
+        default=[],
+        metavar="NAME[,NAME...]",
+        help="Turn on changes to the model's formulas (repeatable). Options: "
+        f"{', '.join(MODEL_OPT_NAMES)}, or all. Without it the model is GPUPerf "
+        "as published",
+    )
+
     return parser
 
 
@@ -329,6 +347,10 @@ def check_args(parser: argparse.ArgumentParser, args: Args) -> None:
         parser.error(f"--override: {e}")
     if uses_profiled(choices) and args.metrics is None:
         parser.error("--override with a profiled source requires --metrics")
+    try:
+        parse_model_opts(args.model_opts)
+    except ModelOptsError as e:
+        parser.error(f"--model-opts: {e}")
 
     if args.config is None:
         if not args.inputs:
@@ -660,6 +682,10 @@ def prepare_kernel(
             launch_overhead_base=hp.launch_overhead_base_cycles,
             launch_overhead_per_thread=hp.launch_overhead_per_thread_cycles,
             dram_bandwidth=hp.dram_bandwidth_bytes_per_cycle,
+            l1_sector_rate=hp.l1_throughput_sectors_per_cycle_per_sm,
+            l2_bandwidth=hp.l2_bandwidth_bytes_per_cycle,
+            shared_load_throughput=hp.shared_mem_load_throughput_cycles,
+            shared_store_throughput=hp.shared_mem_store_throughput_cycles,
         ),
         launch=LaunchParameters(
             block_size=spec.block_size,
@@ -676,11 +702,13 @@ def predict_kernel(
     choices: dict[str, str],
     saved: SavedMetrics | None,
     logger: Logger,
+    options: ModelOptions | None = None,
 ) -> KernelResult:
     """Run the model on a prepared kernel, with the chosen overrides.
 
     choices: {group: source} from parse_overrides, empty for all static.
-    saved: the metrics file, needed when a source is profiled."""
+    saved: the metrics file, needed when a source is profiled.
+    options: the model's formula changes (--model-opts), None for none."""
     spec = prepared.spec
     name = spec.name
     label = format_overrides(choices)
@@ -690,7 +718,11 @@ def predict_kernel(
     except OverrideError as e:
         logger.error(f"{name}: {e}")
         sys.exit(1)
-    logger.trace("predict", f"=== {name}: overrides {label} ===")
+    options = options or ModelOptions()
+    opts_label = format_model_opts(options)
+    logger.trace(
+        "predict", f"=== {name}: overrides {label}, model options {opts_label} ==="
+    )
 
     prediction = predict(
         PredictionInput(
@@ -702,14 +734,20 @@ def predict_kernel(
             hardware=prepared.hardware,
             launch=prepared.launch,
             overrides=overrides,
+            options=options,
         ),
         logger=logger,
     )
+    class_amats = ", ".join(
+        f"{c} {amat:.1f}" for c, amat in prediction.class_amats.items()
+    )
     logger.table(
-        f"Prediction: {name} (overrides: {label})",
+        f"Prediction: {name} (overrides: {label}; model options: {opts_label})",
         ["Parameter", "Value"],
         [
             ["ITILP", f"{prediction.itilp:.2f}"],
+            ["Mem_L (cycles)", f"{prediction.mem_l:.1f}"],
+            ["MWP", f"{prediction.mwp:.2f}"],
             ["CWP", f"{prediction.cwp:.2f}"],
             ["MWP_cp", f"{prediction.mwp_cp:.2f}"],
             ["MWP_peak_bw", f"{prediction.mwp_peak_bw:.2f}"],
@@ -723,6 +761,13 @@ def predict_kernel(
             ["L1 hit ratio", f"{prediction.l1_hit_ratio:.3f}"],
             ["L2 hit ratio", f"{prediction.l2_hit_ratio:.3f}"],
             ["AMAT (cycles)", f"{prediction.amat:.1f}"],
+            ["AMAT by class (cycles)", class_amats],
+            ["T_mem set by", prediction.t_mem_bound],
+            [
+                "Shared floor",
+                "binds" if prediction.shared_floor_binds else "does not bind",
+            ],
+            ["Floors left out", "; ".join(prediction.skipped_floors) or "none"],
             ["O_CFdiv (cycles)", f"{prediction.o_cfdiv:.0f}"],
             ["T_comp (cycles)", f"{prediction.t_comp:.0f}"],
             ["T_mem (cycles)", f"{prediction.t_mem:.0f}"],
@@ -739,6 +784,7 @@ def predict_kernel(
         prediction=prediction,
         pico_error=prepared.pico.error,
         overrides=label,
+        model_opts=opts_label,
     )
 
 
@@ -757,7 +803,7 @@ def report_comparison(
     columns = ["Kernel", "Launch", "T_comp", "T_mem", "T_overlap", "T_GPU"]
     if compare:
         columns.append("Speedup")
-    columns += ["Pico", "Overrides"]
+    columns += ["Pico", "Overrides", "Model opts"]
 
     rows = []
     for r in results:
@@ -772,7 +818,7 @@ def report_comparison(
         ]
         if compare:
             row.append(f"{speedup(t_reference, p.t_gpu):.2f}")
-        row += ["fallback" if r.pico_error else "ok", r.overrides]
+        row += ["fallback" if r.pico_error else "ok", r.overrides, r.model_opts]
         rows.append(row)
 
     title = (
@@ -929,6 +975,7 @@ def main() -> None:
         logger.warning(warning)
 
     choices = parse_overrides(args.override)  # validated in check_args
+    options = parse_model_opts(args.model_opts)  # validated in check_args
     saved = None
     if args.metrics is not None:
         saved = load_saved_metrics(args.metrics, gpu, arch, specs, logger)
@@ -937,7 +984,7 @@ def main() -> None:
         prepare_kernel(spec, arch, hp, warn_shared_program=args.run, logger=logger)
         for spec in specs
     ]
-    results = [predict_kernel(p, choices, saved, logger) for p in prepared]
+    results = [predict_kernel(p, choices, saved, logger, options) for p in prepared]
     report_comparison(results, reference, logger)
 
     if args.run:

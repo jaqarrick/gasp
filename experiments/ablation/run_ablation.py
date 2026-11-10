@@ -21,6 +21,8 @@ from gasp.cli import (
 from gasp.cli.config import ConfigError, load_config
 from gasp.compare import measured_speedup, speedup
 from gasp.logger import Logger
+from gasp.model_opts import NAMES as MODEL_OPT_NAMES
+from gasp.model_opts import ModelOptsError, parse_model_opts
 from gasp.overrides import parse_overrides
 
 # row name -> its --override values (handoff, "The ablation")
@@ -38,6 +40,7 @@ COLUMNS = [
     "row",
     "kernel",
     "overrides",
+    "model_opts",
     "pico",
     "predicted_cycles",
     "measured_cycles",
@@ -63,6 +66,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--reference", default=None, help="kernel speedups are relative to"
     )
+    parser.add_argument(
+        "--model-opts",
+        action="append",
+        default=[],
+        metavar="NAME[,NAME...]",
+        help="model options every row is predicted with (repeatable): "
+        f"{', '.join(MODEL_OPT_NAMES)}, or all",
+    )
     parser.add_argument("--out", default=None, help="write the results as CSV")
     parser.add_argument("--verbose", action="store_true")
     return parser
@@ -83,6 +94,7 @@ def row_records(
                 "row": row,
                 "kernel": name,
                 "overrides": r.overrides,
+                "model_opts": r.model_opts,
                 "pico": "fallback" if r.pico_error else "ok",
                 "predicted_cycles": t_gpu,
                 "measured_cycles": measured[name].cycles,
@@ -108,6 +120,10 @@ def main() -> None:
     args = parser.parse_args()
     if args.gpu is None and args.profile is None:
         parser.error("give --gpu or --profile")
+    try:
+        options = parse_model_opts(args.model_opts)
+    except ModelOptsError as e:
+        parser.error(f"--model-opts: {e}")
 
     logger = Logger(args.verbose)
     gpu, arch, hp = load_hardware(args.gpu, args.profile, logger)
@@ -132,7 +148,9 @@ def main() -> None:
     records = []
     for row, values in ROWS.items():
         choices = parse_overrides(values)
-        results = [predict_kernel(p, choices, saved, logger) for p in prepared]
+        results = [
+            predict_kernel(p, choices, saved, logger, options) for p in prepared
+        ]
         records += row_records(row, results, measured, reference)
 
     logger.table(
