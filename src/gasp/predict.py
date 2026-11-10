@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, replace
 
 from gasp.cache import (
     get_cache_hit_rate_from_working_set,
@@ -9,6 +9,7 @@ from gasp.cache import (
     get_l1_size,
     get_reuse_fraction,
 )
+from gasp.common.constants import SECTORS_PER_LINE
 from gasp.dependency import DependencyOutput
 from gasp.gpuperf import GPUPerf
 from gasp.gpuperf.types import (
@@ -19,11 +20,11 @@ from gasp.gpuperf.types import (
 )
 from gasp.logger import Logger
 from gasp.occupancy import OccupancyOutput
+from gasp.overrides import ModelOverrides
 from gasp.pico import PicoOutput
 
 # bytes per thread per memory instruction, for MWP_peak_bw
 WORD_BYTES = 4
-SECTORS_PER_LINE = 4  # for Pico <=> GPUPerf conversion
 
 
 @dataclass
@@ -37,6 +38,41 @@ class PredictionInput:
     # share of global accesses that hit L1 on data the same block just loaded
     # (--reuse), None to use L1's capacity term
     block_reuse: float | None = None
+    # values that replace static model inputs (--override), None for none
+    overrides: ModelOverrides | None = None
+
+
+@dataclass
+class ModelInputs:
+    """Every input the model takes from static analysis, per warp where it's
+    a count. predict() fills this from the static analyses, applies the
+    overrides to it once, and derives everything else from the result."""
+
+    total_inst_count: float
+    mem_inst_count: float
+    sfu_inst_count: float
+    sync_inst_count: float
+    ilp: float
+    mlp: float
+    average_inst_latency: float
+    average_trans_warp: float
+    bank_conflict_count: float
+    l1_hit_ratio: float
+    l2_hit_ratio: float
+
+
+def apply_overrides(
+    static: ModelInputs, overrides: ModelOverrides | None, logger: Logger
+) -> ModelInputs:
+    """The inputs the model runs on: static, with every overridden field replaced."""
+    if overrides is None:
+        return static
+    changed = {k: v for k, v in asdict(overrides).items() if v is not None}
+    for name, value in changed.items():
+        logger.trace(
+            "predict", f"override {name}: static {getattr(static, name):g} → {value:g}"
+        )
+    return replace(static, **changed)
 
 
 @dataclass
@@ -91,29 +127,8 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
     l = input.launch
     n = occ.active_warps_per_sm
 
-    avg_inst_lat = d.total_latency / d.total_inst_count
+    # 1. static inputs
 
-    # Eqs. 4-5
-    itilp_max = avg_inst_lat / (h.warp_size / h.simd_width)
-    itilp = min(d.ilp * n, itilp_max)
-
-    # CWP = Mem_L / (Comp_cycles / #mem_insts), capped at N
-    # Comp_cycles: one warp's compute time, dependency-limited by ILP
-    comp_cycles = d.total_inst_count * avg_inst_lat / d.ilp
-    if d.mem_inst_count > 0:
-        cwp = min(h.dram_latency / (comp_cycles / d.mem_inst_count), n)
-    else:
-        cwp = n
-
-    # Eq. 15
-    mwp_cp = min(max(1, cwp - 1), occ.mwp)
-
-    # Eq. 14, MWP_peak_bw as in Hong-Kim: bandwidth / (per-warp bandwidth x active SMs)
-    bw_per_warp = h.warp_size * WORD_BYTES / h.dram_latency
-    mwp_peak_bw = h.dram_bandwidth / (bw_per_warp * occ.active_sms)
-    itmlp = min(d.mlp * mwp_cp, mwp_peak_bw)
-
-    average_trans_warp = get_average_trans_warp(p, d.mem_inst_count)
     if p.error or d.mem_inst_count == 0:
         uncoalesced_count = 0
         bank_conflict_count = 0
@@ -182,17 +197,57 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         f" {l2_trace}; h1 {l1_hit_ratio:.3f}, h2 {l2_hit_ratio:.3f}",
     )
 
-    k = KernelParameters(
+    static = ModelInputs(
         total_inst_count=d.total_inst_count,
         mem_inst_count=d.mem_inst_count,
         sfu_inst_count=d.sfu_inst_count,
         sync_inst_count=d.sync_inst_count,
-        uncoalesced_count=uncoalesced_count,
-        divergent_inst_count=0,
-        bank_conflict_count=bank_conflict_count,
         ilp=d.ilp,
         mlp=d.mlp,
-        average_inst_latency=avg_inst_lat,
+        average_inst_latency=d.total_latency / d.total_inst_count,
+        average_trans_warp=get_average_trans_warp(p, d.mem_inst_count),
+        bank_conflict_count=bank_conflict_count,
+        l1_hit_ratio=l1_hit_ratio,
+        l2_hit_ratio=l2_hit_ratio,
+    )
+
+    # 2. overrides: the only place a static input is replaced
+
+    m = apply_overrides(static, input.overrides, logger)
+
+    # 3. the model, from those inputs
+
+    # Eqs. 4-5
+    itilp_max = m.average_inst_latency / (h.warp_size / h.simd_width)
+    itilp = min(m.ilp * n, itilp_max)
+
+    # CWP = Mem_L / (Comp_cycles / #mem_insts), capped at N
+    # Comp_cycles: one warp's compute time, dependency-limited by ILP
+    comp_cycles = m.total_inst_count * m.average_inst_latency / m.ilp
+    if m.mem_inst_count > 0:
+        cwp = min(h.dram_latency / (comp_cycles / m.mem_inst_count), n)
+    else:
+        cwp = n
+
+    # Eq. 15
+    mwp_cp = min(max(1, cwp - 1), occ.mwp)
+
+    # Eq. 14, MWP_peak_bw as in Hong-Kim: bandwidth / (per-warp bandwidth x active SMs)
+    bw_per_warp = h.warp_size * WORD_BYTES / h.dram_latency
+    mwp_peak_bw = h.dram_bandwidth / (bw_per_warp * occ.active_sms)
+    itmlp = min(m.mlp * mwp_cp, mwp_peak_bw)
+
+    k = KernelParameters(
+        total_inst_count=m.total_inst_count,
+        mem_inst_count=m.mem_inst_count,
+        sfu_inst_count=m.sfu_inst_count,
+        sync_inst_count=m.sync_inst_count,
+        uncoalesced_count=uncoalesced_count,
+        divergent_inst_count=0,
+        bank_conflict_count=m.bank_conflict_count,
+        ilp=m.ilp,
+        mlp=m.mlp,
+        average_inst_latency=m.average_inst_latency,
         working_set_per_sm_bytes=working_set_per_sm,
         working_set_total_bytes=working_set_total,
     )
@@ -208,9 +263,9 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         cwp=cwp,
         mwp=occ.mwp,
         mwp_cp=mwp_cp,
-        average_trans_warp=average_trans_warp,
-        l1_hit_ratio=l1_hit_ratio,
-        l2_hit_ratio=l2_hit_ratio,
+        average_trans_warp=m.average_trans_warp,
+        l1_hit_ratio=m.l1_hit_ratio,
+        l2_hit_ratio=m.l2_hit_ratio,
     )
 
     logger.trace("predict", f"kernel parameters: {k}")
@@ -230,14 +285,14 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         mwp_cp=mwp_cp,
         mwp_peak_bw=mwp_peak_bw,
         itmlp=itmlp,
-        average_trans_warp=average_trans_warp,
+        average_trans_warp=m.average_trans_warp,
         working_set_per_sm_bytes=working_set_per_sm,
         working_set_total_bytes=working_set_total,
         l1_cache_size_bytes=l1_size,
         shared_mem_carveout_bytes=carveout,
         reuse_fraction=reuse_fraction,
-        l1_hit_ratio=l1_hit_ratio,
-        l2_hit_ratio=l2_hit_ratio,
+        l1_hit_ratio=m.l1_hit_ratio,
+        l2_hit_ratio=m.l2_hit_ratio,
         amat=model.amat,
         t_comp=model.t_comp,
         t_mem=model.t_mem,

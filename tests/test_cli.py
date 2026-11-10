@@ -503,6 +503,54 @@ def test_config_with_global_flags_is_accepted(flags):
     checked_args("--config", "kernels.toml", *flags)
 
 
+def test_save_metrics_requires_run():
+    with pytest.raises(SystemExit):
+        checked_args(VECADD, "--save-metrics", "m.json")
+    assert checked_args(VECADD, "--run", "--save-metrics", "m.json").save_metrics == (
+        "m.json"
+    )
+
+
+def test_metrics_with_run_exits():
+    with pytest.raises(SystemExit):
+        checked_args(VECADD, "--run", "--metrics", "m.json")
+
+
+def test_overrides_are_repeatable():
+    args = checked_args(
+        VECADD, "--override", "coalescing=crude", "--override", "bank=crude"
+    )
+    assert args.override == ["coalescing=crude", "bank=crude"]
+
+
+def test_profiled_override_requires_metrics():
+    with pytest.raises(SystemExit):
+        checked_args(VECADD, "--override", "cache=profiled")
+    checked_args(VECADD, "--metrics", "m.json", "--override", "cache=profiled")
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        ("cache",),
+        ("bogus=profiled",),
+        ("cache=crude",),
+        ("all=profiled", "cache=profiled"),
+    ],
+)
+def test_invalid_override_exits(values):
+    flags = [part for value in values for part in ("--override", value)]
+    with pytest.raises(SystemExit):
+        checked_args(VECADD, "--metrics", "m.json", *flags)
+
+
+def test_config_with_metrics_and_overrides_is_accepted():
+    checked_args(
+        "--config", "kernels.toml", "--metrics", "m.json", "--override", "all=profiled"
+    )
+    checked_args("--config", "kernels.toml", "--run", "--save-metrics", "m.json")
+
+
 def test_repeats_without_run_exits():
     with pytest.raises(SystemExit):
         checked_args(VECADD, "--repeats", "3")
@@ -643,6 +691,14 @@ def test_comparison_warns_when_pico_fell_back_on_some_kernels(report_logger):
 
     report_logger.warning.assert_called_once()
     assert [row["Pico"] for row in rows] == ["ok", "fallback"]
+
+
+def test_comparison_shows_overrides(report_logger):
+    overridden = dataclasses.replace(result("poor", 200.0), overrides="cache=profiled")
+    report_comparison([result("good", 100.0), overridden], "good", report_logger)
+    _, rows = table(report_logger)
+
+    assert [row["Overrides"] for row in rows] == ["none", "cache=profiled"]
 
 
 def test_comparison_no_warning_when_pico_fell_back_on_all(report_logger):

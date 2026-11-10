@@ -5,13 +5,14 @@ from dataclasses import dataclass
 class KernelParameters:
     """Inputs from Parser + CFG modules"""
 
-    total_inst_count: int
-    mem_inst_count: int
-    sfu_inst_count: int
-    sync_inst_count: int
+    # per warp; floats because profiled overrides are averages over warps
+    total_inst_count: float
+    mem_inst_count: float
+    sfu_inst_count: float
+    sync_inst_count: float
     uncoalesced_count: int
     divergent_inst_count: int
-    bank_conflict_count: int
+    bank_conflict_count: float
     ilp: float
     mlp: float
     average_inst_latency: float

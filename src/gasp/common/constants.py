@@ -10,3 +10,7 @@ GPU_TO_ARCH: dict[str, str] = {
     "t4": "sm_75",
     "rtx2080ti": "sm_75",
 }
+
+# 32-byte sectors in one 128-byte cache line: Pico and ncu count sectors,
+# GPUPerf's average_trans_warp counts lines
+SECTORS_PER_LINE = 4

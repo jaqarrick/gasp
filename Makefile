@@ -10,7 +10,7 @@ GPU ?=
 VERSION ?=
 ARCH ?=
 
-.PHONY: all build install run test lint lint-fix format pre-commit clean docker-clean docker-run help microbenchmarks
+.PHONY: all build install run test lint lint-fix format pre-commit clean docker-clean docker-run help microbenchmarks ablation
 
 $(VENV):
 	PYTHON=$(PYTHON) ./scripts/init_python.sh
@@ -39,6 +39,9 @@ test:
 run:
 	$(PY) -m gasp $(ARGS)
 
+ablation:
+	$(PY) experiments/ablation/run_ablation.py $(ARGS)
+
 # Every microbenchmark under ncu at base clock, plus a profile; needs a GPU, nvcc and ncu.
 microbenchmarks:
 	@test -n "$(GPU)" -a -n "$(VERSION)" || { echo "usage: make microbenchmarks GPU=<gpu> VERSION=<label> [ARCH=sm_XX] [ARGS='--only ... --force']"; exit 1; }
@@ -65,6 +68,7 @@ docker-clean:
 help:
 	@echo "make install                       - create venv and install deps"
 	@echo "make run ARGS='...'              - run locally"
+	@echo "make ablation ARGS='...'         - run the ablation from a saved metrics file"
 	@echo "make test                        - run tests"
 	@echo "make microbenchmarks GPU=.. VERSION=.. - run all microbenchmarks at base clock, build a profile"
 	@echo "make lint                        - lint Python code"
@@ -81,4 +85,7 @@ help:
 	@echo "  make run ARGS='--gpu b200 kernels.cu::good kernels.cu::poor'"
 	@echo "  make run ARGS='--gpu b200 --config benchmarks/vecadd/vecadd.toml'"
 	@echo "  make run ARGS='--profile hardware/profiles/rtx2080ti.json kernel.cu'"
+	@echo "  make run ARGS='--gpu rtx2080ti --run --config benchmarks/vecadd/vecadd.toml --save-metrics vecadd.metrics.json'"
+	@echo "  make run ARGS='--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --metrics vecadd.metrics.json --override cache=profiled'"
+	@echo "  make ablation ARGS='--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --metrics vecadd.metrics.json'"
 	@echo "  make docker-run DOCKER_FLAGS='--gpus all' ARGS='--gpu b200 --run --config benchmarks/vecadd/vecadd.toml'"

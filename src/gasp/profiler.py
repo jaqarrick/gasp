@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 from gasp.launch import Dims, format_dims, padded, total
 from gasp.logger import Logger, format_table
+from gasp.overrides import PROFILED_METRICS
 
 REQUIRED: list[str] = ["nvcc", "ncu"]
 
@@ -25,13 +26,8 @@ METRICS: list[str] = [
     GRID_SIZE_METRIC,
     BLOCK_SIZE_METRIC,
     SHARED_CONFIG_METRIC,
-    "smsp__inst_executed.sum",
-    "smsp__inst_executed_op_global_ld.sum",
-    "smsp__inst_executed_op_global_st.sum",
-    "l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum",
-    "l1tex__t_requests_pipe_lsu_mem_global_op_ld.sum",
-    "lts__t_sectors_srcunit_tex_op_read_lookup_hit.sum",
-    "lts__t_sectors_srcunit_tex_op_read_lookup_miss.sum",
+    # what profiled overrides are computed from
+    *PROFILED_METRICS,
     "sm__warps_active.avg.pct_of_peak_sustained_active",
 ]
 
