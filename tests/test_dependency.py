@@ -712,3 +712,182 @@ def test_bytes_accessed_counts_repeats_and_trips(logger):
     out = analyze(cfg, insts, loop_iterations=10, latency=LATENCY, logger=logger)
     assert out.global_bytes_accessed_per_thread == 2 * 4 + 8 * 10 + 16
     assert out.global_bytes_per_thread == 4 + 8 * 10 + 16  # repeats collapsed
+
+
+# ---------------------------------------------------------------------------
+# branches: which side is counted
+# ---------------------------------------------------------------------------
+
+
+def branch_on(special_register: str, target: str) -> list[SASSInstruction]:
+    """P0 computed from a special register, then @P0 BRA target."""
+    return [
+        SASSInstruction(
+            "S2R",
+            OpCategory.MISC,
+            None,
+            set(),
+            {"R0"},
+            special_registers={special_register},
+        ),
+        instr("ISETP", OpCategory.INT, ["R0"], ["P0"]),
+        SASSInstruction(
+            "BRA", OpCategory.CONTROL, "P0", {"P0"}, set(), branch_target=target
+        ),
+    ]
+
+
+def if_else(special_register: str):
+    """A -> T (3 FFMA), A -> F (FFMA + LDG), both -> J (EXIT)."""
+    cfg = make_cfg(
+        ["A", "T", "F", "J"], [("A", "T"), ("A", "F"), ("T", "J"), ("F", "J")]
+    )
+    insts = {
+        "A": branch_on(special_register, "T"),
+        "T": [ffma("R5", "R5"), ffma("R5", "R5"), ffma("R5", "R5")],
+        "F": [ffma("R6", "R6"), ldg("R7", "R8")],
+        "J": [instr("EXIT", OpCategory.CONTROL)],
+    }
+    return cfg, insts
+
+
+def test_uniform_branch_drops_the_cheaper_side(logger):
+    cfg, insts = if_else("SR_CTAID.X")
+
+    out = analyze(cfg, insts, loop_iterations=None, latency=LATENCY, logger=logger)
+
+    # A (3) + T (3) + J (1): F's 2 instructions are dropped
+    assert out.total_inst_count == 7
+    # F's LDG goes with it
+    assert out.mem_inst_count == 0
+    assert out.global_access_count == 0
+    assert out.num_address_groups == 0
+
+
+def test_divergent_branch_keeps_both_sides(logger):
+    cfg, insts = if_else("SR_TID.X")
+
+    out = analyze(cfg, insts, loop_iterations=None, latency=LATENCY, logger=logger)
+
+    assert out.total_inst_count == 9
+    assert out.mem_inst_count == 1
+    # F (2 instructions) is the cheaper side
+    assert out.divergent_inst_count == 2
+
+
+def test_uniform_branch_with_an_empty_side_is_unchanged(logger):
+    # A -> B -> J, A -> J: skipping B is an if without an else
+    cfg = make_cfg(["A", "B", "J"], [("A", "B"), ("B", "J"), ("A", "J")])
+    insts = {
+        "A": branch_on("SR_CTAID.X", "J"),
+        "B": [ffma("R5", "R5"), ldg("R7", "R8")],
+        "J": [instr("EXIT", OpCategory.CONTROL)],
+    }
+
+    out = analyze(cfg, insts, loop_iterations=None, latency=LATENCY, logger=logger)
+
+    assert out.total_inst_count == 6
+    assert out.mem_inst_count == 1
+
+
+def test_uniform_branch_compares_sides_with_loop_counts(logger):
+    # T is 2 instructions in a loop of 10; F is 3 instructions run once: F is dropped
+    cfg = make_cfg(
+        ["A", "T", "F", "J"],
+        [("A", "T"), ("A", "F"), ("T", "T"), ("T", "J"), ("F", "J")],
+    )
+    insts = {
+        "A": branch_on("SR_CTAID.X", "T"),
+        "T": [
+            ffma("R5", "R5"),
+            SASSInstruction(
+                "BRA", OpCategory.CONTROL, "P1", {"P1"}, set(), branch_target="T"
+            ),
+        ],
+        "F": [ffma("R6", "R6"), ffma("R6", "R6"), ffma("R6", "R6")],
+        "J": [instr("EXIT", OpCategory.CONTROL)],
+    }
+
+    out = analyze(cfg, insts, loop_iterations=10, latency=LATENCY, logger=logger)
+
+    # A (3) + T (2 x 10) + J (1)
+    assert out.total_inst_count == 24
+
+
+def test_no_branches_no_divergent_instructions(logger):
+    cfg, insts = if_else("SR_CTAID.X")
+
+    out = analyze(cfg, insts, loop_iterations=None, latency=LATENCY, logger=logger)
+
+    assert out.divergent_inst_count == 0
+
+
+def test_divergent_side_in_a_loop_is_weighted_by_the_loop_count(logger):
+    # T is 3 instructions once; F is 2 instructions in a loop of 10: T is cheaper
+    cfg = make_cfg(
+        ["A", "T", "F", "J"],
+        [("A", "T"), ("A", "F"), ("T", "J"), ("F", "F"), ("F", "J")],
+    )
+    insts = {
+        "A": branch_on("SR_TID.X", "T"),
+        "T": [ffma("R5", "R5"), ffma("R5", "R5"), ffma("R5", "R5")],
+        "F": [
+            ffma("R6", "R6"),
+            SASSInstruction(
+                "BRA", OpCategory.CONTROL, "P1", {"P1"}, set(), branch_target="F"
+            ),
+        ],
+        "J": [instr("EXIT", OpCategory.CONTROL)],
+    }
+
+    out = analyze(cfg, insts, loop_iterations=10, latency=LATENCY, logger=logger)
+
+    # A (3) + T (3) + F (2 x 10) + J (1)
+    assert out.total_inst_count == 27
+    assert out.divergent_inst_count == 3
+
+
+def nested(f_size: int):
+    """A uniform -> O / F; O divergent -> I1 (1) / I2 (2); all -> M.
+    The O side costs 3 + 1 + 2 = 6; F costs f_size."""
+    cfg = make_cfg(
+        ["A", "O", "I1", "I2", "F", "M"],
+        [
+            ("A", "O"),
+            ("A", "F"),
+            ("O", "I1"),
+            ("O", "I2"),
+            ("I1", "M"),
+            ("I2", "M"),
+            ("F", "M"),
+        ],
+    )
+    insts = {
+        "A": branch_on("SR_CTAID.X", "O"),
+        "O": branch_on("SR_TID.X", "I1"),
+        "I1": [ffma("R5", "R5")],
+        "I2": [ffma("R5", "R5"), ffma("R5", "R5")],
+        "F": [ffma("R6", "R6") for _ in range(f_size)],
+        "M": [instr("EXIT", OpCategory.CONTROL)],
+    }
+    return cfg, insts
+
+
+def test_divergent_branch_inside_a_dropped_side_adds_nothing(logger):
+    cfg, insts = nested(f_size=10)
+
+    out = analyze(cfg, insts, loop_iterations=None, latency=LATENCY, logger=logger)
+
+    # the O side (6) is cheaper than F (10): O, I1, I2 are dropped
+    assert out.total_inst_count == 3 + 10 + 1
+    assert out.divergent_inst_count == 0
+
+
+def test_divergent_branch_inside_the_kept_side_counts(logger):
+    cfg, insts = nested(f_size=1)
+
+    out = analyze(cfg, insts, loop_iterations=None, latency=LATENCY, logger=logger)
+
+    # F (1) is cheaper than the O side (6): F is dropped; I1 is O's cheaper side
+    assert out.total_inst_count == 3 + 3 + 1 + 2 + 1
+    assert out.divergent_inst_count == 1

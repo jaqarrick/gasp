@@ -628,6 +628,7 @@ def prepare_kernel(
             ["Mem Insts", str(dependency_results.mem_inst_count)],
             ["SFU Insts", str(dependency_results.sfu_inst_count)],
             ["Sync Insts", str(dependency_results.sync_inst_count)],
+            ["Divergent Insts", str(dependency_results.divergent_inst_count)],
         ],
         trace="dependency",
     )
@@ -722,6 +723,7 @@ def predict_kernel(
             ["L1 hit ratio", f"{prediction.l1_hit_ratio:.3f}"],
             ["L2 hit ratio", f"{prediction.l2_hit_ratio:.3f}"],
             ["AMAT (cycles)", f"{prediction.amat:.1f}"],
+            ["O_CFdiv (cycles)", f"{prediction.o_cfdiv:.0f}"],
             ["T_comp (cycles)", f"{prediction.t_comp:.0f}"],
             ["T_mem (cycles)", f"{prediction.t_mem:.0f}"],
             ["T_overlap (cycles)", f"{prediction.t_overlap:.0f}"],

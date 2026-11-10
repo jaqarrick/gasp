@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
-from gasp.cfg import ControlFlowGraph
+from gasp.cfg import ControlFlowGraph, neighbors
+from gasp.divergence import BranchKind, analyze_divergence, find_branches
 from gasp.logger import Logger
 from gasp.parser.constants import (
     GLOBAL_MEMORY_CATEGORIES,
@@ -29,6 +30,8 @@ class DependencyOutput:
     reusable_access_count: int = 0
     # every global access's width, repeats included, weighted by execution frequency
     global_bytes_accessed_per_thread: int = 0
+    # instructions on the cheaper side of divergent branches, weighted by execution frequency
+    divergent_inst_count: int = 0
 
 
 @dataclass
@@ -48,15 +51,6 @@ AddressKey = tuple[int | None, str | None, int]
 
 
 def get_address_groups(instructions: list[SASSInstruction]) -> dict[AddressKey, int]:
-    """Distinct global addresses in one node, keyed by (index of the
-    instruction that last wrote the base, base register, immediate offset).
-
-    Accesses with the same (definition, base) read the same base value, so they
-    are taken as the same array; different offsets from it are different
-    elements, e.g. an unrolled loop's [R2+0x4], [R2+0x8], ... A base with no
-    definition in the node gets None as its index.
-    Value: the largest access width at that address, in bytes.
-    """
     last_written: dict[str, int] = {}
     groups: dict[AddressKey, int] = {}
     for i, inst in enumerate(instructions):
@@ -185,12 +179,7 @@ def dfs_cfg(cfg, successors):
 def find_loops(cfg: ControlFlowGraph) -> tuple[dict[str, set[str]], list]:
     """Loops by header, in code order, and the back edges (tail, header)."""
     # loop detection: perform DFS on the CFG to discover back edges
-    successors = {node_id: [] for node_id in cfg.nodes}
-    predecessors = {node_id: [] for node_id in cfg.nodes}
-
-    for edge in cfg.edges:
-        predecessors[edge.target].append(edge.source)
-        successors[edge.source].append(edge.target)
+    successors, predecessors = neighbors(cfg)
 
     back_edges = dfs_cfg(cfg, successors)
 
@@ -240,6 +229,15 @@ def describe_loops(
     return infos
 
 
+def side_cost(
+    side: set[str],
+    all_instructions: dict[str, list[SASSInstruction]],
+    node_iterations: dict[str, int],
+) -> int:
+    """Instructions on one side of a branch, weighted by execution frequency."""
+    return sum(len(all_instructions.get(n, [])) * node_iterations[n] for n in side)
+
+
 def analyze(
     cfg: ControlFlowGraph,
     all_instructions: dict[str, list[SASSInstruction]],
@@ -279,6 +277,46 @@ def analyze(
             "dependency", f"loop {head}: {sorted(loop_nodes)} count={counts[head]}"
         )
 
+    end_state = analyze_divergence(cfg, all_instructions, logger)
+    branches = find_branches(cfg, all_instructions, end_state, loops, logger)
+    for b in branches:
+        logger.trace(
+            "dependency",
+            f"branch {b.node}: {b.kind.name} rejoin={b.rejoin} "
+            f"taken={sorted(b.taken)} fall_through={sorted(b.fall_through)}",
+        )
+
+    # innermost first: an inner branch's sides are smaller than its outer branch's
+    two_way = [
+        b for b in branches if b.kind in (BranchKind.UNIFORM, BranchKind.DIVERGENT)
+    ]
+    two_way.sort(key=lambda b: len(b.taken | b.fall_through))
+
+    # cheaper sides of divergent branches; summed after all drops, so a
+    # divergent branch inside a dropped side adds nothing
+    divergent_blocks: set[str] = set()
+    for b in two_way:
+        if not b.taken or not b.fall_through:
+            continue
+        taken_cost = side_cost(b.taken, all_instructions, node_iterations)
+        fall_cost = side_cost(b.fall_through, all_instructions, node_iterations)
+        cheaper = b.taken if taken_cost < fall_cost else b.fall_through
+        if b.kind is BranchKind.UNIFORM:
+            for n in cheaper:
+                node_iterations[n] = 0
+            action = "dropped"
+        else:
+            divergent_blocks |= cheaper
+            action = "divergent"
+        logger.trace(
+            "dependency",
+            f"branch {b.node}: {b.kind.name}, taken={taken_cost} "
+            f"fall_through={fall_cost}, {action} {sorted(cheaper)}",
+        )
+    divergent_inst_count = side_cost(
+        divergent_blocks, all_instructions, node_iterations
+    )
+
     ilps = {}
     mlps = {}
     total_inst_count = 0
@@ -293,7 +331,7 @@ def analyze(
 
     latencies = {}
     for node_id, node in all_instructions.items():
-        if not node:
+        if not node or node_iterations[node_id] == 0:
             continue
         groups = get_address_groups(node)
         num_address_groups += count_arrays(groups)
@@ -379,4 +417,5 @@ def analyze(
         global_access_count=global_access_count,
         reusable_access_count=reusable_access_count,
         global_bytes_accessed_per_thread=global_bytes_accessed_per_thread,
+        divergent_inst_count=divergent_inst_count,
     )

@@ -52,6 +52,7 @@ class ModelInputs:
     mem_inst_count: float
     sfu_inst_count: float
     sync_inst_count: float
+    divergent_inst_count: float
     ilp: float
     mlp: float
     average_inst_latency: float
@@ -97,6 +98,7 @@ class PredictionOutput:
     t_exec: float
     launch_overhead: float
     t_gpu: float
+    o_cfdiv: float = 0.0
 
 
 def get_average_trans_warp(p: PicoOutput, mem_inst_count: int) -> float:
@@ -202,6 +204,7 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         mem_inst_count=d.mem_inst_count,
         sfu_inst_count=d.sfu_inst_count,
         sync_inst_count=d.sync_inst_count,
+        divergent_inst_count=d.divergent_inst_count,
         ilp=d.ilp,
         mlp=d.mlp,
         average_inst_latency=d.total_latency / d.total_inst_count,
@@ -243,7 +246,7 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         sfu_inst_count=m.sfu_inst_count,
         sync_inst_count=m.sync_inst_count,
         uncoalesced_count=uncoalesced_count,
-        divergent_inst_count=0,
+        divergent_inst_count=m.divergent_inst_count,
         bank_conflict_count=m.bank_conflict_count,
         ilp=m.ilp,
         mlp=m.mlp,
@@ -300,4 +303,5 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         t_exec=t_exec,
         launch_overhead=launch_overhead,
         t_gpu=t_gpu,
+        o_cfdiv=model.o_cfdiv,
     )

@@ -44,6 +44,8 @@ def instr(
     width=None,
     base=None,
     offset=None,
+    special=(),
+    target=None,
 ) -> SASSInstruction:
     return SASSInstruction(
         opcode=opcode,
@@ -54,6 +56,8 @@ def instr(
         access_width_bytes=width,
         address_base_register=base,
         address_offset=offset,
+        special_registers=set(special),
+        branch_target=target,
     )
 
 
@@ -119,7 +123,7 @@ BRACKET_CASES = [
     ),
     pytest.param(
         "S2R R6, SR_CTAID.X",
-        instr("S2R", OpCategory.MISC, dst={"R6"}),
+        instr("S2R", OpCategory.MISC, dst={"R6"}, special={"SR_CTAID.X"}),
         id="special-register",
     ),
     pytest.param(
@@ -144,7 +148,7 @@ BRACKET_CASES = [
     ),
     pytest.param(
         "@!P0 BRA `(.L_x_0)",
-        instr("BRA", OpCategory.CONTROL, src={"P0"}, predicate="P0"),
+        instr("BRA", OpCategory.CONTROL, src={"P0"}, predicate="P0", target=".L_x_0"),
         id="negated-guard-and-branch-target",
     ),
     pytest.param(
@@ -289,6 +293,44 @@ SM100_CASES = [
         id="ldcu-64",
     ),
 ]
+
+# special registers and branch labels, same syntax on every architecture
+DIVERGENCE_CASES = [
+    pytest.param(
+        "S2R R7, SR_TID.X",
+        instr("S2R", OpCategory.MISC, dst={"R7"}, special={"SR_TID.X"}),
+        id="thread-index",
+    ),
+    pytest.param(
+        "BSSY B0, `(.L_x_21)",
+        instr("BSSY", OpCategory.CONTROL, target=".L_x_21"),
+        id="bssy-rejoin-label",
+    ),
+    pytest.param(
+        "BSYNC B0",
+        instr("BSYNC", OpCategory.CONTROL),
+        id="bsync-barrier-register-skipped",
+    ),
+    pytest.param(
+        "@P0 BRA `(.L_x_22)",
+        instr("BRA", OpCategory.CONTROL, src={"P0"}, predicate="P0", target=".L_x_22"),
+        id="guarded-branch-target",
+    ),
+    pytest.param(
+        "@!P0 EXIT",
+        instr("EXIT", OpCategory.CONTROL, src={"P0"}, predicate="P0"),
+        id="exit-no-target",
+    ),
+]
+
+
+@pytest.mark.parametrize("arch", ["sm_75", "sm_80", "sm_90", "sm_100"])
+@pytest.mark.parametrize("line, expected", DIVERGENCE_CASES)
+def test_divergence_fields(arch, line, expected, logger):
+    parser = make_parser(arch, logger)
+
+    assert parser._parse_instruction(line) == expected
+    logger.warning.assert_not_called()
 
 
 @pytest.mark.parametrize("line, expected", BRACKET_CASES)
@@ -467,7 +509,7 @@ WIDTH_CASES = [
     ),
     pytest.param(
         "CS2R.32 R5, SR_CLOCKLO",
-        instr("CS2R", OpCategory.MISC, dst={"R5"}),
+        instr("CS2R", OpCategory.MISC, dst={"R5"}, special={"SR_CLOCKLO"}),
         id="cs2r-32",
     ),
 ]
