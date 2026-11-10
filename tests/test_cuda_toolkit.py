@@ -1,8 +1,8 @@
-"""Tests for gasp.cuda_toolkit — reading nvdisasm output."""
+"""Tests for gasp.cuda_toolkit — reading nvdisasm output, and the setup hint."""
 
 from pathlib import Path
 
-from gasp.cuda_toolkit import parse_label_lines
+from gasp.cuda_toolkit import cuda_hint, parse_label_lines
 
 SASS_DIR = Path(__file__).parent / "fixtures" / "sass"
 MM_BASIC_CU = "benchmarks/mm/mm_basic.cu"
@@ -41,3 +41,26 @@ def test_label_lines_inline():
 
 def test_no_line_info():
     assert parse_label_lines(".L_x_1:\n        /*0010*/   EXIT ;\n") == {}
+
+
+def test_hint_suggests_the_cuda_module_on_a_module_system(monkeypatch):
+    monkeypatch.setenv("MODULESHOME", "/usr/share/lmod/lmod")
+    monkeypatch.delenv("LMOD_CMD", raising=False)
+
+    assert "module load cuda" in cuda_hint()
+
+
+def test_hint_points_at_an_install_outside_path(monkeypatch):
+    monkeypatch.delenv("MODULESHOME", raising=False)
+    monkeypatch.delenv("LMOD_CMD", raising=False)
+    monkeypatch.setattr("gasp.cuda_toolkit.os.path.isfile", lambda path: True)
+
+    assert "/usr/local/cuda/bin" in cuda_hint()
+
+
+def test_hint_without_cuda_says_to_install_it(monkeypatch):
+    monkeypatch.delenv("MODULESHOME", raising=False)
+    monkeypatch.delenv("LMOD_CMD", raising=False)
+    monkeypatch.setattr("gasp.cuda_toolkit.os.path.isfile", lambda path: False)
+
+    assert cuda_hint().startswith("Install the CUDA Toolkit")

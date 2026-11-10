@@ -21,7 +21,9 @@ source .venv/bin/activate
 make install
 ```
 
-`make install` installs the Python dependencies, then runs `scripts/install_faial.sh` to fetch faial (pico) and `scripts/check_requirements.sh` to verify the setup. faial is installed to `~/.local/share/faial` with wrappers in `~/.local/bin` (override with `FAIAL_PREFIX` / `BIN_DIR`); it is supported on Linux x86-64 and macOS arm64, and `libgmp10` must be installed on Linux. Run `scripts/uninstall_faial.sh` to remove it.
+`make install` installs the Python dependencies, then runs `scripts/install_faial.sh` to fetch faial (pico) and `scripts/check_requirements.sh` to verify the setup. faial is installed to `~/.local/share/faial` with wrappers in `~/.local/bin` (override with `FAIAL_PREFIX` / `BIN_DIR`); it is supported on Linux x86-64 and macOS arm64, and `libgmp10` must be installed on Linux. If the wrapper directory is not on `PATH`, the install script offers to add it to your shell's rc file; otherwise set `GASP_FAIAL_COST` to the `faial-cost` wrapper's path (e.g. `export GASP_FAIAL_COST=~/.local/bin/faial-cost`) and gasp uses it instead of looking on `PATH`. Run `scripts/uninstall_faial.sh` to remove it.
+
+The CUDA tools must be on `PATH` before `make install` and `make run`. On a cluster with environment modules, load CUDA first (`module load cuda`; `module avail cuda` lists the versions).
 
 ### Docker
 
@@ -162,7 +164,6 @@ make run ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --metrics 
 - ILP, MLP and the sync instruction count have no profiled source, so they're always static.
 - The metrics file holds ncu's raw values for every run, keyed by kernel name. GASP stops if the GPU, a kernel name, or a kernel's block or grid size differs from the file, or if a metric a `profiled` override needs is missing.
 - `--metrics` also prints the predicted vs measured table from the file. It can't be combined with `--run`.
-- The comparison table's Overrides column and the `predict` trace (`override l1_hit_ratio: static 0.5 → 0.472`) show what was replaced.
 
 The full ablation, one row per override set, is in [`experiments/ablation`](experiments/ablation/README.md): `make ablation ARGS="..."`.
 

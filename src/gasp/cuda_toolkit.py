@@ -1,3 +1,4 @@
+import os
 import re
 import shutil
 import subprocess
@@ -7,6 +8,23 @@ from typing import TypedDict
 from gasp.logger import Logger
 
 REQUIRED: list[str] = ["nvcc", "nvdisasm", "cuobjdump"]
+# a CUDA install outside PATH, the usual place on Linux
+DEFAULT_CUDA_BIN = "/usr/local/cuda/bin"
+
+
+def cuda_hint() -> str:
+    """How to get the CUDA tools onto PATH on this machine."""
+    # Lmod and Environment Modules both set MODULESHOME, e.g. on HPC clusters
+    if os.environ.get("MODULESHOME") or os.environ.get("LMOD_CMD"):
+        return (
+            "Load the CUDA module first, e.g. 'module load cuda' "
+            "('module avail cuda' lists the versions)"
+        )
+    if os.path.isfile(os.path.join(DEFAULT_CUDA_BIN, "nvcc")):
+        return f"CUDA is installed but not on PATH: add {DEFAULT_CUDA_BIN} to PATH"
+    return "Install the CUDA Toolkit and add its bin/ to PATH"
+
+
 # kernel name -> {"reg" | "shared" | "stack" | "local": value}
 ResourceUsage = dict[str, dict[str, int]]
 
@@ -72,7 +90,7 @@ class CUDAExtractor:
         missing = [t for t in REQUIRED if not shutil.which(t)]
         if missing:
             self.logger.error(f"Missing packages: {', '.join(missing)}")
-            self.logger.error("Install the CUDA Toolkit (nvidia-cuda-toolkit)")
+            self.logger.error(cuda_hint())
             sys.exit(1)
 
     def compile(self) -> None:

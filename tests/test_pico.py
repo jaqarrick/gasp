@@ -5,7 +5,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from gasp.pico import PicoInput, parse_total_cost, perform_pico_analysis, pico_command
+from gasp.pico import (
+    PICO_ENV,
+    PicoInput,
+    parse_total_cost,
+    perform_pico_analysis,
+    pico_command,
+)
 
 KERNELS = [
     ("cname", "1"),
@@ -53,7 +59,8 @@ def test_parse_total_cost_missing_cost_raises():
 
 
 @pytest.fixture
-def pico_input():
+def pico_input(monkeypatch):
+    monkeypatch.delenv(PICO_ENV, raising=False)
     return PicoInput(
         input_file="kernels.cu",
         kernel_name="_Z5plainPfS_",
@@ -114,6 +121,27 @@ def test_command_for_a_1d_launch_without_params(pico_input):
         "--json",
         "kernels.cu",
     ]
+
+
+def test_command_uses_the_path_from_the_environment(pico_input, monkeypatch):
+    monkeypatch.setenv(PICO_ENV, "/opt/faial/bin/faial-cost")
+
+    assert pico_command(pico_input, "ua")[0] == "/opt/faial/bin/faial-cost"
+
+
+def test_command_ignores_an_empty_environment_path(pico_input, monkeypatch):
+    monkeypatch.setenv(PICO_ENV, "")
+
+    assert pico_command(pico_input, "ua")[0] == "faial-cost"
+
+
+def test_analysis_looks_up_the_path_from_the_environment(pico_input, monkeypatch):
+    monkeypatch.setenv(PICO_ENV, "/missing/faial-cost")
+    with patch("gasp.pico.shutil.which", return_value=None) as which:
+        assert perform_pico_analysis(pico_input).error is True
+
+    which.assert_called_once_with("/missing/faial-cost")
+    assert PICO_ENV in pico_input.logger.error.call_args.args[0]
 
 
 def test_command_passes_dims_as_lists(pico_input):

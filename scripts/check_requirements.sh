@@ -45,26 +45,39 @@ else
 fi
 
 echo "CUDA toolkit"
+cuda_missing=0
 for tool in nvcc nvdisasm cuobjdump; do
   if path="$(command -v "$tool")"; then
     ok "$tool ($path)"
   else
     fail "$tool not found on PATH"
-    hint "install the CUDA toolkit and add its bin/ to PATH (or use Docker)"
+    cuda_missing=1
   fi
 done
+if [ "$cuda_missing" -eq 1 ]; then
+  # Lmod and Environment Modules both set MODULESHOME, e.g. on HPC clusters
+  if [ -n "${MODULESHOME:-}${LMOD_CMD:-}" ]; then
+    hint "load the CUDA module first: module load cuda ('module avail cuda' lists the versions)"
+  elif [ -x /usr/local/cuda/bin/nvcc ]; then
+    hint "CUDA is installed but not on PATH: export PATH=\"/usr/local/cuda/bin:\$PATH\""
+  else
+    hint "install the CUDA toolkit and add its bin/ to PATH (or use Docker)"
+  fi
+fi
 if command -v nvcc > /dev/null; then
   ok "$(nvcc --version | grep -o 'release [0-9.]*' | sed 's/release/CUDA/')"
 fi
 
 echo "faial (pico)"
-if path="$(command -v faial-cost)"; then
-  ok "faial-cost ($path)"
-  if out="$(faial-cost --help 2>&1 > /dev/null)"; then
+# gasp uses $GASP_FAIAL_COST when it is set, and faial-cost on PATH otherwise
+faial="${GASP_FAIAL_COST:-faial-cost}"
+if path="$(command -v "$faial")"; then
+  ok "faial-cost ($path${GASP_FAIAL_COST:+, from GASP_FAIAL_COST})"
+  if out="$("$faial" --help 2>&1 > /dev/null)"; then
     ok "faial-cost runs"
     # Exercises cu-to-json and libz3, which --help does not touch
     if [ -f "$SAMPLE_KERNEL" ]; then
-      if out="$(faial-cost -m count -b 32 -g 1 "$SAMPLE_KERNEL" 2>&1)"; then
+      if out="$("$faial" -m count -b 32 -g 1 "$SAMPLE_KERNEL" 2>&1)"; then
         ok "faial-cost analyzes $(basename "$SAMPLE_KERNEL")"
       else
         fail "faial-cost failed on $(basename "$SAMPLE_KERNEL"):"
@@ -81,9 +94,12 @@ if path="$(command -v faial-cost)"; then
       hint "./scripts/install_faial.sh --force"
     fi
   fi
+elif [ -n "${GASP_FAIAL_COST:-}" ]; then
+  fail "GASP_FAIAL_COST=$GASP_FAIAL_COST is not an executable file"
+  hint "point it at the faial-cost wrapper, e.g. ~/.local/bin/faial-cost"
 else
   fail "faial-cost not found on PATH"
-  hint "./scripts/install_faial.sh (and make sure ~/.local/bin is on PATH)"
+  hint "./scripts/install_faial.sh, then add ~/.local/bin to PATH or set GASP_FAIAL_COST to the wrapper's path"
 fi
 
 echo

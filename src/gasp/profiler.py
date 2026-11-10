@@ -9,6 +9,7 @@ import sys
 import tempfile
 from dataclasses import dataclass
 
+from gasp.cuda_toolkit import cuda_hint
 from gasp.launch import Dims, format_dims, padded, total
 from gasp.logger import Logger, format_table
 from gasp.overrides import PROFILED_METRICS
@@ -105,7 +106,7 @@ def check_packages(logger: Logger) -> None:
     missing = [t for t in REQUIRED if not shutil.which(t)]
     if missing:
         logger.error(f"Missing packages: {', '.join(missing)}")
-        logger.error("Install the CUDA Toolkit with Nsight Compute")
+        logger.error(f"{cuda_hint()}. --run also needs Nsight Compute (ncu)")
         sys.exit(1)
 
 

@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 import subprocess
 import threading
@@ -30,7 +31,13 @@ class PicoOutput:
     error: bool
 
 
-pico = "faial-cost"
+# faial-cost is found on PATH unless GASP_FAIAL_COST gives its path
+PICO_ENV = "GASP_FAIAL_COST"
+PICO_DEFAULT = "faial-cost"
+
+
+def pico_executable() -> str:
+    return os.environ.get(PICO_ENV) or PICO_DEFAULT
 
 
 def format_dim(dims: Dims) -> str:
@@ -41,7 +48,7 @@ def format_dim(dims: Dims) -> str:
 
 
 def pico_command(i: PicoInput, cmd: str) -> list[str]:
-    command = [pico, "-m", cmd, "-b", format_dim(i.block_dim)]
+    command = [pico_executable(), "-m", cmd, "-b", format_dim(i.block_dim)]
     command += ["-g", format_dim(i.grid_dim)]
     for name, value in i.params.items():
         command += ["-p", f"{name}={value}"]
@@ -94,8 +101,16 @@ def _fallback() -> PicoOutput:
 
 def perform_pico_analysis(input: PicoInput) -> PicoOutput:
     logger = input.logger
+    pico = pico_executable()
     if shutil.which(pico) is None:
-        logger.error(f"pico ({pico}) is not available on current system.")
+        if PICO_ENV in os.environ:
+            logger.error(f"pico: {PICO_ENV}={pico} is not an executable file.")
+        else:
+            logger.error(
+                f"pico ({pico}) is not on PATH. Run scripts/install_faial.sh, then "
+                f"add its bin directory to PATH or set {PICO_ENV} to the "
+                f"faial-cost path."
+            )
         return _fallback()
 
     commands = ["bc", "ua", "count", "active"]
