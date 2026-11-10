@@ -136,6 +136,26 @@ def test_predict_bank_conflicts_scale_by_warps_per_sm():
     assert banked.t_comp - clean.t_comp == pytest.approx(31 * 320 / 10 * 2)
 
 
+def test_predict_no_divergence_no_o_cfdiv():
+    p = predict(prediction_input(), logger=MagicMock())
+
+    assert p.o_cfdiv == 0
+
+
+def test_predict_o_cfdiv_moves_divergent_instructions_out_of_w_parallel():
+    base = prediction_input()
+    divergent = prediction_input()
+    divergent.dependency = replace(divergent.dependency, divergent_inst_count=4)
+
+    clean = predict(base, logger=MagicMock())
+    split = predict(divergent, logger=MagicMock())
+
+    # 4 of the 10 instructions per warp x 320 warps / 10 SMs x latency 4 / ITILP
+    assert split.o_cfdiv == pytest.approx(4 * 320 / 10 * 4 / clean.itilp)
+    # same cost per instruction as W_parallel, so T_comp is unchanged
+    assert split.t_comp == pytest.approx(clean.t_comp)
+
+
 def test_predict_more_memory_instructions_raise_t_mem():
     fewer = predict(prediction_input(mem_inst_count=2), logger=MagicMock())
     more = predict(prediction_input(mem_inst_count=4), logger=MagicMock())

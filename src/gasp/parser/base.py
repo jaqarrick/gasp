@@ -128,7 +128,9 @@ class SASSParser(ABC):
         if predicate and predicate not in ("PT", "UPT"):
             src_registers.add(predicate)
 
-        src, dst = self._parse_operands(operands, op_category, raw_opcode)
+        src, dst, special_registers, branch_target = self._parse_operands(
+            operands, op_category, raw_opcode
+        )
 
         access_width_bytes = None
         if op_category in GLOBAL_MEMORY_CATEGORIES:
@@ -163,6 +165,8 @@ class SASSParser(ABC):
             access_width_bytes=access_width_bytes,
             address_base_register=address_base_register,
             address_offset=address_offset,
+            special_registers=special_registers,
+            branch_target=branch_target,
         )
 
     def _split_address(self, inner: str) -> tuple[str | None, int]:
@@ -184,19 +188,27 @@ class SASSParser(ABC):
         return base, offset
 
     def _is_op_needed(self, op: str) -> bool:
+        # special registers (SR_*) and branch labels (`(.L_x_0)) pass here;
+        # _parse_operands records them before reading registers
         if op in ("RZ", "URZ", "PT", "UPT", "SRZ"):
             return False
-        # same goes for special registers
-        if op.startswith("SR_"):
+        # convergence barrier registers (BSSY B0, BSYNC B0) hold thread masks, not data
+        if re.match(r"^B\d+$", op):
             return False
         # hex / decimal literals
         if op.startswith("0x") or op.lstrip("-").isdigit():
             return False
         # float literals
-        if re.match(r"^-?\d+\.\d+", op):
-            return False
-        # branch targets '(.L_1)
-        return not op.startswith("`")
+        return not re.match(r"^-?\d+\.\d+", op)
+
+    def _is_special_register(self, op: str) -> bool:
+        return op.startswith("SR_")
+
+    def _branch_label(self, op: str) -> str | None:
+        """Label of a branch target operand: `(.L_x_21) -> .L_x_21."""
+        if not op.startswith("`"):
+            return None
+        return op[1:].removeprefix("(").removesuffix(")")
 
     def _strip_constant_mem_address(self, raw: str) -> set[str]:
         regs = set()
@@ -235,7 +247,7 @@ class SASSParser(ABC):
 
     def _parse_operands(
         self, operands: list[str], category: OpCategory, raw_opcode: str
-    ) -> tuple[set[str], set[str]]:
+    ) -> tuple[set[str], set[str], set[str], str | None]:
 
         opcode = raw_opcode.split(".")[0]
         modifiers = raw_opcode.upper().split(".")[1:]
@@ -269,6 +281,8 @@ class SASSParser(ABC):
 
         src_registers = set()
         dst_registers = set()
+        special_registers = set()
+        branch_target: str | None = None
         value_index = 0
         for i, op in enumerate(operands):
             op = self._strip_operand(op)
@@ -283,6 +297,13 @@ class SASSParser(ABC):
                 continue
             if op.startswith("c["):
                 src_registers.update(self._strip_constant_mem_address(op))
+                continue
+            if self._is_special_register(op):
+                special_registers.add(op)
+                continue
+            label = self._branch_label(op)
+            if label is not None:
+                branch_target = label
                 continue
 
             # get registers from address (arch-dependent syntax)
@@ -311,7 +332,7 @@ class SASSParser(ABC):
 
             self.logger.warning(f"Unrecognized operand: {op}")
 
-        return src_registers, dst_registers
+        return src_registers, dst_registers, special_registers, branch_target
 
     def _get_register_width(
         self,

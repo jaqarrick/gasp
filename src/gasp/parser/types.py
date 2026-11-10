@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, auto
 
 
@@ -45,3 +45,7 @@ class SASSInstruction:
     address_base_register: str | None = None
     # immediate byte offset of the address: 16 from [R2.64+0x10]
     address_offset: int | None = None
+    # special registers read, e.g. SR_TID.X from S2R R7, SR_TID.X
+    special_registers: set[str] = field(default_factory=set)
+    # label of BRA, BRX or BSSY, e.g. .L_x_21 from BSSY B0, `(.L_x_21)
+    branch_target: str | None = None

@@ -282,3 +282,38 @@ sm100_ops = {
     **sm90_ops,
     "LDCU": OpCategory.CONST_LOAD,  # Load from Constant Memory into a Uniform Register
 }
+
+
+# For divergence analysis: special registers by base name (SR_TID.X -> SR_TID).
+# Divergent ones give each thread of a warp a distinct value.
+DIVERGENT_SPECIAL_REGS = {
+    "SR_TID",  # thread idx
+    "SR_LANEID",  # thread position in a warp (i.e. lane)
+    # lane masks
+    "SR_EQMASK",  # my lane
+    "SR_LTMASK",  # lanes below
+    "SR_LEMASK",  # my lane and lanes below
+    "SR_GTMASK",  # lanes above
+    "SR_GEMASK",  # my lane and lanes above
+    # SM timers: not used for branching but assume thread-specific
+    "SR_CLOCKLO",
+    "SR_CLOCKHI",
+    "SR_GLOBALTIMERLO",
+    "SR_GLOBALTIMERHI",
+}
+
+UNIFORM_SPECIAL_REGS = {
+    "SR_CTAID",  # block idx
+    "SR_NCTAID",  # grid dim
+    "SR_NTID",  # block dim
+    "SR_CgaCtaId",  # sm_90+ cooperative grid array (cluster)
+    "SR_SMID",  # sm idx
+    "SR_WARPID",  # warp slot on SM
+    "SR_GRIDID",  # id for kernel launch
+    "SR_SWINLO",  # base address of shared-mem window
+    "SR_SWINHI",
+}
+
+EXIT_OPCODES = {
+    "EXIT",  # just this for now
+}

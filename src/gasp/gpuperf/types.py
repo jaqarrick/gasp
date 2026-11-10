@@ -11,7 +11,7 @@ class KernelParameters:
     sfu_inst_count: float
     sync_inst_count: float
     uncoalesced_count: int
-    divergent_inst_count: int
+    divergent_inst_count: float
     bank_conflict_count: float
     ilp: float
     mlp: float

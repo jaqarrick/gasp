@@ -22,12 +22,14 @@ Each pair does the same work in two separate programs, so `gasp --run` measures 
 |---|---|---|
 | `vecadd_good.cu`, `vecadd_poor.cu` | Redundant loads: the store to `C` may alias `A` and `B`, so each is loaded twice | Same output |
 | `poly_good.cu`, `poly_poor.cu` | Extra arithmetic: every power is multiplied out again instead of using Horner's rule | Same output within rounding |
+| `divergence/branch_uniform.cu`, `divergence/branch_divergent.cu` | Divergence: the branch between a `__sinf` loop and a `__cosf` loop depends on `threadIdx.x`, so every warp runs both loops instead of one | Different outputs, same work per thread |
 
 The polynomial's degree of 12 puts T_comp and T_mem of `poly_poor` about level on `--gpu rtx2080ti`, which is where the overlap term matters most. Other hardware profiles will move that balance.
 
 ```sh
 gasp --gpu rtx2080ti --run benchmarks/vecadd/vecadd_good.cu benchmarks/vecadd/vecadd_poor.cu
 gasp --gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml
+gasp --gpu rtx2080ti --run --config benchmarks/divergence/divergence.toml
 ```
 
 ## Writing a program for `gasp --run`
