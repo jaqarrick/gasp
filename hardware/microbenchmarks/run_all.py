@@ -60,7 +60,9 @@ class Benchmark:
     params: list[str]  # run parameters it writes (first one names its directory)
     flags: bool = True  # takes --gpu / --out-dir; the fp32/fp64/int32/sfu ones do not
     deps: list[str] = field(default_factory=list)
-    in_profile: bool = True  # shared_mem_store_throughput_cycles has no profile field
+    in_profile: bool = (
+        True  # False for a value with no profile field (shared throughputs)
+    )
     aliases: list[str] = field(default_factory=list)  # other names its run JSON may use
 
     @property
@@ -106,6 +108,12 @@ BENCHMARKS = [
         "shared_memory_store_throughput",
         "shared_memory_store_throughput.cu",
         ["shared_mem_store_throughput_cycles"],
+        in_profile=False,
+    ),
+    Benchmark(
+        "shared_memory_load_throughput",
+        "shared_memory_load_throughput.cu",
+        ["shared_mem_load_throughput_cycles"],
         in_profile=False,
     ),
     Benchmark("departure_delay", "departure_delay.cu", ["departure_delay_cycles"]),

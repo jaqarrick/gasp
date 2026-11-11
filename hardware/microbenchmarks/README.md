@@ -12,6 +12,18 @@ Build:
 Run example:
 * ./shared_memory_load --reps 200 --gpu <gpu_name>
 
+## Shared memory load throughput
+* Measures `shared_mem_load_throughput_cycles`: SM cycles per warp shared load (`LDS`) when the shared-memory pipe is saturated. `shared_memory_load.cu` measures the latency instead.
+* One block per SM; each warp issues 16 independent, conflict-free loads per group. Cycles per load = (span − empty-loop span) / (warps on the SM × loads per warp), per-SM `clock64` span.
+* Sweeps warps per SM (1, 2, 4, …, 32) and reports the plateau of the loads-only shape. A second shape (10 loads to 1 store per group, tiled matmul's ratio) shows whether loads and stores share the pipe. It warns if the two highest warp counts differ by more than 2% (no plateau). Every configuration is in the run JSON.
+* The value is an upper bound on the pipe's cost per load: each group also has 8 XORs and the loop counter.
+* Not written to the profile yet (no profile field); the run JSON goes to the version directory.
+* Check under ncu: zero shared-load bank conflicts, no global traffic in the timed kernel.
+Build:
+* `nvcc -O3 -std=c++17 -arch=sm_XX shared_memory_load_throughput.cu -o shared_memory_load_throughput` (sm_XX from the GPU's compute capability)
+Run through `make microbenchmarks`:
+* `make microbenchmarks GPU=<gpu> VERSION=<label> ARGS='--only shared_memory_load_throughput'`
+
 ## Constant memory load microbenchmarks
 * Measures the dependent, uniform constant-cache hit latency (const_mem_latency_cycles profile field)
 * Measured with a dependent load chain over a working set in constant memory.
