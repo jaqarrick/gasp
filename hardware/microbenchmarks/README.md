@@ -51,3 +51,14 @@ The configurations used are:
 (128, 256)
 (256, 256)
 (512, 256)
+
+## Sync cost (sync_factor)
+* Measures GPUPerf's sync factor (gamma, dimensionless; profile field `sync_factor`): the share of DRAM latency a `bar.sync` exposes per warp.
+* Runs each configuration (loads and FFMAs per iteration, warps per block, blocks per SM) twice: with a `bar.sync` per loop iteration and without one. One wave, per-SM `clock64` span. gamma = F_sync / (dram_latency x mem_ratio), with F_sync = (T_bar - T_no_bar) / (iters x warps_per_SM). The result is the median over configurations that are co-resident and not bandwidth-bound.
+* Needs the DRAM latency and DRAM bandwidth: pass `--dram-latency CYCLES --dram-bandwidth BYTES_PER_CYCLE`, or it reads `dram_latency_cycles.<gpu>.run.json` and `dram_bandwidth_bytes_per_cycle.<gpu>.run.json` from `--out-dir`.
+* Records the SM clock (clock64 / globaltimer) in the run JSON's `clock` block, so `run_all.py` can check it ran at base clock.
+Build:
+* `nvcc -O3 -std=c++17 -arch=sm_XX sync_cost.cu -o sync_cost` (sm_XX from the GPU's compute capability)
+Run through `make microbenchmarks` (runs under ncu at base clock, after dram_latency and dram_bandwidth):
+* All three: `make microbenchmarks GPU=<gpu> VERSION=<label> ARGS='--only dram_latency,dram_bandwidth,sync_cost'`
+* Only sync_cost, reusing DRAM results already in that version directory: `make microbenchmarks GPU=<gpu> VERSION=<label> ARGS='--only sync_cost --force'`

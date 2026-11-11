@@ -103,3 +103,20 @@ def test_every_profile_parameter_maps_to_a_profile_key():
     }
 
     assert mapped == profile_keys
+
+
+def test_sync_cost_run_json_is_found_and_its_clock_read(tmp_path):
+    bench = run_all.BY_NAME["sync_cost"]
+    bench_dir = tmp_path / bench.dir_name
+    bench_dir.mkdir()
+    (bench_dir / "sync_factor_cycles.rtx2080ti.run.json").write_text(
+        '{"parameter": "sync_factor_cycles", "value": 0.179,'
+        ' "clock": {"sm_clock_ghz": 1.35, "sm_clock_ghz_min": 1.349,'
+        ' "sm_clock_ghz_max": 1.351}}'
+    )
+
+    path = run_all.run_json_path(bench_dir, bench.params[0], bench.aliases)
+
+    assert path is not None
+    assert run_all.read_value(path) == 0.179
+    assert run_all.read_clock(path) == 1.35
