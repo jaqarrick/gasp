@@ -167,6 +167,19 @@ make run ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --metrics 
 
 The full ablation, one row per override set, is in [`experiments/ablation`](experiments/ablation/README.md): `make ablation ARGS="..."`.
 
+### Models
+
+Every run predicts each kernel with two models and shows one row per kernel per model:
+
+| Model     | Module                     | What it is |
+|-----------|----------------------------|------------|
+| `GPUPerf` | `src/gasp/models/gpuperf/` | GPUPerf as published (Sim et al.). One fix: SFU instructions are left out of `#insts` and of the average instruction latency, as in the paper, so they're charged only in O_SFU (Eq. 9). |
+| `GASPerf` | `src/gasp/models/gasperf/` | Our model. It starts as an exact copy of GPUPerf, and formula changes go here, never into GPUPerf. |
+
+- Speedups compare kernels under the same model: each kernel's speedup is against the reference kernel's T_GPU under that model.
+- Static analysis, the cache model and overrides run before the model, so both models get the same inputs. With `--run`, each kernel is profiled once.
+- Both models take `inputs.ModelInputs` (`src/gasp/models/inputs.py`) and have a `run()` that computes everything from ITILP (Eqs. 4–5) to T_exec (Eq. 1). Launch overhead is added after either one. `src/gasp/models/__init__.py` lists the models.
+
 ### Docker
 
 ```bash

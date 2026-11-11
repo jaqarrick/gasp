@@ -7,12 +7,18 @@ from unittest.mock import MagicMock
 import pytest
 
 from gasp.dependency import DependencyOutput
-from gasp.gpuperf import GPUPerf
-from gasp.gpuperf.types import HardwareParameters, LaunchParameters
+from gasp.models import MODELS
+from gasp.models.gpuperf import GPUPerf
+from gasp.models.gpuperf.types import HardwareParameters, LaunchParameters
 from gasp.occupancy import OccupancyOutput
 from gasp.overrides import ModelOverrides, build_overrides
 from gasp.pico import PicoOutput
-from gasp.predict import PredictionInput, get_average_trans_warp, predict
+from gasp.predict import (
+    PredictionInput,
+    get_average_inst_latency,
+    get_average_trans_warp,
+    predict,
+)
 
 
 def pico(ua: int, count: int, error: bool = False) -> PicoOutput:
@@ -473,3 +479,112 @@ def test_each_override_is_traced():
     predict(base, logger=logger)
 
     logger.trace.assert_any_call("predict", "override average_trans_warp: static 8 → 1")
+
+
+# ---------------------------------------------------------------------------
+# SFU instructions: left out of #insts, charged only in O_SFU (Eq. 9)
+# ---------------------------------------------------------------------------
+
+FP_LAT, SFU_LAT = 4, 15
+
+
+def sfu_input(total: int, sfu: int, mem: int = 2) -> PredictionInput:
+    base = prediction_input(mem_inst_count=mem)
+    base.dependency = replace(
+        base.dependency,
+        total_inst_count=total,
+        sfu_inst_count=sfu,
+        total_latency=(total - sfu) * FP_LAT + sfu * SFU_LAT,
+        sfu_latency=sfu * SFU_LAT,
+    )
+    return base
+
+
+def test_average_inst_latency_leaves_sfu_out():
+    d = sfu_input(total=10, sfu=2).dependency
+
+    assert get_average_inst_latency(d) == FP_LAT
+
+
+def test_average_inst_latency_of_sfu_only_kernel_keeps_all():
+    d = sfu_input(total=2, sfu=2, mem=0).dependency
+
+    assert get_average_inst_latency(d) == SFU_LAT
+
+
+def test_sfu_instructions_are_not_in_w_parallel():
+    # 8 non-SFU instructions per warp; F_SFU = max(2/8 - 16/32, 0) = 0
+    p = predict(sfu_input(total=10, sfu=2), logger=MagicMock())
+
+    # ITILP = min(2 x 32, 4 / (32 / 32)) = 4, so each instruction costs 1
+    assert p.itilp == FP_LAT
+    assert p.t_comp == pytest.approx(8 * 320 / 10)
+
+
+def test_f_sfu_uses_the_non_sfu_count():
+    # 6 non-SFU, 4 SFU: F_SFU = 4/6 - 16/32 = 1/6
+    p = predict(sfu_input(total=10, sfu=4), logger=MagicMock())
+
+    w_parallel = 6 * 320 / 10
+    o_sfu = 4 * 320 / 10 * (32 / 16) * (1 / 6)
+    assert p.t_comp == pytest.approx(w_parallel + o_sfu)
+
+
+def test_cwp_uses_the_non_sfu_count():
+    # 40 non-SFU: Comp_cycles = 40 x 4 / 2, CWP = 300 / (80 / 2) = 7.5, under N
+    with_sfu = predict(sfu_input(total=50, sfu=10), logger=MagicMock())
+    without = predict(sfu_input(total=40, sfu=0), logger=MagicMock())
+
+    assert with_sfu.cwp == pytest.approx(7.5)
+    assert without.cwp == pytest.approx(7.5)
+
+
+def test_sfu_only_kernel_is_all_o_sfu():
+    # no other instructions: W_parallel 0, F_SFU = min(max(1 - 0.5, 0), 1)
+    p = predict(sfu_input(total=2, sfu=2, mem=0), logger=MagicMock())
+
+    assert p.t_comp == pytest.approx(2 * 320 / 10 * (32 / 16) * 0.5)
+
+
+def test_counts_override_subtracts_sfu_inside_the_model():
+    # ncu's inst_executed counts SFU instructions too
+    base = sfu_input(total=8, sfu=0)
+    base.overrides = ModelOverrides(total_inst_count=10.0, sfu_inst_count=2.0)
+    p = predict(base, logger=MagicMock())
+
+    assert p.t_comp == pytest.approx(8 * 320 / 10)
+
+
+# ---------------------------------------------------------------------------
+# models: GASPerf starts as a copy of GPUPerf
+# ---------------------------------------------------------------------------
+
+
+def test_models_are_gpuperf_then_gasperf():
+    assert list(MODELS) == ["GPUPerf", "GASPerf"]
+
+
+def test_prediction_names_its_model():
+    base = prediction_input()
+    base.model = "GASPerf"
+
+    assert predict(base, logger=MagicMock()).model == "GASPerf"
+    assert predict(prediction_input(), logger=MagicMock()).model == "GPUPerf"
+
+
+@pytest.mark.parametrize(
+    "build",
+    [
+        prediction_input,
+        lambda: sfu_input(total=10, sfu=4),
+        lambda: vecadd_input(accesses=3, reusable=1),
+    ],
+)
+def test_gasperf_matches_gpuperf(build):
+    """Holds while GASPerf is an unchanged copy; expected to fail once it changes."""
+    gpuperf = build()
+    gasperf = build()
+    gasperf.model = "GASPerf"
+
+    expected = predict(gpuperf, logger=MagicMock())
+    assert predict(gasperf, logger=MagicMock()) == replace(expected, model="GASPerf")

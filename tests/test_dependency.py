@@ -427,6 +427,7 @@ def test_category_counts(logger):
     assert out.mem_inst_count == 2
     assert out.sfu_inst_count == 1
     assert out.sync_inst_count == 1
+    assert out.sfu_latency == SFU_LAT
 
 
 def test_counts_and_latency_weighted_by_iterations(logger):
@@ -441,6 +442,8 @@ def test_counts_and_latency_weighted_by_iterations(logger):
     assert out.mem_inst_count == 5
     assert out.sfu_inst_count == 5
     assert out.total_latency == FP32_LAT + (FP32_LAT + SFU_LAT) * 5
+    # the SFU share, weighted the same way, for the non-SFU average latency
+    assert out.sfu_latency == SFU_LAT * 5
 
 
 def test_kernel_ilp_weighted_toward_loop(logger):

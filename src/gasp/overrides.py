@@ -56,7 +56,7 @@ class OverrideError(ValueError):
 
 @dataclass
 class ModelOverrides:
-    """Replacement values for predict.ModelInputs, same field names.
+    """Replacement values for models.inputs.ModelInputs, same field names.
     None keeps the static value. Counts are per warp."""
 
     # cache
