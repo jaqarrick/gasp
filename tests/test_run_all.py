@@ -99,15 +99,33 @@ def test_every_profile_parameter_maps_to_a_profile_key():
         "sync_factor",
         "launch_overhead_base_cycles",
         "launch_overhead_per_thread_cycles",
+        "l1_cycles_per_request",
+        "l1_sectors_per_cycle_per_sm",
+        "l2_bandwidth_bytes_per_cycle",
     }
-    mapped = {
-        run_all.PROFILE_KEY.get(param, param)
-        for bench in run_all.BENCHMARKS
-        if bench.in_profile
-        for param in bench.params
-    }
+    mapped = {key for bench in run_all.BENCHMARKS for key in bench.profile_keys}
 
     assert mapped == profile_keys
+
+
+L1_RUN = {
+    "value": 1.6133,
+    "plateaus": {
+        "32bit_4sectors": {"requests_per_cycle": 0.4033, "sectors_per_cycle": 1.6133},
+        "32bit_2sectors": {"requests_per_cycle": 0.4034, "sectors_per_cycle": 0.8067},
+        "64bit_8sectors": {"requests_per_cycle": 0.2499, "sectors_per_cycle": 1.9989},
+        "128bit_16sectors": {"requests_per_cycle": 0.1249, "sectors_per_cycle": 1.9992},
+    },
+}
+
+
+def test_l1_profile_values_come_from_the_plateaus():
+    derive = run_all.BY_NAME["l1_throughput"].derive
+
+    assert derive["l1_cycles_per_request"](L1_RUN) == round(1 / 0.4033, 4)
+    assert derive["l1_sectors_per_cycle_per_sm"](L1_RUN) == round(
+        (1.9989 + 1.9992) / 2, 4
+    )
 
 
 def test_sync_cost_run_json_is_found_and_its_clock_read(tmp_path):

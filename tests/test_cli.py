@@ -77,6 +77,9 @@ VALID_PROFILE = {
         "shared_mem_load_latency_cycles": 23,
         "shared_mem_store_latency_cycles": 19,
         "shared_mem_load_throughput_cycles": 1.0,
+        "l1_cycles_per_request": 1.0,
+        "l1_sectors_per_cycle_per_sm": 4.0,
+        "l2_bandwidth_bytes_per_cycle": 5120,
         "const_mem_latency_cycles": 4,
     },
 }

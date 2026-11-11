@@ -27,6 +27,7 @@ import shutil
 import statistics
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -62,10 +63,37 @@ class Benchmark:
     deps: list[str] = field(default_factory=list)
     in_profile: bool = True  # shared_mem_store_throughput_cycles has no profile field
     aliases: list[str] = field(default_factory=list)  # other names its run JSON may use
+    # profile key -> how to read it from the run JSON, for benchmarks whose
+    # profile values aren't their "value" (empty: "value" under the param's key)
+    derive: dict[str, Callable[[dict], float]] = field(default_factory=dict)
 
     @property
     def dir_name(self) -> str:
         return "launch_overhead" if self.name == "launch_overhead" else self.params[0]
+
+    @property
+    def profile_keys(self) -> list[str]:
+        if not self.in_profile:
+            return []
+        if self.derive:
+            return list(self.derive)
+        return [PROFILE_KEY.get(p, p) for p in self.params]
+
+
+# l1_throughput.cu: a narrow request costs a fixed time whatever its sectors
+# (the 32-bit shapes, 2 or 4 sectors, give the same request rate); wide ones
+# are limited by bandwidth (the 64- and 128-bit shapes give the same sector rate)
+L1_NARROW_SHAPE = "32bit_4sectors"
+L1_WIDE_SHAPES = ("64bit_8sectors", "128bit_16sectors")
+
+
+def l1_cycles_per_request(run: dict) -> float:
+    return round(1.0 / run["plateaus"][L1_NARROW_SHAPE]["requests_per_cycle"], 4)
+
+
+def l1_sectors_per_cycle(run: dict) -> float:
+    rates = [run["plateaus"][s]["sectors_per_cycle"] for s in L1_WIDE_SHAPES]
+    return round(statistics.mean(rates), 4)
 
 
 BENCHMARKS = [
@@ -117,17 +145,12 @@ BENCHMARKS = [
         "l1_throughput",
         "l1_throughput.cu",
         ["l1_throughput_sectors_per_cycle_per_sm"],
-        # no profile field until the run JSON shows whether L1's limit is per
-        # sector or per request; the JSON has both rates
-        in_profile=False,
+        derive={
+            "l1_cycles_per_request": l1_cycles_per_request,
+            "l1_sectors_per_cycle_per_sm": l1_sectors_per_cycle,
+        },
     ),
-    Benchmark(
-        "l2_bandwidth",
-        "l2_bandwidth.cu",
-        ["l2_bandwidth_bytes_per_cycle"],
-        # no profile field until a model has an L2 bandwidth limit
-        in_profile=False,
-    ),
+    Benchmark("l2_bandwidth", "l2_bandwidth.cu", ["l2_bandwidth_bytes_per_cycle"]),
     Benchmark("departure_delay", "departure_delay.cu", ["departure_delay_cycles"]),
     Benchmark(
         "sync_cost",
@@ -470,10 +493,24 @@ def main() -> int:
             clock = read_clock(path)
             if clock is not None:
                 clocks[param] = clock
-            if bench.in_profile:
+            if not bench.in_profile:
+                continue
+            source = str(path.relative_to(REPO_ROOT))
+            if bench.derive:
+                run = json.loads(path.read_text())
+                for name, plateau in run.get("plateaus", {}).items():
+                    if not plateau.get("plateau_ok", True):
+                        log(f"  WARNING: {bench.name} shape {name} has no plateau")
+                for key, read in bench.derive.items():
+                    measured[key] = {
+                        "value": read(run),
+                        "source": f"{source} ({read.__name__})",
+                        "sm_clock_ghz": clock,
+                    }
+            else:
                 measured[PROFILE_KEY.get(param, param)] = {
                     "value": read_value(path),
-                    "source": str(path.relative_to(REPO_ROOT)),
+                    "source": source,
                     "sm_clock_ghz": clock,
                 }
 
@@ -528,9 +565,13 @@ def main() -> int:
         log(f"Not run (source missing): {', '.join(missing)}; their fields were copied")
     # Launch overhead records no clock, but run_launch_overhead.py locks base clock itself.
     launch_keys = {PROFILE_KEY[p] for p in BY_NAME["launch_overhead"].params}
-    no_clock = sorted(
-        set(measured) - {PROFILE_KEY.get(p, p) for p in clocks} - launch_keys
-    )
+    clocked = {
+        key
+        for bench in BENCHMARKS
+        if any(p in clocks for p in bench.params)
+        for key in bench.profile_keys
+    }
+    no_clock = sorted(set(measured) - clocked - launch_keys)
     if no_clock:
         log(f"No clock recorded (check these ran at base clock): {', '.join(no_clock)}")
     return 0

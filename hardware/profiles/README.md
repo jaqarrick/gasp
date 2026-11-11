@@ -27,6 +27,22 @@ The required fields are the ones in `HardwareProfile` (`src/gasp/cli/utils.py`).
 | h100 (sm_90) | 1.0 | not published; Ampere value assumed |
 | b200 (sm_100) | 1.0 | 128 B/clk (derived) |
 
+## L1 throughput
+
+`profiled.l1_cycles_per_request` (fixed cycles per global request) and `profiled.l1_sectors_per_cycle_per_sm` (L1 bandwidth in 32-byte sectors per cycle per SM) feed GASPerf's L1 limit. `rtx2080ti.json` (and `rtx2080ti.placeholder.json`) have values from the `plateaus` of `hardware/microbenchmarks/l1_throughput.cu`: 2.4796 = 1 / 0.4033 requests per cycle (32-bit loads, the same for 2 and 4 sectors per request) and 1.999 (the 64- and 128-bit shapes, 1.9989 and 1.9992). `run_all.py` derives both from the run JSON's `plateaus` (1 / the 32-bit 4-sector request rate, and the mean sector rate of the 64- and 128-bit shapes) and warns about any shape without a plateau.
+
+| Profile | `l1_cycles_per_request` | `l1_sectors_per_cycle_per_sm` |
+|---|---|---|
+| rtx2080ti, rtx2080ti.placeholder (sm_75) | 2.4796, measured | 1.999, measured |
+| v100, a100, l4, b200 | 1.0, assumed | 4.0, 128 B/clk (whitepapers; l4 and b200 derived) |
+| h100 | 0.5, assumed | 8.0, 256 B/clk (derived from 2× scaling) |
+
+"Assumed": no published figure, so a 4-sector request is charged only its bandwidth time. On the RTX 2080 Ti the measured fixed cost is higher than that (2.48 against 2.0), so these are likely low.
+
+## L2 bandwidth
+
+`profiled.l2_bandwidth_bytes_per_cycle` is the whole-GPU L2 bandwidth with every load hitting L2, from `hardware/microbenchmarks/l2_bandwidth.cu`: 1164.9505 on the RTX 2080 Ti (`working_sets_agree` and `saturated` true), also copied into `rtx2080ti.placeholder.json`. No model uses it yet (#122). The other placeholders hold published values: v100 2200 (about 2.1 TB/s, clock-adjusted), a100 5120 (A100 whitepaper), l4 5000 (no published B/clk), h100 6912 (ncu peak sustained metric), b200 10000 (21 TB/s local partition).
+
 ## Sources
 
 - Source for rtx2080ti L1/shared size and carveout options: https://docs.nvidia.com/cuda/turing-tuning-guide/index.html

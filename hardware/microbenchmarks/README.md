@@ -24,6 +24,30 @@ Build:
 Run through `make microbenchmarks`:
 * `make microbenchmarks GPU=<gpu> VERSION=<label> ARGS='--only shared_memory_load_throughput'`
 
+## L1 throughput
+* Measures how many global-load sectors (and requests) per cycle one SM's L1 serves when every load hits.
+* One block per SM reads its own slice of a global array, at most half of L1, warmed first, so every timed load is an L1 hit. Each warp keeps 8 independent loads in flight, 4,096 loads per warp; per-SM `clock64` span.
+* Sweeps warps per SM (1–32) and load shape: 32-bit with 4 or 2 sectors per request, 64-bit, 128-bit, and 32-bit with 2 global stores per 8 loads (whether stores share the queue). `value` is the plateau sector rate of 32-bit 4-sector loads; `requests_per_cycle_per_sm` and every shape's plateau are in the run JSON.
+* `run_all.py` passes `--l1-bytes` (the unified L1/shared array minus the smallest carveout, from the profile spec).
+* `run_all.py` writes two profile fields from the `plateaus`: `l1_cycles_per_request` (1 / the 32-bit 4-sector request rate) and `l1_sectors_per_cycle_per_sm` (mean sector rate of the 64- and 128-bit shapes). GASPerf's L1 limit uses both.
+* Check under ncu: L1 hit rate near 100% (`run_all.py` runs it with `--cache-control none`).
+Build:
+* `nvcc -O3 -std=c++17 -arch=sm_XX l1_throughput.cu -o l1_throughput` (sm_XX from the GPU's compute capability)
+Run through `make microbenchmarks`:
+* `make microbenchmarks GPU=<gpu> VERSION=<label> ARGS='--only l1_throughput'`
+
+## L2 bandwidth
+* Measures `l2_bandwidth_bytes_per_cycle`: bytes per SM cycle the whole GPU's L2 serves when every load hits L2. Same unit and timing as `dram_bandwidth.cu`, so the two compare directly.
+* The working set is a fraction of L2, warmed first. Loads are `ld.global.cg` (not cached in L1), and every block sweeps the whole working set from its own starting row, so L1 can't serve them. Each thread keeps 4 independent 16-byte loads in flight.
+* Sweeps the working set (20, 30, 40, 50% of L2; the rate should be flat) and the number of blocks (a quarter of the SMs up to the occupancy limit; the rate should stop rising). `value` is the median at 40% of L2 with the most blocks; the JSON says whether the neighbouring working sets and the two highest block counts agree within 5%.
+* L2 size from the device (`--l2-cache-size KB` overrides it).
+* Writes the profile field `l2_bandwidth_bytes_per_cycle`. No model uses it yet.
+* Check under ncu: L1 hit rate near 0, L2 hit rate near 100%, DRAM throughput near 0, and a value above the DRAM bandwidth.
+Build:
+* `nvcc -O3 -std=c++17 -arch=sm_XX l2_bandwidth.cu -o l2_bandwidth` (sm_XX from the GPU's compute capability)
+Run through `make microbenchmarks`:
+* `make microbenchmarks GPU=<gpu> VERSION=<label> ARGS='--only l2_bandwidth'`
+
 ## Constant memory load microbenchmarks
 * Measures the dependent, uniform constant-cache hit latency (const_mem_latency_cycles profile field)
 * Measured with a dependent load chain over a working set in constant memory.

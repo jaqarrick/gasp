@@ -57,6 +57,18 @@ def get_l1_size(
     return max(0, array_bytes - carveout), carveout
 
 
+def get_concurrent_working_set(
+    working_set_total_bytes: int, resident_blocks: int, total_blocks: int
+) -> int:
+    """The share of the kernel's working set used by the blocks resident at the
+    same time: working set x resident blocks / total blocks. Assumes the
+    resident blocks share data no more and no less than blocks on average."""
+    if total_blocks <= 0:
+        return working_set_total_bytes
+    share = min(1.0, resident_blocks / total_blocks)
+    return round(working_set_total_bytes * share)
+
+
 def get_reuse_fraction(reusable_access_count: int, global_access_count: int) -> float:
     """Share of global accesses that can hit in any cache"""
     if global_access_count <= 0:

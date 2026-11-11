@@ -5,6 +5,7 @@ import pytest
 from gasp.cache import get_cache_hit_rate_from_working_set as hit_rate
 from gasp.cache import (
     get_capacity_regime,
+    get_concurrent_working_set,
     get_footprint_reuse_fraction,
     get_hit_ratios,
     get_hit_ratios_given_l1,
@@ -132,3 +133,14 @@ def test_l1_size(array, carveouts, shared_needed, expected):
 
 def test_l1_size_options_need_not_be_sorted():
     assert get_l1_size(96 * KB, [64 * KB, 32 * KB], 0) == (64 * KB, 32 * KB)
+
+
+def test_concurrent_working_set_is_the_resident_share():
+    assert get_concurrent_working_set(12_000_000, 272, 4096) == round(
+        12_000_000 * 272 / 4096
+    )
+
+
+def test_concurrent_working_set_never_exceeds_the_total():
+    assert get_concurrent_working_set(1_000, 400, 40) == 1_000
+    assert get_concurrent_working_set(1_000, 4, 0) == 1_000

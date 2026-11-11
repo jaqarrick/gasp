@@ -3,6 +3,7 @@ from dataclasses import asdict, dataclass, replace
 from gasp.cache import (
     get_cache_hit_rate_from_working_set,
     get_capacity_regime,
+    get_concurrent_working_set,
     get_footprint_reuse_fraction,
     get_hit_ratios,
     get_hit_ratios_given_l1,
@@ -48,6 +49,9 @@ def apply_overrides(
         logger.trace(
             "predict", f"override {name}: static {getattr(static, name):g} → {value:g}"
         )
+    # a measured L2 hit ratio replaces both models' estimates
+    if overrides.l2_hit_ratio is not None:
+        changed["l2_hit_ratio_concurrent"] = overrides.l2_hit_ratio
     return replace(static, **changed)
 
 
@@ -76,6 +80,7 @@ class PredictionOutput:
     o_cfdiv: float = 0.0
     shared_pipe_time: float = 0.0
     o_shmem: float = 0.0
+    l1_time: float = 0.0
     model: str = DEFAULT_MODEL
 
 
@@ -160,9 +165,20 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         reuse_source = (
             f"per thread {d.reusable_access_count}/{d.global_access_count} reusable"
         )
+    # GASPerf's L2 term: only the blocks resident at the same time compete for
+    # L2, so data reused while they run hits even when the whole kernel's data
+    # is larger than L2
+    working_set_concurrent = get_concurrent_working_set(
+        working_set_total, occ.blocks_per_sm * occ.active_sms, l.grid_size
+    )
+    l2_concurrent_hit = get_cache_hit_rate_from_working_set(
+        working_set_concurrent, h.l2_cache_size_bytes
+    )
     l2_trace = (
         f"L2 cap {l2_capacity_hit:.3f}"
-        f" ({get_capacity_regime(working_set_total, h.l2_cache_size_bytes)})"
+        f" ({get_capacity_regime(working_set_total, h.l2_cache_size_bytes)}),"
+        f" concurrent {working_set_concurrent:,} B cap {l2_concurrent_hit:.3f}"
+        f" ({get_capacity_regime(working_set_concurrent, h.l2_cache_size_bytes)})"
     )
     if input.block_reuse is not None:
         # given by the user (--reuse): replaces L1's capacity term, which only
@@ -170,10 +186,16 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         l1_hit_ratio, l2_hit_ratio = get_hit_ratios_given_l1(
             input.block_reuse, reuse_fraction, l2_capacity_hit
         )
+        _, l2_hit_ratio_concurrent = get_hit_ratios_given_l1(
+            input.block_reuse, reuse_fraction, l2_concurrent_hit
+        )
         l1_trace = f"L1 from --reuse {input.block_reuse:g}"
     else:
         l1_hit_ratio, l2_hit_ratio = get_hit_ratios(
             reuse_fraction, l1_capacity_hit, l2_capacity_hit
+        )
+        _, l2_hit_ratio_concurrent = get_hit_ratios(
+            reuse_fraction, l1_capacity_hit, l2_concurrent_hit
         )
         l1_trace = (
             f"L1 cap {l1_capacity_hit:.3f}"
@@ -183,7 +205,8 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         "predict",
         f"cache: L1 {l1_size:,} B (carveout {carveout:,} B);"
         f" r = {reuse_fraction:.4f} ({reuse_source}); {l1_trace};"
-        f" {l2_trace}; h1 {l1_hit_ratio:.3f}, h2 {l2_hit_ratio:.3f}",
+        f" {l2_trace}; h1 {l1_hit_ratio:.3f}, h2 {l2_hit_ratio:.3f},"
+        f" h2 concurrent {l2_hit_ratio_concurrent:.3f}",
     )
 
     static = ModelInputs(
@@ -201,6 +224,7 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         l2_hit_ratio=l2_hit_ratio,
         shared_load_inst_count=d.shared_load_inst_count,
         shared_store_inst_count=d.shared_store_inst_count,
+        l2_hit_ratio_concurrent=l2_hit_ratio_concurrent,
     )
 
     # 2. overrides: the only place a static input is replaced
@@ -234,7 +258,10 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         shared_mem_carveout_bytes=carveout,
         reuse_fraction=reuse_fraction,
         l1_hit_ratio=m.l1_hit_ratio,
-        l2_hit_ratio=m.l2_hit_ratio,
+        # the one the model used: GASPerf's is against the concurrent blocks
+        l2_hit_ratio=(
+            out.l2_hit_ratio if out.l2_hit_ratio is not None else m.l2_hit_ratio
+        ),
         amat=out.amat,
         t_comp=out.t_comp,
         t_mem=out.t_mem,
@@ -245,5 +272,6 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         o_cfdiv=out.o_cfdiv,
         shared_pipe_time=out.shared_pipe_time,
         o_shmem=out.o_shmem,
+        l1_time=out.l1_time,
         model=input.model,
     )

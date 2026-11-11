@@ -70,6 +70,10 @@ class HardwareParameters:
     dram_bandwidth: float  # bytes per cycle, whole GPU
     # SM cycles per warp shared access with the pipe saturated (GASPerf only)
     shared_mem_throughput: float
+    # L1 cost per global request: max(cycles per request, sectors / sectors per
+    # cycle), from l1_throughput.cu (GASPerf only)
+    l1_cycles_per_request: float
+    l1_sectors_per_cycle: float
 
 
 @dataclass
@@ -99,3 +103,7 @@ class ModelOutput:
     # GASPerf's shared-memory pipe limit; always 0 for GPUPerf
     shared_pipe_time: float = 0.0
     o_shmem: float = 0.0
+    # GASPerf's L1 throughput time, and the L2 hit ratio it used; GPUPerf
+    # leaves them at 0 and None (its L2 hit ratio is the input's)
+    l1_time: float = 0.0
+    l2_hit_ratio: float | None = None

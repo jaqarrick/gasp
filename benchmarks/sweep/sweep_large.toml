@@ -1,0 +1,34 @@
+# gasp --gpu rtx2080ti --run --config benchmarks/sweep/sweep_large.toml
+#
+# The sweep pair at N = 2^22 floats (16 MB per array, 32 MB footprint), larger
+# than the 5.5 MB L2 on the RTX 2080 Ti. sweep.toml (2 MB arrays) fits in L2
+# under every cache rule, so it can't tell them apart; this size can.
+#
+# Expected on the GPU: "near" re-reads lines its own warp or neighbours just
+# loaded, so its reuse stays in L1/L2. "far" re-reads an element from threads
+# N / 16 apart, 1,024 blocks later (about 3.8 waves of 272 resident blocks),
+# after about 17 MB of other reads, so its re-reads should miss L2 and go to
+# DRAM. GASPerf's L2 rule compares L2 with the resident blocks' share of the
+# footprint (32 MB x 272 / 16,384 = 0.53 MB), which assumes blocks running
+# together share data like the average block, so it predicts L2 hits for
+# "far": the case where that assumption fails.
+#
+# Check with ncu: "far" L2 hit rate (expected low) and DRAM traffic (expected
+# about 16 x 16 MB for x, against about 32 MB for "near").
+
+[defaults]
+problem_size = 4194304
+block_size = 256
+grid_size = 16384
+params = { N = 4194304 }
+program_args = ["4194304"]
+# x and out, N floats each
+footprint = 33554432
+
+[[kernel]]
+name = "near"
+file = "benchmarks/sweep/sweep_near.cu"
+
+[[kernel]]
+name = "far"
+file = "benchmarks/sweep/sweep_far.cu"

@@ -1,6 +1,9 @@
 # GASPerf: our performance model. It starts as a copy of GPUPerf (gasp.models.gpuperf)
 # and is ours to change; GPUPerf stays as published. Edit freely.
-# Changes from GPUPerf: a shared-memory pipe limit in T_comp (O_shmem).
+# Changes from GPUPerf: a shared-memory pipe limit in T_comp (O_shmem); an L1
+# throughput limit on T_mem; the L2 hit ratio against the blocks resident at the
+# same time. To try: ITMLP = MWP_peak_bw when compute-bound (CWP < MWP), below.
+from gasp.common.constants import SECTORS_PER_LINE
 from gasp.logger import Logger
 from gasp.models.gpuperf.types import HardwareParameters, LaunchParameters
 from gasp.models.inputs import WORD_BYTES, ModelInputs
@@ -93,11 +96,18 @@ class GASPerf:
     def _get_t_mem(self):
         k = self.k
         o = self.o
-        mem_requests_per_sm = (k.mem_inst_count * o.total_warps) / (
-            o.active_sms * o.itmlp
-        )
+        h = self.h
+        requests_per_sm = (k.mem_inst_count * o.total_warps) / o.active_sms
         self.amat = self._get_amat()
-        return mem_requests_per_sm * self.amat
+        t_mem_latency = requests_per_sm / o.itmlp * self.amat
+
+        # L1 throughput limit
+        sectors_per_request = o.average_trans_warp * SECTORS_PER_LINE
+        cycles_per_request = max(
+            h.l1_cycles_per_request, sectors_per_request / h.l1_sectors_per_cycle
+        )
+        self.l1_time = requests_per_sm * cycles_per_request
+        return max(t_mem_latency, self.l1_time)
 
     def _get_t_overlap(self, t_memory: float, t_comp: float) -> float:
         o = self.o
@@ -152,7 +162,20 @@ def run(
     # Eq. 14, MWP_peak_bw as in Hong-Kim: bandwidth / (per-warp bandwidth x active SMs)
     bw_per_warp = h.warp_size * WORD_BYTES / h.dram_latency
     mwp_peak_bw = h.dram_bandwidth / (bw_per_warp * occ.active_sms)
+
+    # potential improvement
+    # if cwp < occ.mwp:
+    #     itmlp = mwp_peak_bw
+    # else:
+    #     itmlp = min(m.mlp * mwp_cp, mwp_peak_bw)
+
     itmlp = min(m.mlp * mwp_cp, mwp_peak_bw)
+
+    l2_hit_ratio = (
+        m.l2_hit_ratio_concurrent
+        if m.l2_hit_ratio_concurrent is not None
+        else m.l2_hit_ratio
+    )
 
     k = KernelParameters(
         total_inst_count=m.total_inst_count,
@@ -184,7 +207,7 @@ def run(
         mwp_cp=mwp_cp,
         average_trans_warp=m.average_trans_warp,
         l1_hit_ratio=m.l1_hit_ratio,
-        l2_hit_ratio=m.l2_hit_ratio,
+        l2_hit_ratio=l2_hit_ratio,
     )
     logger.trace("predict", f"GASPerf kernel parameters: {k}")
     logger.trace("predict", f"GASPerf occupancy parameters: {o}")
@@ -205,4 +228,6 @@ def run(
         t_exec=t_exec,
         shared_pipe_time=model.shared_pipe_time,
         o_shmem=model.o_shmem,
+        l1_time=model.l1_time,
+        l2_hit_ratio=l2_hit_ratio,
     )
