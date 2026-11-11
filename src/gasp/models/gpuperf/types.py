@@ -2,16 +2,6 @@ from dataclasses import dataclass
 
 
 @dataclass
-class MemClass:
-    """One kind of global access in T_mem, with its own AMAT."""
-
-    name: str
-    inst_count: float  # per warp
-    l1_hit_ratio: float
-    l2_hit_ratio: float  # of the accesses that miss L1
-
-
-@dataclass
 class KernelParameters:
     """Inputs from Parser + CFG modules"""
 
@@ -28,11 +18,6 @@ class KernelParameters:
     average_inst_latency: float
     working_set_per_sm_bytes: int  # feeds the L1 hit rate
     working_set_total_bytes: int  # feeds the L2 hit rate
-    # mem_inst_count split by access class; their counts add up to it
-    mem_classes: list[MemClass]
-    global_load_inst_count: float  # feeds the L1 floor
-    shared_load_inst_count: float  # feed the shared floor
-    shared_store_inst_count: float
 
 
 @dataclass
@@ -83,12 +68,6 @@ class HardwareParameters:
     launch_overhead_base: float  # cycles per launch
     launch_overhead_per_thread: float  # cycles per launched thread
     dram_bandwidth: float  # bytes per cycle, whole GPU
-    # throughput limits behind the model options' floors (gasp.model_opts);
-    # None when the hardware profile has no value, which leaves the floor out
-    l1_sector_rate: float | None = None  # 32-byte sectors per cycle per SM
-    l2_bandwidth: float | None = None  # bytes per cycle, whole GPU
-    shared_load_throughput: float | None = None  # cycles per warp load, per SM
-    shared_store_throughput: float | None = None  # cycles per warp store, per SM
 
 
 @dataclass
@@ -98,3 +77,20 @@ class LaunchParameters:
     problem_size: int  # number of elements or threads launched
     registers_per_thread: int
     shared_mem_per_block_bytes: int
+
+
+@dataclass
+class ModelOutput:
+    """What one model run gives predict(): its derived parameters and times."""
+
+    itilp: float
+    cwp: float
+    mwp_cp: float
+    mwp_peak_bw: float
+    itmlp: float
+    amat: float
+    o_cfdiv: float
+    t_comp: float
+    t_mem: float
+    t_overlap: float
+    t_exec: float

@@ -59,8 +59,8 @@ class HardwareProfile:
     shared_mem_load_latency_cycles: int
     shared_mem_store_latency_cycles: int
     const_mem_latency_cycles: int
-    # throughput limits for the --model-opts floors. Optional: a profile
-    # without one (or with null) leaves that floor out
+    # throughput limits, not used by a model yet. Optional: a profile
+    # can leave one out or set it to null
     l1_throughput_sectors_per_cycle_per_sm: float | None = None
     l2_bandwidth_bytes_per_cycle: float | None = None
     shared_mem_load_throughput_cycles: float | None = None

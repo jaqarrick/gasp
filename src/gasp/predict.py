@@ -1,4 +1,4 @@
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import asdict, dataclass, replace
 
 from gasp.cache import (
     get_cache_hit_rate_from_working_set,
@@ -9,24 +9,15 @@ from gasp.cache import (
     get_l1_size,
     get_reuse_fraction,
 )
-from gasp.common.constants import SECTORS_PER_LINE, WORD_BYTES
+from gasp.common.constants import SECTORS_PER_LINE
 from gasp.dependency import DependencyOutput
-from gasp.gpuperf import BOUND_LATENCY, GPUPerf, get_mean_amat
-from gasp.gpuperf.types import (
-    HardwareParameters,
-    KernelParameters,
-    LaunchParameters,
-    MemClass,
-    OccupancyParams,
-)
 from gasp.logger import Logger
-from gasp.model_opts import ModelOptions, format_model_opts
+from gasp.models import DEFAULT_MODEL, MODELS
+from gasp.models.gpuperf.types import HardwareParameters, LaunchParameters
+from gasp.models.inputs import ModelInputs
 from gasp.occupancy import OccupancyOutput
 from gasp.overrides import ModelOverrides
 from gasp.pico import PicoOutput
-
-# T_mem is set by the DRAM bandwidth cap inside ITMLP (Eq. 14)
-BOUND_ITMLP_CAP = "DRAM bandwidth (ITMLP cap)"
 
 
 @dataclass
@@ -42,78 +33,8 @@ class PredictionInput:
     block_reuse: float | None = None
     # values that replace static model inputs (--override), None for none
     overrides: ModelOverrides | None = None
-    # changes to the model's formulas (--model-opts), None for none
-    options: ModelOptions | None = None
-
-
-@dataclass
-class ModelInputs:
-    """Every input the model takes from static analysis, per warp where it's
-    a count. predict() fills this from the static analyses, applies the
-    overrides to it once, and derives everything else from the result."""
-
-    total_inst_count: float
-    mem_inst_count: float
-    sfu_inst_count: float
-    sync_inst_count: float
-    divergent_inst_count: float
-    ilp: float
-    mlp: float
-    average_inst_latency: float
-    average_trans_warp: float
-    bank_conflict_count: float
-    l1_hit_ratio: float
-    l2_hit_ratio: float
-    # global stores, part of mem_inst_count
-    store_inst_count: float = 0.0
-    # L2 hit ratio of global stores, which never hit L1
-    store_l2_hit_ratio: float = 0.0
-    shared_load_inst_count: float = 0.0
-    shared_store_inst_count: float = 0.0
-    # bytes one thread moves per global access, averaged over accesses
-    # (4 for 32-bit, 8 for .64, 16 for .128)
-    access_width_bytes: float = WORD_BYTES
-
-
-def get_access_width_bytes(d: DependencyOutput) -> float:
-    """Average global access width, weighted by execution frequency; 4 with none."""
-    if d.global_access_count <= 0 or d.global_bytes_accessed_per_thread <= 0:
-        return float(WORD_BYTES)
-    return d.global_bytes_accessed_per_thread / d.global_access_count
-
-
-def get_mem_classes(m: ModelInputs, options: ModelOptions) -> list[MemClass]:
-    """The access classes T_mem sums over: one for every global access, or
-    loads and stores apart, where stores never hit L1."""
-    everything = MemClass("global", m.mem_inst_count, m.l1_hit_ratio, m.l2_hit_ratio)
-    if not options.mem_classes:
-        return [everything]
-    stores = min(max(m.store_inst_count, 0.0), m.mem_inst_count)
-    loads = m.mem_inst_count - stores
-    classes = []
-    if loads > 0:
-        classes.append(MemClass("loads", loads, m.l1_hit_ratio, m.l2_hit_ratio))
-    if stores > 0:
-        classes.append(MemClass("stores", stores, 0.0, m.store_l2_hit_ratio))
-    return classes or [everything]
-
-
-def get_skipped_floors(options: ModelOptions, h: HardwareParameters) -> list[str]:
-    """Floors that are on but can't be applied: `option (missing profile fields)`."""
-    needs = {
-        "l1-floor": {"l1_throughput_sectors_per_cycle_per_sm": h.l1_sector_rate},
-        "l2-floor": {"l2_bandwidth_bytes_per_cycle": h.l2_bandwidth},
-        "shared-floor": {
-            "shared_mem_load_throughput_cycles": h.shared_load_throughput,
-            "shared_mem_store_throughput_cycles": h.shared_store_throughput,
-        },
-    }
-    skipped = []
-    for name, rates in needs.items():
-        missing = [key for key, value in rates.items() if value is None]
-        if getattr(options, name.replace("-", "_")) and missing:
-            skipped.append(f"{name} (no {', '.join(missing)})")
-    return skipped
+    # which of MODELS to run
+    model: str = DEFAULT_MODEL
 
 
 def apply_overrides(
@@ -153,31 +74,11 @@ class PredictionOutput:
     launch_overhead: float
     t_gpu: float
     o_cfdiv: float = 0.0
-    mwp: float = 0.0
-    # Mem_L in MWP and CWP: the DRAM latency, or AMAT with amat-mem-l
-    mem_l: float = 0.0
-    # average bytes per thread per global access, in MWP_peak_bw
-    access_width_bytes: float = WORD_BYTES
-    # AMAT per access class, by class name
-    class_amats: dict[str, float] = field(default_factory=dict)
-    # which term sets T_mem: latency, or a throughput limit
-    t_mem_bound: str = BOUND_LATENCY
-    # W_parallel is set by the shared-memory floor
-    shared_floor_binds: bool = False
-    # floors that were on but left out: the profile has no rate for them
-    skipped_floors: list[str] = field(default_factory=list)
-    model_opts: str = "none"
+    model: str = DEFAULT_MODEL
 
 
-def get_average_trans_warp(
-    p: PicoOutput, mem_inst_count: int, access_width_bytes: float = WORD_BYTES
-) -> float:
-    """128-byte transactions per warp memory access, 1 = coalesced 32-bit.
-
-    A coalesced access moves warp_size x width bytes, so access_width_bytes / 4
-    lines (2 for .64, 4 for .128). That is the floor, and the value when Pico
-    has no answer. Pico's sector counts already include the width (vecadd with
-    doubles: 8 sectors per access), so the floor only matters without Pico.
+def get_average_trans_warp(p: PicoOutput, mem_inst_count: int) -> float:
+    """128-byte transactions per warp memory access, 1 = coalesced.
 
     For now we output sectors per transaction
     ua -> uncoalesced access count
@@ -190,11 +91,20 @@ def get_average_trans_warp(
 
     4 sectors (32B)= 1 cache line (128B)
     """
-    coalesced = max(1.0, access_width_bytes / WORD_BYTES)
     if p.error or mem_inst_count == 0 or p.memory_accesses_count == 0:
-        return coalesced
+        return 1.0
     sectors_per_access = p.uncoalesced_count / p.memory_accesses_count
-    return max(coalesced, sectors_per_access / SECTORS_PER_LINE)
+    return max(1.0, sectors_per_access / SECTORS_PER_LINE)
+
+
+def get_average_inst_latency(d: DependencyOutput) -> float:
+    """Average latency of the non-SFU instructions, which W_parallel and CWP
+    charge. SFU instructions are charged only in O_SFU (Eq. 9). A kernel of SFU
+    instructions only keeps the average over all of them."""
+    non_sfu = d.total_inst_count - d.sfu_inst_count
+    if non_sfu <= 0:
+        return d.total_latency / d.total_inst_count
+    return (d.total_latency - d.sfu_latency) / non_sfu
 
 
 def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
@@ -203,8 +113,6 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
     p = input.pico
     h = input.hardware
     l = input.launch
-    n = occ.active_warps_per_sm
-    options = input.options or ModelOptions()
 
     # 1. static inputs
 
@@ -275,9 +183,6 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         f" r = {reuse_fraction:.4f} ({reuse_source}); {l1_trace};"
         f" {l2_trace}; h1 {l1_hit_ratio:.3f}, h2 {l2_hit_ratio:.3f}",
     )
-    # stores skip L1. A repeated store is taken to find its line still in L2,
-    # whatever the footprint: the repeat follows the first store closely
-    store_l2_hit_ratio = reuse_fraction
 
     static = ModelInputs(
         total_inst_count=d.total_inst_count,
@@ -287,18 +192,11 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         divergent_inst_count=d.divergent_inst_count,
         ilp=d.ilp,
         mlp=d.mlp,
-        average_inst_latency=d.total_latency / d.total_inst_count,
-        average_trans_warp=get_average_trans_warp(
-            p, d.mem_inst_count, get_access_width_bytes(d)
-        ),
+        average_inst_latency=get_average_inst_latency(d),
+        average_trans_warp=get_average_trans_warp(p, d.mem_inst_count),
         bank_conflict_count=bank_conflict_count,
         l1_hit_ratio=l1_hit_ratio,
         l2_hit_ratio=l2_hit_ratio,
-        store_inst_count=d.global_store_inst_count,
-        store_l2_hit_ratio=store_l2_hit_ratio,
-        shared_load_inst_count=d.shared_load_inst_count,
-        shared_store_inst_count=d.shared_store_inst_count,
-        access_width_bytes=get_access_width_bytes(d),
     )
 
     # 2. overrides: the only place a static input is replaced
@@ -307,109 +205,12 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
 
     # 3. the model, from those inputs
 
-    # Eqs. 4-5
-    itilp_max = m.average_inst_latency / (h.warp_size / h.simd_width)
-    itilp = min(m.ilp * n, itilp_max)
-
-    mem_classes = get_mem_classes(m, options)
-    logger.trace(
-        "predict", f"model options: {format_model_opts(options)}; {mem_classes}"
+    logger.trace("predict", f"model: {input.model}")
+    run = MODELS[input.model].run
+    out = run(
+        m, occ, l, h, working_set_per_sm, working_set_total, uncoalesced_count, logger
     )
-
-    skipped_floors = get_skipped_floors(options, h)
-    if skipped_floors:
-        logger.warning(
-            "The hardware profile has no rate for these model options, so they "
-            f"are left out: {'; '.join(skipped_floors)}"
-        )
-
-    # Mem_L, the memory wait in MWP and CWP: the DRAM latency as in Hong-Kim
-    # and GPUPerf, or what an access costs on average once caches hit
-    if options.amat_mem_l:
-        mem_l = get_mean_amat(h, m.average_trans_warp, mem_classes)
-        mwp = min(mem_l / h.departure_delay, n)
-    else:
-        mem_l = h.dram_latency
-        mwp = occ.mwp
-
-    # CWP = Mem_L / (Comp_cycles / #mem_insts), capped at N
-    # Comp_cycles: one warp's compute time, dependency-limited by ILP
-    comp_cycles = m.total_inst_count * m.average_inst_latency / m.ilp
-    if m.mem_inst_count > 0:
-        cwp = min(mem_l / (comp_cycles / m.mem_inst_count), n)
-    else:
-        cwp = n
-
-    # Eq. 15
-    mwp_cp = min(max(1, cwp - 1), mwp)
-
-    # Eq. 14, MWP_peak_bw as in Hong-Kim: bandwidth / (per-warp bandwidth x active SMs),
-    # with Load_bytes_per_warp = warp_size x the kernel's access width. Not
-    # scaled by average_trans_warp: uncoalesced traffic stays out of the cap (I6)
-    bw_per_warp = h.warp_size * m.access_width_bytes / h.dram_latency
-    mwp_peak_bw = h.dram_bandwidth / (bw_per_warp * occ.active_sms)
-    if options.dram_floor:
-        # the bandwidth limit is a floor on T_mem instead, on DRAM bytes only
-        itmlp = m.mlp * mwp_cp
-    else:
-        itmlp = min(m.mlp * mwp_cp, mwp_peak_bw)
-
-    k = KernelParameters(
-        total_inst_count=m.total_inst_count,
-        mem_inst_count=m.mem_inst_count,
-        sfu_inst_count=m.sfu_inst_count,
-        sync_inst_count=m.sync_inst_count,
-        uncoalesced_count=uncoalesced_count,
-        divergent_inst_count=m.divergent_inst_count,
-        bank_conflict_count=m.bank_conflict_count,
-        ilp=m.ilp,
-        mlp=m.mlp,
-        average_inst_latency=m.average_inst_latency,
-        working_set_per_sm_bytes=working_set_per_sm,
-        working_set_total_bytes=working_set_total,
-        mem_classes=mem_classes,
-        global_load_inst_count=max(
-            0.0, m.mem_inst_count - min(m.store_inst_count, m.mem_inst_count)
-        ),
-        shared_load_inst_count=m.shared_load_inst_count,
-        shared_store_inst_count=m.shared_store_inst_count,
-    )
-    o = OccupancyParams(
-        active_warps=n,
-        active_sms=occ.active_sms,
-        total_warps=occ.total_warps,
-        warps_per_block=occ.warps_per_block,
-        blocks_per_sm=occ.blocks_per_sm,
-        num_reps=occ.num_reps,
-        itilp=itilp,
-        itmlp=itmlp,
-        cwp=cwp,
-        mwp=mwp,
-        mwp_cp=mwp_cp,
-        average_trans_warp=m.average_trans_warp,
-        l1_hit_ratio=m.l1_hit_ratio,
-        l2_hit_ratio=m.l2_hit_ratio,
-    )
-
-    logger.trace("predict", f"kernel parameters: {k}")
-    logger.trace("predict", f"occupancy parameters: {o}")
-
-    model = GPUPerf(k, o, l, h, logger, options)
-    t_exec = model.predict_total_exec_time_cycles()
-    t_mem_bound = model.t_mem_bound
-    if (
-        t_mem_bound == BOUND_LATENCY
-        and not options.dram_floor
-        and m.mem_inst_count > 0
-        and mwp_peak_bw < m.mlp * mwp_cp
-    ):
-        t_mem_bound = BOUND_ITMLP_CAP
-    logger.trace(
-        "predict",
-        f"T_mem terms: {model.t_mem_terms}, set by {t_mem_bound};"
-        f" shared floor {model.shared_floor:.0f}"
-        f" ({'binds' if model.shared_floor_binds else 'does not bind'})",
-    )
+    t_exec = out.t_exec
     # launch overhead fit by launch_overhead_bench.cu: base + per thread launched
     threads = l.block_size * l.grid_size
     launch_overhead = h.launch_overhead_base + h.launch_overhead_per_thread * threads
@@ -417,13 +218,12 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
 
     logger.info("Prediction completed")
     return PredictionOutput(
-        itilp=itilp,
-        cwp=cwp,
-        mwp_cp=mwp_cp,
-        mwp_peak_bw=mwp_peak_bw,
-        itmlp=itmlp,
+        itilp=out.itilp,
+        cwp=out.cwp,
+        mwp_cp=out.mwp_cp,
+        mwp_peak_bw=out.mwp_peak_bw,
+        itmlp=out.itmlp,
         average_trans_warp=m.average_trans_warp,
-        access_width_bytes=m.access_width_bytes,
         working_set_per_sm_bytes=working_set_per_sm,
         working_set_total_bytes=working_set_total,
         l1_cache_size_bytes=l1_size,
@@ -431,19 +231,13 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         reuse_fraction=reuse_fraction,
         l1_hit_ratio=m.l1_hit_ratio,
         l2_hit_ratio=m.l2_hit_ratio,
-        amat=model.amat,
-        t_comp=model.t_comp,
-        t_mem=model.t_mem,
-        t_overlap=model.t_overlap,
+        amat=out.amat,
+        t_comp=out.t_comp,
+        t_mem=out.t_mem,
+        t_overlap=out.t_overlap,
         t_exec=t_exec,
         launch_overhead=launch_overhead,
         t_gpu=t_gpu,
-        o_cfdiv=model.o_cfdiv,
-        mwp=mwp,
-        mem_l=mem_l,
-        class_amats=model.class_amats,
-        t_mem_bound=t_mem_bound,
-        shared_floor_binds=model.shared_floor_binds,
-        skipped_floors=skipped_floors,
-        model_opts=format_model_opts(options),
+        o_cfdiv=out.o_cfdiv,
+        model=input.model,
     )

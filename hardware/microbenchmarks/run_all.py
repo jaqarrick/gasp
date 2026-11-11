@@ -45,9 +45,9 @@ NCU_FLAGS = [
 ]
 CLOCK_TOLERANCE = 0.02  # warn if a run's clock is more than 2% from the median
 
-# Optional profile fields (the --model-opts floor rates): a measured value is
-# added even when the base profile has no such key, since measured profiles
-# leave them out until a benchmark fills them.
+# Optional profile fields (throughput rates, not used by a model yet): a
+# measured value is added even when the base profile has no such key, since
+# measured profiles leave them out until a benchmark fills them.
 OPTIONAL_PROFILE_KEYS = {
     "l1_throughput_sectors_per_cycle_per_sm",
     "l2_bandwidth_bytes_per_cycle",

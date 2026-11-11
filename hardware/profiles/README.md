@@ -16,7 +16,7 @@ The required fields are the ones in `HardwareProfile` (`src/gasp/cli/utils.py`) 
 
 ## Throughput placeholders
 
-Four optional `profiled` fields feed the `--model-opts` floors. A profile that leaves one out, or sets it to `null`, gets no floor from it. Only the L1 rate has a benchmark (`hardware/microbenchmarks/l1_throughput.cu`, not yet run), so the `*.placeholder.json` profiles hold best-effort values from published sources. The measured `rtx2080ti.json` holds none of them: guessed values stay out of it, and the three floors are left out for `--gpu rtx2080ti` until a benchmark measures them. `run_all.py` adds a measured rate to the profile even when the base profile has no such field.
+Four optional `profiled` fields hold throughput rates. No model uses them yet; they're kept for GASPerf. A profile can leave one out or set it to `null`. Only the L1 rate has a benchmark (`hardware/microbenchmarks/l1_throughput.cu`, not yet run), so the `*.placeholder.json` profiles hold best-effort values from published sources. The measured `rtx2080ti.json` holds none of them: guessed values stay out of it. `run_all.py` adds a measured rate to the profile even when the base profile has no such field.
 
 | Profile | `l1_throughput_sectors_per_cycle_per_sm` | `l2_bandwidth_bytes_per_cycle` | `shared_mem_load_throughput_cycles` |
 |---|---|---|---|

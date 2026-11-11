@@ -32,11 +32,8 @@ class DependencyOutput:
     global_bytes_accessed_per_thread: int = 0
     # instructions on the cheaper side of divergent branches, weighted by execution frequency
     divergent_inst_count: int = 0
-    # global stores, part of mem_inst_count (the rest are global loads)
-    global_store_inst_count: int = 0
-    # shared-memory loads and stores, weighted by execution frequency
-    shared_load_inst_count: int = 0
-    shared_store_inst_count: int = 0
+    # the SFU instructions' share of total_latency, weighted the same way
+    sfu_latency: float = 0.0
 
 
 @dataclass
@@ -326,10 +323,8 @@ def analyze(
     mlps = {}
     total_inst_count = 0
     mem_inst_count = 0
-    global_store_inst_count = 0
-    shared_load_inst_count = 0
-    shared_store_inst_count = 0
     sfu_inst_count = 0
+    sfu_latency = 0.0
     sync_inst_count = 0
     global_bytes_per_thread = 0
     num_address_groups = 0
@@ -387,14 +382,9 @@ def analyze(
             # global loads + stores feed T_mem (Eq. 11)
             if inst.category in GLOBAL_MEMORY_CATEGORIES:
                 mem_inst_count += node_iter_count
-            if inst.category is OpCategory.GLOBAL_STORE:
-                global_store_inst_count += node_iter_count
-            if inst.category is OpCategory.SHARED_LOAD:
-                shared_load_inst_count += node_iter_count
-            if inst.category is OpCategory.SHARED_STORE:
-                shared_store_inst_count += node_iter_count
             if inst.category is OpCategory.SFU:
                 sfu_inst_count += node_iter_count
+                sfu_latency += latency.get(inst) * node_iter_count
             if inst.category is OpCategory.BARRIER:
                 sync_inst_count += node_iter_count
 
@@ -432,7 +422,5 @@ def analyze(
         reusable_access_count=reusable_access_count,
         global_bytes_accessed_per_thread=global_bytes_accessed_per_thread,
         divergent_inst_count=divergent_inst_count,
-        global_store_inst_count=global_store_inst_count,
-        shared_load_inst_count=shared_load_inst_count,
-        shared_store_inst_count=shared_store_inst_count,
+        sfu_latency=sfu_latency,
     )

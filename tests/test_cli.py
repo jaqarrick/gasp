@@ -18,6 +18,7 @@ from gasp.cli import (
     report_loops,
     report_measured,
     resolve_traces,
+    unique_kernels,
 )
 from gasp.cli.config import ConfigError, KernelSpec
 from gasp.cli.types import Args
@@ -584,26 +585,6 @@ def test_invalid_override_exits(values):
         checked_args(VECADD, "--metrics", "m.json", *flags)
 
 
-def test_model_opts_are_repeatable_and_comma_separated():
-    args = checked_args(
-        VECADD, "--model-opts", "mem-classes,amat-mem-l", "--model-opts", "dram-floor"
-    )
-    assert args.model_opts == ["mem-classes,amat-mem-l", "dram-floor"]
-
-
-def test_model_opts_default_to_none():
-    assert checked_args(VECADD).model_opts == []
-
-
-def test_unknown_model_opt_exits():
-    with pytest.raises(SystemExit):
-        checked_args(VECADD, "--model-opts", "bogus")
-
-
-def test_config_with_model_opts_is_accepted():
-    checked_args("--config", "kernels.toml", "--model-opts", "all")
-
-
 def test_config_with_metrics_and_overrides_is_accepted():
     checked_args(
         "--config", "kernels.toml", "--metrics", "m.json", "--override", "all=profiled"
@@ -761,19 +742,73 @@ def test_comparison_shows_overrides(report_logger):
     assert [row["Overrides"] for row in rows] == ["none", "cache=profiled"]
 
 
-def test_comparison_shows_model_opts(report_logger):
-    changed = dataclasses.replace(result("poor", 200.0), model_opts="dram-floor")
-    report_comparison([result("good", 100.0), changed], "good", report_logger)
-    _, rows = table(report_logger)
-
-    assert [row["Model opts"] for row in rows] == ["none", "dram-floor"]
-
-
 def test_comparison_no_warning_when_pico_fell_back_on_all(report_logger):
     results = [result("a", 100.0, pico_error=True), result("b", 200.0, pico_error=True)]
     report_comparison(results, "a", report_logger)
 
     report_logger.warning.assert_not_called()
+
+
+def modelled(name: str, t_gpu: float, model: str) -> KernelResult:
+    return dataclasses.replace(result(name, t_gpu), model=model)
+
+
+# good and poor under both models; GASPerf predicts poor 4x slower, GPUPerf 2x
+BOTH_MODELS = [
+    modelled("good", 100.0, "GPUPerf"),
+    modelled("good", 50.0, "GASPerf"),
+    modelled("poor", 200.0, "GPUPerf"),
+    modelled("poor", 200.0, "GASPerf"),
+]
+
+
+def test_comparison_has_a_row_per_kernel_and_model(report_logger):
+    report_comparison(BOTH_MODELS, "good", report_logger)
+    _, rows = table(report_logger)
+
+    assert [(row["Kernel"], row["Model"]) for row in rows] == [
+        ("good", "GPUPerf"),
+        ("good", "GASPerf"),
+        ("poor", "GPUPerf"),
+        ("poor", "GASPerf"),
+    ]
+
+
+def test_comparison_speedup_is_within_each_model(report_logger):
+    report_comparison(BOTH_MODELS, "good", report_logger)
+    title, rows = table(report_logger)
+
+    assert "within each model" in title
+    assert [row["Speedup"] for row in rows] == ["1.00", "1.00", "0.50", "0.25"]
+
+
+def test_single_kernel_under_both_models_has_no_speedup(report_logger):
+    results = [modelled("only", 100.0, "GPUPerf"), modelled("only", 90.0, "GASPerf")]
+    report_comparison(results, "only", report_logger)
+    _, rows = table(report_logger)
+
+    assert len(rows) == 2
+    assert "Speedup" not in rows[0]
+
+
+def test_measured_report_speedup_is_within_each_model(report_logger):
+    profiles = {"good": measured(100), "poor": measured(125)}
+    report_measured(BOTH_MODELS, profiles, "good", 1, report_logger)
+    _, rows = table(report_logger)
+
+    assert [row["Model"] for row in rows] == ["GPUPerf", "GASPerf"] * 2
+    assert [row["Pred speedup"] for row in rows] == ["1.00", "1.00", "0.50", "0.25"]
+    # the measurement is per kernel, the same under every model
+    assert rows[2]["Meas speedup (range)"] == rows[3]["Meas speedup (range)"]
+
+
+def test_unique_kernels_keeps_the_first_model_of_each():
+    kept = unique_kernels(BOTH_MODELS)
+
+    assert [(r.spec.name, r.model) for r in kept] == [
+        ("good", "GPUPerf"),
+        ("poor", "GPUPerf"),
+    ]
 
 
 def test_measured_report_compares_speedups(report_logger):

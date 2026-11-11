@@ -155,7 +155,7 @@ make run ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --metrics 
 
 | Group        | Inputs replaced                          | `profiled` (from the metrics file)                     | `crude`       |
 |--------------|------------------------------------------|--------------------------------------------------------|---------------|
-| `cache`      | L1 and L2 hit ratios, and the stores' L2 hit ratio | ncu's L1 hit rate for global loads; L2 read lookup hits / lookups; L2 write lookup hits / lookups (kept static if the file has no write lookups) | -  |
+| `cache`      | L1 and L2 hit ratios                     | ncu's L1 hit rate for global loads; L2 read lookup hits / lookups | -  |
 | `coalescing` | Transactions per warp access             | Global-load sectors / requests / 4, at least 1         | 1 (coalesced) |
 | `bank`       | Bank conflicts per warp                  | Shared load + store bank conflicts / warps             | 0             |
 | `counts`     | Total, global memory and SFU instructions per warp | ncu's executed instruction counts / warps    | -             |
@@ -167,43 +167,18 @@ make run ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --metrics 
 
 The full ablation, one row per override set, is in [`experiments/ablation`](experiments/ablation/README.md): `make ablation ARGS="..."`.
 
-### Model options (temporary while calibrating)
+### Models
 
-An override replaces the model's inputs; a model option changes one of its formulas. All are off by default, which is GPUPerf as published, so a prediction can be compared with and without each change:
+Every run predicts each kernel with two models and shows one row per kernel per model:
 
-```bash
-make run ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --model-opts dram-floor"
-make run ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --model-opts mem-classes,amat-mem-l"
-make run ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --model-opts all"
-```
+| Model     | Module                     | What it is |
+|-----------|----------------------------|------------|
+| `GPUPerf` | `src/gasp/models/gpuperf/` | GPUPerf as published (Sim et al.). One fix: SFU instructions are left out of `#insts` and of the average instruction latency, as in the paper, so they're charged only in O_SFU (Eq. 9). |
+| `GASPerf` | `src/gasp/models/gasperf/` | Our model. It starts as an exact copy of GPUPerf, and formula changes go here, never into GPUPerf. |
 
-`--model-opts NAME[,NAME...]` is repeatable, and `all` turns every option on.
-
-| Option         | What changes                                                                 | Rate it uses (hardware profile)                |
-|----------------|------------------------------------------------------------------------------|------------------------------------------------|
-| `mem-classes`  | T_mem sums one AMAT per access class: global loads, and global stores, which never hit L1 | -                                 |
-| `amat-mem-l`   | MWP and CWP use AMAT as the memory wait, not the DRAM latency               | -                                              |
-| `dram-floor`   | DRAM bandwidth limits only the bytes that miss L2: T_mem is at least those bytes / bandwidth, and the bandwidth cap leaves ITMLP | `dram_bandwidth_bytes_per_cycle` (measured on the RTX 2080 Ti) |
-| `l2-floor`     | T_mem is at least the bytes that miss L1 / L2 bandwidth                      | `l2_bandwidth_bytes_per_cycle` (placeholder)   |
-| `l1-floor`     | T_mem is at least the global load sectors per SM / L1 sector rate            | `l1_throughput_sectors_per_cycle_per_sm` (placeholder) |
-| `shared-floor` | W_parallel is at least shared loads and stores per SM × their cycles each    | `shared_mem_load_throughput_cycles` (placeholder), `shared_mem_store_throughput_cycles` |
-
-- T_mem is the largest of the latency term and the floors that are on. The prediction table's "T_mem set by" row names it.
-- With no cache hits and coalesced accesses, `dram-floor` gives the same T_mem as the default. An uncoalesced access counts as that many 128-byte lines.
-- The L1, L2 and shared load rates are placeholders from published sources; no microbenchmark measures them yet (see [`hardware/profiles`](hardware/profiles/README.md)). Only the `*.placeholder.json` profiles hold them. The measured `rtx2080ti.json` does not, so with `--gpu rtx2080ti` the `l1-floor`, `l2-floor` and `shared-floor` options are left out with a warning. To try them, pass a profile that has the rates with `--profile`.
-- The four rate fields are optional in a profile. A floor whose rate is missing or `null` is left out, and the prediction table's "Floors left out" row lists it.
-- Options combine with `--override`, `--metrics` and `--config`, and `make ablation` takes the same flag.
-
-`scripts/run_model_opts.sh` runs a config once per option set, with a trace file for each, and puts everything in `traces/`:
-
-```bash
-scripts/run_model_opts.sh --run benchmarks/vecadd/vecadd.toml benchmarks/mm/mm.toml   # on the GPU: profile, then predict
-scripts/run_model_opts.sh benchmarks/vecadd/vecadd.toml                               # anywhere: reuse traces/vecadd.metrics.json if it is there
-OPT_SETS="none l1-floor l2-floor shared-floor" \
-  scripts/run_model_opts.sh --hw-profile hardware/profiles/rtx2080ti.placeholder.json benchmarks/mm/mm.toml
-```
-
-`--hw-profile FILE` is passed to GASP as `--profile FILE` in place of `--gpu`, which is how the placeholder rates can be tried. Its trace and table logs get the profile's file name added, and it reuses the config's metrics file from a `--gpu` run.
+- Speedups compare kernels under the same model: each kernel's speedup is against the reference kernel's T_GPU under that model.
+- Static analysis, the cache model and overrides run before the model, so both models get the same inputs. With `--run`, each kernel is profiled once.
+- Both models take `inputs.ModelInputs` (`src/gasp/models/inputs.py`) and have a `run()` that computes everything from ITILP (Eqs. 4–5) to T_exec (Eq. 1). Launch overhead is added after either one. `src/gasp/models/__init__.py` lists the models.
 
 ### Docker
 
@@ -236,7 +211,6 @@ These apply to the whole run:
 | `--save-metrics FILE` | With `--run`: save the ncu measurements to `FILE` (JSON) |
 | `--metrics FILE`      | Use the measurements in `FILE` instead of running `ncu`; can't be combined with `--run` |
 | `--override GROUP=SOURCE` | Replace a group of static inputs (repeatable), see [Overrides](#overrides) |
-| `--model-opts NAME[,NAME...]` | Turn on changes to the model's formulas (repeatable), see [Model options](#model-options) |
 | `--verbose`           | Verbose output                                           |
 | `--trace`             | Write traces to the trace file; optional comma-separated modules (`config,cuda,cfg,sass,occupancy,pico,dependency,predict,profiler`), default `all` |
 | `--trace-file`        | Trace file path (default `./traces.log`); implies `--trace all` |

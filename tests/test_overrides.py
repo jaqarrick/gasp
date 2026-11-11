@@ -12,8 +12,6 @@ from gasp.overrides import (
     L1_HIT_RATE_PCT,
     L2_READ_HITS,
     L2_READ_MISSES,
-    L2_WRITE_HITS,
-    L2_WRITE_MISSES,
     PROFILED_METRICS,
     SFU_INSTS_EXECUTED,
     SHARED_LOAD_BANK_CONFLICTS,
@@ -35,8 +33,6 @@ def metrics(**changes: float) -> dict[str, float]:
         L1_HIT_RATE_PCT: 47.2,
         L2_READ_HITS: 20.0,
         L2_READ_MISSES: 60.0,
-        L2_WRITE_HITS: 30.0,
-        L2_WRITE_MISSES: 10.0,
         GLOBAL_LOAD_SECTORS: 3200.0,
         GLOBAL_LOAD_REQUESTS: 100.0,
         SHARED_LOAD_BANK_CONFLICTS: 250.0,
@@ -126,29 +122,8 @@ def test_profiled_cache():
     o = build_overrides({"cache": "profiled"}, metrics(), TOTAL_WARPS)
 
     assert o == ModelOverrides(
-        l1_hit_ratio=pytest.approx(0.472),
-        l2_hit_ratio=pytest.approx(0.25),
-        store_l2_hit_ratio=pytest.approx(0.75),
+        l1_hit_ratio=pytest.approx(0.472), l2_hit_ratio=pytest.approx(0.25)
     )
-
-
-def test_profiled_cache_from_a_file_without_write_lookups_keeps_stores_static():
-    m = metrics()
-    del m[L2_WRITE_HITS]
-    del m[L2_WRITE_MISSES]
-
-    o = build_overrides({"cache": "profiled"}, m, TOTAL_WARPS)
-
-    assert o.store_l2_hit_ratio is None
-    assert o.l2_hit_ratio == pytest.approx(0.25)
-
-
-def test_profiled_cache_without_l2_write_lookups():
-    m = metrics(**{L2_WRITE_HITS: 0.0, L2_WRITE_MISSES: 0.0})
-
-    o = build_overrides({"cache": "profiled"}, m, TOTAL_WARPS)
-
-    assert o.store_l2_hit_ratio == 0.0
 
 
 def test_profiled_cache_without_l2_lookups():
@@ -189,10 +164,7 @@ def test_profiled_counts_are_per_warp():
     o = build_overrides({"counts": "profiled"}, metrics(), TOTAL_WARPS)
 
     assert o == ModelOverrides(
-        total_inst_count=12.5,
-        mem_inst_count=3.0,
-        store_inst_count=1.0,
-        sfu_inst_count=0.5,
+        total_inst_count=12.5, mem_inst_count=3.0, sfu_inst_count=0.5
     )
 
 
