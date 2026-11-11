@@ -27,8 +27,8 @@
     } while (0)
 
 static const char* PARAMETER      = "sync_factor_cycles";
-static const char* SCHEMA_VERSION = "1.1.0";
-static const char* BENCH_VERSION  = "1.1.0";
+static const char* SCHEMA_VERSION = "1.2.0";
+static const char* BENCH_VERSION  = "1.2.0";
 
 constexpr int WARP                 = 32;
 constexpr int LINE_BYTES           = WARP * 4;
@@ -54,6 +54,14 @@ __device__ __forceinline__ long long read_clock64() {
     return c;
 }
 
+// Nanoseconds since an arbitrary epoch, independent of the SM clock. Read next to
+// clock64 so the run records the SM clock it ran at (cycles / ns).
+__device__ __forceinline__ unsigned long long read_globaltimer() {
+    unsigned long long t;
+    asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t)::"memory");
+    return t;
+}
+
 // to check what SM the given kernel is on
 __device__ __forceinline__ int read_smid() {
     int s;
@@ -66,8 +74,9 @@ __device__ __forceinline__ int read_smid() {
 // BAR should include barrier?
 template <int M, int C, bool BAR>
 __global__ void sync_kernel(const float* __restrict__ buf, int iters, float k,
-                            long long* t_start, long long* t_end, int* smid,
-                            float* sink) {
+                            long long* t_start, long long* t_end,
+                            unsigned long long* g_start, unsigned long long* g_end,
+                            int* smid, float* sink) {
     extern __shared__ float smem[];
     const int tid  = threadIdx.x;
     const int lane = tid % WARP;
@@ -87,7 +96,11 @@ __global__ void sync_kernel(const float* __restrict__ buf, int iters, float k,
 
     // Same start for every warp of the block, in both variants.
     asm volatile("bar.sync 0;" ::: "memory");
-    if (tid == 0) t_start[blockIdx.x] = read_clock64();
+    // globaltimer outside the clock64 pair, so it does not add to the cycle span.
+    if (tid == 0) {
+        g_start[blockIdx.x] = read_globaltimer();
+        t_start[blockIdx.x] = read_clock64();
+    }
 
 #pragma unroll 1
     for (int i = 0; i < iters; ++i) {
@@ -109,6 +122,7 @@ __global__ void sync_kernel(const float* __restrict__ buf, int iters, float k,
     asm volatile("bar.sync 0;" ::: "memory");
     if (tid == 0) {
         t_end[blockIdx.x] = read_clock64();
+        g_end[blockIdx.x] = read_globaltimer();
         smid[blockIdx.x]  = read_smid();
     }
     // Keep the FFMA results observable.
@@ -116,7 +130,8 @@ __global__ void sync_kernel(const float* __restrict__ buf, int iters, float k,
     if (s == 12345.0f) *sink = s;
 }
 
-using KernelFn = void (*)(const float*, int, float, long long*, long long*, int*, float*);
+using KernelFn = void (*)(const float*, int, float, long long*, long long*,
+                          unsigned long long*, unsigned long long*, int*, float*);
 
 template <int M, int C>
 static void kernels_for(KernelFn& no_bar, KernelFn& bar) {
@@ -206,21 +221,37 @@ static double read_run_value(const std::string& path, const std::string& paramet
 }
 
 struct LaunchResult {
-    double span;        // median over SMs of (last block end - first block start)
-    bool   co_resident; // every SM ran exactly blocks_per_sm blocks
+    double span;         // median over SMs of (last block end - first block start)
+    bool   co_resident;  // every SM ran exactly blocks_per_sm blocks
+    double clock_cycles; // sum over blocks of the block's clock64 span
+    double clock_ns;     // sum over blocks of the block's globaltimer span
 };
 
 static LaunchResult run_once(KernelFn fn, int grid, int threads, size_t smem,
                              const float* slice, int iters, int num_sms, int blocks_per_sm,
-                             long long* d_start, long long* d_end, int* d_smid, float* d_sink,
+                             long long* d_start, long long* d_end,
+                             unsigned long long* d_gstart, unsigned long long* d_gend,
+                             int* d_smid, float* d_sink,
                              std::vector<long long>& h_start, std::vector<long long>& h_end,
+                             std::vector<unsigned long long>& h_gstart,
+                             std::vector<unsigned long long>& h_gend,
                              std::vector<int>& h_smid) {
-    fn<<<grid, threads, smem>>>(slice, iters, 0.0f, d_start, d_end, d_smid, d_sink);
+    fn<<<grid, threads, smem>>>(slice, iters, 0.0f, d_start, d_end, d_gstart, d_gend, d_smid, d_sink);
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
     CUDA_CHECK(cudaMemcpy(h_start.data(), d_start, grid * sizeof(long long), cudaMemcpyDeviceToHost));
     CUDA_CHECK(cudaMemcpy(h_end.data(), d_end, grid * sizeof(long long), cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(h_gstart.data(), d_gstart, grid * sizeof(unsigned long long), cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(h_gend.data(), d_gend, grid * sizeof(unsigned long long), cudaMemcpyDeviceToHost));
     CUDA_CHECK(cudaMemcpy(h_smid.data(), d_smid, grid * sizeof(int), cudaMemcpyDeviceToHost));
+
+    // Each block's clock64 and globaltimer spans come from one SM, so their ratio is
+    // that SM's clock. Summed over blocks, globaltimer's ~1 us updates average out.
+    double clock_cycles = 0.0, clock_ns = 0.0;
+    for (int b = 0; b < grid; ++b) {
+        clock_cycles += static_cast<double>(h_end[b] - h_start[b]);
+        clock_ns     += static_cast<double>(h_gend[b] - h_gstart[b]);
+    }
 
     std::map<int, long long> first, last;
     std::map<int, int> count;
@@ -236,7 +267,7 @@ static LaunchResult run_once(KernelFn fn, int grid, int threads, size_t smem,
         if (n != blocks_per_sm) co_resident = false;
         spans.push_back(static_cast<double>(last[s] - first[s]));
     }
-    return {median_of(spans), co_resident};
+    return {median_of(spans), co_resident, clock_cycles, clock_ns};
 }
 
 struct ConfigResult {
@@ -342,13 +373,17 @@ int main(int argc, char** argv) {
 
     const int max_grid = num_sms * max_b;
     long long *d_start, *d_end;
+    unsigned long long *d_gstart, *d_gend;
     int* d_smid;
     float* d_sink;
     CUDA_CHECK(cudaMalloc(&d_start, max_grid * sizeof(long long)));
     CUDA_CHECK(cudaMalloc(&d_end, max_grid * sizeof(long long)));
+    CUDA_CHECK(cudaMalloc(&d_gstart, max_grid * sizeof(unsigned long long)));
+    CUDA_CHECK(cudaMalloc(&d_gend, max_grid * sizeof(unsigned long long)));
     CUDA_CHECK(cudaMalloc(&d_smid, max_grid * sizeof(int)));
     CUDA_CHECK(cudaMalloc(&d_sink, sizeof(float)));
     std::vector<long long> h_start(max_grid), h_end(max_grid);
+    std::vector<unsigned long long> h_gstart(max_grid), h_gend(max_grid);
     std::vector<int> h_smid(max_grid);
 
     size_t cursor = 0;   // byte offset of the next launch's slice in the ring
@@ -361,6 +396,9 @@ int main(int argc, char** argv) {
 
     std::vector<ConfigResult> results;
     std::vector<std::string> skipped;
+    // SM clock over the recorded launches: per-launch cycles / ns, and the totals.
+    std::vector<double> clock_ghz;
+    double sum_clock_cycles = 0.0, sum_clock_ns = 0.0;
     for (int m : LOADS)
     for (int c : FFMAS)
     for (int w : WARPS_PER_BLOCK)
@@ -385,7 +423,8 @@ int main(int argc, char** argv) {
         // Warm-up (icache, clocks), not recorded.
         for (KernelFn fn : {k_no_bar, k_bar})
             run_once(fn, grid, threads, smem, next_slice(launch_bytes), iters, num_sms, b,
-                     d_start, d_end, d_smid, d_sink, h_start, h_end, h_smid);
+                     d_start, d_end, d_gstart, d_gend, d_smid, d_sink,
+                     h_start, h_end, h_gstart, h_gend, h_smid);
 
         std::vector<double> t_no_bar, t_bar;
         bool co_resident = true;
@@ -396,8 +435,14 @@ int main(int argc, char** argv) {
                 const bool is_bar = (v == 0) == bar_first;
                 const LaunchResult lr = run_once(is_bar ? k_bar : k_no_bar, grid, threads, smem,
                                                  next_slice(launch_bytes), iters, num_sms, b,
-                                                 d_start, d_end, d_smid, d_sink, h_start, h_end, h_smid);
+                                                 d_start, d_end, d_gstart, d_gend, d_smid, d_sink,
+                                                 h_start, h_end, h_gstart, h_gend, h_smid);
                 co_resident = co_resident && lr.co_resident;
+                if (lr.clock_ns > 0.0) {
+                    clock_ghz.push_back(lr.clock_cycles / lr.clock_ns);
+                    sum_clock_cycles += lr.clock_cycles;
+                    sum_clock_ns += lr.clock_ns;
+                }
                 (is_bar ? t_bar : t_no_bar).push_back(lr.span);
             }
         }
@@ -454,6 +499,16 @@ int main(int argc, char** argv) {
     const double mx = *std::max_element(gammas.begin(), gammas.end());
     const double gamma_fit = sxy / sxx;
     const double cv = std::fabs(mean) > 0 ? stddev / std::fabs(mean) : INFINITY;
+
+    // SM clock the cycles were counted at. The cycle spans depend on it, so the profile
+    // needs runs at the clock the validation runs at: ncu locks base clock (README).
+    if (clock_ghz.empty()) { fprintf(stderr, "ERROR: globaltimer did not advance\n"); return 1; }
+    const double clock_ghz_all = sum_clock_cycles / sum_clock_ns;
+    const double clock_min = *std::min_element(clock_ghz.begin(), clock_ghz.end());
+    const double clock_max = *std::max_element(clock_ghz.begin(), clock_ghz.end());
+    if (clock_max > 1.02 * clock_min)
+        fprintf(stderr, "WARNING: SM clock varied %.3f-%.3f GHz across launches; the cycle counts mix "
+                        "clocks. Run under ncu to lock base clock (README).\n", clock_min, clock_max);
 
     for (const auto& s : skipped) fprintf(stderr, "skipped: %s\n", s.c_str());
     if (cv > CV_WARN)
@@ -526,13 +581,20 @@ int main(int argc, char** argv) {
           << (i + 1 < results.size() ? "," : "") << "\n";
     }
     j << "  ],\n";
+    // clock: SM clock during the recorded launches. sm_clock_ghz = total clock64 cycles /
+    // total globaltimer ns over every block of every launch; min/max are per launch
+    j << "  \"clock\": {\n";
+    j << "    \"sm_clock_ghz\": " << clock_ghz_all << ",\n";
+    j << "    \"sm_clock_ghz_min\": " << clock_min << ",\n";
+    j << "    \"sm_clock_ghz_max\": " << clock_max << "\n";
+    j << "  },\n";
     j << "  \"skipped\": [";
     for (size_t i = 0; i < skipped.size(); ++i) j << (i ? ", " : "") << "\"" << json_escape(skipped[i]) << "\"";
     j << "],\n";
     j << "  \"measurement\": {\n";
     j << "    \"method\": \"bar.sync vs no bar.sync, one wave, per-SM clock64 span; GPUPerf Eqs. 7-8 solved for gamma\",\n";
     j << "    \"load_instruction\": \"ld.global.cg.f32\",\n";
-    j << "    \"timer\": \"clock64\",\n";
+    j << "    \"timer\": \"clock64 (cycles), globaltimer (SM clock)\",\n";
     j << "    \"dram_latency_cycles\": " << dram_latency << ",\n";
     j << "    \"dram_latency_source\": \"" << json_escape(dram_source) << "\",\n";
     j << "    \"dram_bandwidth_bytes_per_cycle\": " << dram_bw << ",\n";
@@ -571,6 +633,8 @@ int main(int argc, char** argv) {
     CUDA_CHECK(cudaFree(d_ring));
     CUDA_CHECK(cudaFree(d_start));
     CUDA_CHECK(cudaFree(d_end));
+    CUDA_CHECK(cudaFree(d_gstart));
+    CUDA_CHECK(cudaFree(d_gend));
     CUDA_CHECK(cudaFree(d_smid));
     CUDA_CHECK(cudaFree(d_sink));
     return 0;
