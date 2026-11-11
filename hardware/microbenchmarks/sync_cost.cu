@@ -343,21 +343,32 @@ int main(int argc, char** argv) {
         }
     }
 
-    // Ring: big enough for the largest launch twice over, and at least 4x L2.
+    // Ring: at least 4x L2. Preferred: the largest launch twice over, so consecutive
+    // launches read disjoint slices. If that does not fit in free memory, the largest
+    // launch plus one L2 is enough: a launch that wraps to the start of the ring finds
+    // at most the previous launch's last L2's worth of lines cached, and it streams far
+    // more than L2 before reaching them, so its loads still miss L2.
     const int max_m = *std::max_element(std::begin(LOADS), std::end(LOADS));
     const int max_w = *std::max_element(std::begin(WARPS_PER_BLOCK), std::end(WARPS_PER_BLOCK));
     const int max_b = *std::max_element(std::begin(BLOCKS_PER_SM), std::end(BLOCKS_PER_SM));
     const size_t max_launch_bytes =
         static_cast<size_t>(num_sms) * max_b * max_w * iters * max_m * LINE_BYTES;
-    const size_t ring_bytes = std::max(static_cast<size_t>(WORKING_SET_L2_MULT) * prop.l2CacheSize,
-                                       2 * max_launch_bytes);
+    const size_t l2_ring = static_cast<size_t>(WORKING_SET_L2_MULT) * prop.l2CacheSize;
+    const size_t preferred_ring = std::max(l2_ring, 2 * max_launch_bytes);
+    const size_t minimum_ring = std::max(l2_ring, max_launch_bytes + prop.l2CacheSize);
     size_t free_b = 0, total_b = 0;
     CUDA_CHECK(cudaMemGetInfo(&free_b, &total_b));
-    if (ring_bytes > free_b / 10 * 8) {
-        fprintf(stderr, "ERROR: ring (%zu bytes) does not fit in free device memory (%zu bytes); "
-                        "lower --iters\n", ring_bytes, free_b);
+    const size_t usable_b = free_b / 10 * 8;
+    if (minimum_ring > usable_b) {
+        fprintf(stderr, "ERROR: ring (at least %zu bytes) does not fit in free device memory "
+                        "(%zu bytes); lower --iters or free the GPU\n", minimum_ring, free_b);
         return 1;
     }
+    const size_t ring_bytes = std::min(preferred_ring, usable_b);
+    if (ring_bytes < preferred_ring)
+        fprintf(stderr, "Note: ring shrunk from %.1f MB to %.1f MB to fit free device memory "
+                        "(%.1f MB); consecutive large launches share lines past one L2\n",
+                preferred_ring / 1048576.0, ring_bytes / 1048576.0, free_b / 1048576.0);
 
     fprintf(stderr, "GPU: %s (%s), SMs: %d, L2: %.1f MB, ring: %.1f MB, DRAM latency: %.1f (%s), "
                     "DRAM bandwidth: %.1f B/cycle (%s)\n",
