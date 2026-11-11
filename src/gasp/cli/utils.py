@@ -60,6 +60,10 @@ class HardwareProfile:
     shared_mem_store_latency_cycles: int
     # SM cycles per warp shared load with the shared-memory pipe saturated
     shared_mem_load_throughput_cycles: float
+    # L1 queue with every load hitting: fixed cycles per global request, and
+    # bandwidth in 32-byte sectors per cycle per SM (wide requests)
+    l1_cycles_per_request: float
+    l1_sectors_per_cycle_per_sm: float
     const_mem_latency_cycles: int
 
 

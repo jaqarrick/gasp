@@ -56,6 +56,8 @@ def test_average_trans_warp_no_memory_accesses():
 LAUNCH_BASE = 1000
 LAUNCH_PER_THREAD = 0.01
 SHARED_THROUGHPUT = 2.0
+L1_CYCLES_PER_REQUEST = 0.1
+L1_SECTORS_PER_CYCLE = 64.0
 
 
 def prediction_input(mem_inst_count: int = 2, grid_size: int = 40) -> PredictionInput:
@@ -96,6 +98,10 @@ def prediction_input(mem_inst_count: int = 2, grid_size: int = 40) -> Prediction
             launch_overhead_per_thread=LAUNCH_PER_THREAD,
             dram_bandwidth=450,
             shared_mem_throughput=SHARED_THROUGHPUT,
+            # small enough that GASPerf's L1 limit never binds unless a test
+            # raises it
+            l1_cycles_per_request=L1_CYCLES_PER_REQUEST,
+            l1_sectors_per_cycle=L1_SECTORS_PER_CYCLE,
         ),
         launch=LaunchParameters(
             block_size=256,
@@ -265,7 +271,8 @@ def test_predict_traces_cache_line():
     )
     assert cache_trace == (
         "cache: L1 65,536 B (carveout 32,768 B); r = 0.5000 (per thread 3/6 reusable); L1 cap 1.000 (resident); "
-        "L2 cap 1.000 (resident); h1 0.500, h2 0.000"
+        "L2 cap 1.000 (resident), concurrent 122,880 B cap 1.000 (resident); "
+        "h1 0.500, h2 0.000, h2 concurrent 0.000"
     )
 
 
@@ -583,13 +590,17 @@ def test_prediction_names_its_model():
     ],
 )
 def test_gasperf_matches_gpuperf(build):
-    """Holds for kernels without shared-memory accesses, the only change so far."""
+    """Holds for kernels without shared-memory accesses, whose L1 time is under
+    T_mem and whose data fits in L2 either way. GASPerf reports its L1 time,
+    which GPUPerf leaves at 0."""
     gpuperf = build()
     gasperf = build()
     gasperf.model = "GASPerf"
 
     expected = predict(gpuperf, logger=MagicMock())
-    assert predict(gasperf, logger=MagicMock()) == replace(expected, model="GASPerf")
+    got = predict(gasperf, logger=MagicMock())
+    assert got.l1_time > 0
+    assert got == replace(expected, model="GASPerf", l1_time=got.l1_time)
 
 
 # ---------------------------------------------------------------------------
@@ -651,3 +662,100 @@ def test_gpuperf_ignores_shared_counts():
     p = predict(shared_input(loads=8, stores=1, model="GPUPerf"), logger=MagicMock())
 
     assert (p.shared_pipe_time, p.o_shmem) == (0, 0)
+
+
+# ---------------------------------------------------------------------------
+# GASPerf: L1 throughput limit on T_mem
+# ---------------------------------------------------------------------------
+
+
+def l1_input(
+    cycles_per_request: float, sectors_per_cycle: float = 2.0, model="GASPerf"
+):
+    # prediction_input: 2 global requests per warp x 320 warps / 10 SMs = 64 per
+    # SM; T_mem from latency = 64 / ITMLP 29 x AMAT 300 = 662
+    base = prediction_input()
+    base.hardware = replace(
+        base.hardware,
+        l1_cycles_per_request=cycles_per_request,
+        l1_sectors_per_cycle=sectors_per_cycle,
+    )
+    base.model = model
+    return base
+
+
+def test_l1_limit_under_latency_time_changes_nothing():
+    gasperf = predict(l1_input(cycles_per_request=2.48), logger=MagicMock())
+    gpuperf = predict(
+        l1_input(cycles_per_request=2.48, model="GPUPerf"), logger=MagicMock()
+    )
+
+    assert gasperf.l1_time == pytest.approx(64 * 2.48)
+    assert gasperf.t_mem == pytest.approx(gpuperf.t_mem)
+
+
+def test_l1_limit_over_latency_time_sets_t_mem():
+    gasperf = predict(l1_input(cycles_per_request=50.0), logger=MagicMock())
+    gpuperf = predict(
+        l1_input(cycles_per_request=50.0, model="GPUPerf"), logger=MagicMock()
+    )
+
+    assert gasperf.l1_time == pytest.approx(64 * 50.0)
+    assert gasperf.t_mem == pytest.approx(64 * 50.0)
+    assert gpuperf.t_mem == pytest.approx(64 * 300 / 29)
+    assert gpuperf.l1_time == 0
+
+
+def test_l1_wide_requests_are_charged_their_sectors():
+    # 4 lines per request = 16 sectors at 2 per cycle = 8 cycles, over the
+    # fixed 2.48 a request costs
+    base = l1_input(cycles_per_request=2.48)
+    base.overrides = ModelOverrides(average_trans_warp=4.0)
+    p = predict(base, logger=MagicMock())
+
+    assert p.l1_time == pytest.approx(64 * 8.0)
+
+
+# ---------------------------------------------------------------------------
+# GASPerf: L2 hit ratio against the blocks resident at the same time
+# ---------------------------------------------------------------------------
+
+L2_BYTES = 4 * 1024 * 1024
+
+
+def concurrent_input(model: str = "GASPerf") -> PredictionInput:
+    # 16 MB footprint, 4 MB L2: GPUPerf's capacity term is 4 / 16 = 0.25. The
+    # fixture's 4 blocks x 10 SMs = 40 resident blocks of a 400-block grid use
+    # 1.6 MB, which fits, so GASPerf's term is 1
+    i = footprint_input(1024 * 1024, 4 * L2_BYTES)
+    i.launch = replace(i.launch, grid_size=400)
+    i.model = model
+    return i
+
+
+def test_l2_hit_ratio_from_concurrent_blocks():
+    gasperf = predict(concurrent_input(), logger=MagicMock())
+    gpuperf = predict(concurrent_input(model="GPUPerf"), logger=MagicMock())
+
+    assert gasperf.l1_hit_ratio == gpuperf.l1_hit_ratio
+    assert gpuperf.l2_hit_ratio > 0
+    assert gasperf.l2_hit_ratio == pytest.approx(gpuperf.l2_hit_ratio / 0.25)
+    assert gasperf.amat < gpuperf.amat
+
+
+def test_l2_concurrent_shows_in_trace():
+    logger = MagicMock()
+    predict(concurrent_input(), logger=logger)
+
+    cache_trace = next(
+        c.args[1] for c in logger.trace.call_args_list if c.args[1].startswith("cache:")
+    )
+    assert "concurrent 1,677,722 B cap 1.000 (resident)" in cache_trace
+
+
+def test_cache_override_replaces_the_concurrent_l2_hit_ratio_too():
+    base = concurrent_input()
+    base.overrides = ModelOverrides(l1_hit_ratio=0.25, l2_hit_ratio=0.5)
+    p = predict(base, logger=MagicMock())
+
+    assert p.l2_hit_ratio == 0.5
