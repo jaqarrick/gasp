@@ -65,6 +65,10 @@ def test_build_profile_rejects_fields_the_base_lacks():
         run_all.build_profile(BASE, {"sync_factor": measured(0.179)}, clock_ghz=None)
 
 
+def test_l1_bytes_per_sm_is_the_array_minus_the_smallest_carveout():
+    assert run_all.l1_bytes_per_sm("rtx2080ti") == 98304 - 32768
+
+
 def test_dependency_order_puts_dependencies_first():
     order = run_all.dependency_order(["sync_cost", "dram_bandwidth", "dram_latency"])
 
