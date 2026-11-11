@@ -194,6 +194,17 @@ make run ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --model-op
 - The four rate fields are optional in a profile. A floor whose rate is missing or `null` is left out, and the prediction table's "Floors left out" row lists it.
 - Options combine with `--override`, `--metrics` and `--config`, and `make ablation` takes the same flag.
 
+`scripts/run_model_opts.sh` runs a config once per option set, with a trace file for each, and puts everything in `traces/`:
+
+```bash
+scripts/run_model_opts.sh --run benchmarks/vecadd/vecadd.toml benchmarks/mm/mm.toml   # on the GPU: profile, then predict
+scripts/run_model_opts.sh benchmarks/vecadd/vecadd.toml                               # anywhere: reuse traces/vecadd.metrics.json if it is there
+OPT_SETS="none l1-floor l2-floor shared-floor" \
+  scripts/run_model_opts.sh --hw-profile hardware/profiles/rtx2080ti.placeholder.json benchmarks/mm/mm.toml
+```
+
+`--hw-profile FILE` is passed to GASP as `--profile FILE` in place of `--gpu`, which is how the placeholder rates can be tried. Its trace and table logs get the profile's file name added, and it reuses the config's metrics file from a `--gpu` run.
+
 ### Docker
 
 ```bash

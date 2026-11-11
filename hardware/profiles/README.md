@@ -16,7 +16,7 @@ The required fields are the ones in `HardwareProfile` (`src/gasp/cli/utils.py`) 
 
 ## Throughput placeholders
 
-Four optional `profiled` fields feed the `--model-opts` floors. A profile that leaves one out, or sets it to `null`, gets no floor from it. No microbenchmark measures the first three yet, so the `*.placeholder.json` profiles hold best-effort values from published sources. The measured `rtx2080ti.json` holds none of them: guessed values stay out of it, and the three floors are left out for `--gpu rtx2080ti` until the benchmarks exist.
+Four optional `profiled` fields feed the `--model-opts` floors. A profile that leaves one out, or sets it to `null`, gets no floor from it. Only the L1 rate has a benchmark (`hardware/microbenchmarks/l1_throughput.cu`, not yet run), so the `*.placeholder.json` profiles hold best-effort values from published sources. The measured `rtx2080ti.json` holds none of them: guessed values stay out of it, and the three floors are left out for `--gpu rtx2080ti` until a benchmark measures them. `run_all.py` adds a measured rate to the profile even when the base profile has no such field.
 
 | Profile | `l1_throughput_sectors_per_cycle_per_sm` | `l2_bandwidth_bytes_per_cycle` | `shared_mem_load_throughput_cycles` |
 |---|---|---|---|
@@ -26,6 +26,8 @@ Four optional `profiled` fields feed the `--model-opts` floors. A profile that l
 | l4 (sm_89) | 4.0, medium: same SM design as Ampere | 5000, low: no published B/clk | 1.0, medium: same SM design |
 | h100 (sm_90) | 8.0, medium: 256 B/clk from 2x scaling | 6912, medium: ncu peak sustained metric | 1.0, low: MIO pipe unknown |
 | b200 (sm_100) | 4.0, medium: 128 KB L1, Ampere-class | 10000, medium: 21 TB/s local partition | 1.0, medium: 128 B/clk |
+
+`spec.simd_width` is 64 in every profile (since 2026-11-10): the FP32 lanes per SM on Volta and Turing, so Eq. 5's cap is 2 warp instructions per cycle per SM. Ada, Hopper and Blackwell SMs have 128 FP32 lanes, so 64 is half the spec rate for `l4`, `h100` and `b200`.
 
 Confidence: high = whitepaper or measured, medium = derived, low = interpolated. A sector is 32 bytes, so the L1 rate is bytes per clock per SM / 32.
 

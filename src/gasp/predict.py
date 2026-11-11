@@ -70,6 +70,16 @@ class ModelInputs:
     store_l2_hit_ratio: float = 0.0
     shared_load_inst_count: float = 0.0
     shared_store_inst_count: float = 0.0
+    # bytes one thread moves per global access, averaged over accesses
+    # (4 for 32-bit, 8 for .64, 16 for .128)
+    access_width_bytes: float = WORD_BYTES
+
+
+def get_access_width_bytes(d: DependencyOutput) -> float:
+    """Average global access width, weighted by execution frequency; 4 with none."""
+    if d.global_access_count <= 0 or d.global_bytes_accessed_per_thread <= 0:
+        return float(WORD_BYTES)
+    return d.global_bytes_accessed_per_thread / d.global_access_count
 
 
 def get_mem_classes(m: ModelInputs, options: ModelOptions) -> list[MemClass]:
@@ -146,6 +156,8 @@ class PredictionOutput:
     mwp: float = 0.0
     # Mem_L in MWP and CWP: the DRAM latency, or AMAT with amat-mem-l
     mem_l: float = 0.0
+    # average bytes per thread per global access, in MWP_peak_bw
+    access_width_bytes: float = WORD_BYTES
     # AMAT per access class, by class name
     class_amats: dict[str, float] = field(default_factory=dict)
     # which term sets T_mem: latency, or a throughput limit
@@ -157,8 +169,15 @@ class PredictionOutput:
     model_opts: str = "none"
 
 
-def get_average_trans_warp(p: PicoOutput, mem_inst_count: int) -> float:
-    """128-byte transactions per warp memory access, 1 = coalesced.
+def get_average_trans_warp(
+    p: PicoOutput, mem_inst_count: int, access_width_bytes: float = WORD_BYTES
+) -> float:
+    """128-byte transactions per warp memory access, 1 = coalesced 32-bit.
+
+    A coalesced access moves warp_size x width bytes, so access_width_bytes / 4
+    lines (2 for .64, 4 for .128). That is the floor, and the value when Pico
+    has no answer. Pico's sector counts already include the width (vecadd with
+    doubles: 8 sectors per access), so the floor only matters without Pico.
 
     For now we output sectors per transaction
     ua -> uncoalesced access count
@@ -171,10 +190,11 @@ def get_average_trans_warp(p: PicoOutput, mem_inst_count: int) -> float:
 
     4 sectors (32B)= 1 cache line (128B)
     """
+    coalesced = max(1.0, access_width_bytes / WORD_BYTES)
     if p.error or mem_inst_count == 0 or p.memory_accesses_count == 0:
-        return 1.0
+        return coalesced
     sectors_per_access = p.uncoalesced_count / p.memory_accesses_count
-    return max(1.0, sectors_per_access / SECTORS_PER_LINE)
+    return max(coalesced, sectors_per_access / SECTORS_PER_LINE)
 
 
 def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
@@ -268,7 +288,9 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         ilp=d.ilp,
         mlp=d.mlp,
         average_inst_latency=d.total_latency / d.total_inst_count,
-        average_trans_warp=get_average_trans_warp(p, d.mem_inst_count),
+        average_trans_warp=get_average_trans_warp(
+            p, d.mem_inst_count, get_access_width_bytes(d)
+        ),
         bank_conflict_count=bank_conflict_count,
         l1_hit_ratio=l1_hit_ratio,
         l2_hit_ratio=l2_hit_ratio,
@@ -276,6 +298,7 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         store_l2_hit_ratio=store_l2_hit_ratio,
         shared_load_inst_count=d.shared_load_inst_count,
         shared_store_inst_count=d.shared_store_inst_count,
+        access_width_bytes=get_access_width_bytes(d),
     )
 
     # 2. overrides: the only place a static input is replaced
@@ -320,8 +343,10 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
     # Eq. 15
     mwp_cp = min(max(1, cwp - 1), mwp)
 
-    # Eq. 14, MWP_peak_bw as in Hong-Kim: bandwidth / (per-warp bandwidth x active SMs)
-    bw_per_warp = h.warp_size * WORD_BYTES / h.dram_latency
+    # Eq. 14, MWP_peak_bw as in Hong-Kim: bandwidth / (per-warp bandwidth x active SMs),
+    # with Load_bytes_per_warp = warp_size x the kernel's access width. Not
+    # scaled by average_trans_warp: uncoalesced traffic stays out of the cap (I6)
+    bw_per_warp = h.warp_size * m.access_width_bytes / h.dram_latency
     mwp_peak_bw = h.dram_bandwidth / (bw_per_warp * occ.active_sms)
     if options.dram_floor:
         # the bandwidth limit is a floor on T_mem instead, on DRAM bytes only
@@ -398,6 +423,7 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         mwp_peak_bw=mwp_peak_bw,
         itmlp=itmlp,
         average_trans_warp=m.average_trans_warp,
+        access_width_bytes=m.access_width_bytes,
         working_set_per_sm_bytes=working_set_per_sm,
         working_set_total_bytes=working_set_total,
         l1_cache_size_bytes=l1_size,

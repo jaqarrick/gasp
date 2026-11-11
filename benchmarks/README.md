@@ -23,6 +23,11 @@ Each pair does the same work in two separate programs, so `gasp --run` measures 
 | `vecadd_good.cu`, `vecadd_poor.cu` | Redundant loads: the store to `C` may alias `A` and `B`, so each is loaded twice | Same output |
 | `poly_good.cu`, `poly_poor.cu` | Extra arithmetic: every power is multiplied out again instead of using Horner's rule | Same output within rounding |
 | `divergence/branch_uniform.cu`, `divergence/branch_divergent.cu` | Divergence: the branch between a `__sinf` loop and a `__cosf` loop depends on `threadIdx.x`, so every warp runs both loops instead of one | Different outputs, same work per thread |
+| `stencil/stencil_shared.cu`, `stencil/stencil_global.cu` | L1 load rate: a radius-8 box stencil reads all 17 inputs per thread from global memory (L1 hits) instead of staging them in shared memory | Same output |
+| `sweep/sweep_near.cu`, `sweep/sweep_far.cu` | L2 instead of L1: each thread's 16 reads are `N / 16` apart (16 sweeps over a 2 MB array) instead of neighbours, so they miss L1 and hit L2 | Different outputs, same instructions and bytes |
+| `vecadd/vecadd_good.cu`, `width/vecadd_double.cu` | Bytes per access: doubles instead of floats, the same element count | Same work at twice the bytes |
+
+`bandwidth/bandwidth.toml` is not a pair: it runs `vecadd_good` at 1M, 4M, 16M and 64M elements, so the slope of time against size gives the DRAM bandwidth a real kernel gets, apart from launch overhead.
 
 The polynomial's degree of 12 puts T_comp and T_mem of `poly_poor` about level on `--gpu rtx2080ti`, which is where the overlap term matters most. Other hardware profiles will move that balance.
 

@@ -16,6 +16,7 @@ from gasp.pico import PicoOutput
 from gasp.predict import (
     BOUND_ITMLP_CAP,
     PredictionInput,
+    get_access_width_bytes,
     get_average_trans_warp,
     predict,
 )
@@ -51,6 +52,31 @@ def test_average_trans_warp_pico_error_is_coalesced():
 def test_average_trans_warp_no_memory_accesses():
     assert get_average_trans_warp(pico(0, 0), mem_inst_count=3) == 1.0
     assert get_average_trans_warp(pico(12, 3), mem_inst_count=0) == 1.0
+
+
+@pytest.mark.parametrize("width,expected", [(4, 1.0), (8, 2.0), (16, 4.0)])
+def test_average_trans_warp_without_pico_is_coalesced_at_the_width(width, expected):
+    assert (
+        get_average_trans_warp(pico(0, 0, error=True), 3, access_width_bytes=width)
+        == expected
+    )
+
+
+def test_average_trans_warp_pico_count_already_has_the_width():
+    # vecadd with doubles: Pico gives 8 sectors per access, the width gives 2 lines
+    assert get_average_trans_warp(pico(24, 3), 3, access_width_bytes=8) == 2.0
+    # an uncoalesced access still counts what Pico saw
+    assert get_average_trans_warp(pico(96, 3), 3, access_width_bytes=8) == 8.0
+
+
+def test_access_width_is_bytes_accessed_over_accesses():
+    d = DependencyOutput(
+        ilp=1, mlp=1, total_inst_count=1, mem_inst_count=3, sfu_inst_count=0,
+        sync_inst_count=0, total_latency=1, global_access_count=3,
+        global_bytes_accessed_per_thread=24,
+    )  # fmt: skip
+    assert get_access_width_bytes(d) == 8.0
+    assert get_access_width_bytes(replace(d, global_access_count=0)) == 4.0
 
 
 LAUNCH_BASE = 1000
@@ -171,6 +197,34 @@ def test_predict_more_memory_instructions_raise_t_mem():
     more = predict(prediction_input(mem_inst_count=4), logger=MagicMock())
 
     assert more.t_mem > fewer.t_mem
+
+
+def with_width(width: int) -> PredictionInput:
+    i = prediction_input()
+    i.dependency = replace(
+        i.dependency,
+        global_access_count=2,
+        global_bytes_accessed_per_thread=2 * width,
+    )
+    return i
+
+
+def test_predict_wider_accesses_halve_mwp_peak_bw():
+    narrow = predict(with_width(4), logger=MagicMock())
+    wide = predict(with_width(8), logger=MagicMock())
+
+    assert narrow.access_width_bytes == 4
+    assert wide.access_width_bytes == 8
+    # BW_per_warp = 32 x width / DRAM latency
+    assert narrow.mwp_peak_bw == pytest.approx(450 / (32 * 4 / 300 * 10))
+    assert wide.mwp_peak_bw == pytest.approx(narrow.mwp_peak_bw / 2)
+
+
+def test_predict_access_width_defaults_to_32_bit():
+    p = predict(prediction_input(), logger=MagicMock())
+
+    assert p.access_width_bytes == 4
+    assert p.mwp_peak_bw == pytest.approx(450 / (32 * 4 / 300 * 10))
 
 
 # ---------------------------------------------------------------------------

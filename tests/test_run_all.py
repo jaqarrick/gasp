@@ -65,6 +65,21 @@ def test_build_profile_rejects_fields_the_base_lacks():
         run_all.build_profile(BASE, {"sync_factor": measured(0.179)}, clock_ghz=None)
 
 
+def test_build_profile_adds_a_measured_optional_rate_the_base_lacks():
+    profile, sources = run_all.build_profile(
+        BASE, {"l1_throughput_sectors_per_cycle_per_sm": measured(0.67)}, None
+    )
+
+    assert profile["profiled"]["l1_throughput_sectors_per_cycle_per_sm"] == 0.67
+    assert "l1_throughput_sectors_per_cycle_per_sm" not in BASE["profiled"]
+    source = sources["l1_throughput_sectors_per_cycle_per_sm"]["source"]
+    assert source == "hardware/runs/x.json"
+
+
+def test_l1_bytes_per_sm_is_the_array_minus_the_smallest_carveout():
+    assert run_all.l1_bytes_per_sm("rtx2080ti") == 98304 - 32768
+
+
 def test_dependency_order_puts_dependencies_first():
     order = run_all.dependency_order(["sync_cost", "dram_bandwidth", "dram_latency"])
 

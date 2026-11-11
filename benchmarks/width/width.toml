@@ -1,0 +1,24 @@
+# gasp --gpu rtx2080ti --run --config benchmarks/width/width.toml
+#
+# Bytes per access: the same vecadd over 1,000,000 elements, with floats and with
+# doubles. Same instruction count; the double kernel moves twice the bytes with
+# LDG.E.64 / STG.E.64, so it should measure close to 2x slower when both are
+# bandwidth-bound. Before the access width reached MWP_peak_bw, the model
+# predicted the two equal.
+
+[defaults]
+problem_size = 1000000
+block_size = 256
+program_args = ["1000000"]
+
+[[kernel]]
+name = "float"
+file = "benchmarks/vecadd/vecadd_good.cu"
+# a, b and c, 1000000 floats each
+footprint = 12000000
+
+[[kernel]]
+name = "double"
+file = "benchmarks/width/vecadd_double.cu"
+# a, b and c, 1000000 doubles each
+footprint = 24000000

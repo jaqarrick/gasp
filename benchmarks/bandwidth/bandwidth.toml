@@ -1,0 +1,51 @@
+# gasp --gpu rtx2080ti --run --config benchmarks/bandwidth/bandwidth.toml
+#
+# Bandwidth check (handoff I69): vecadd_good at four sizes. At 1M elements the
+# model is +10.7% on vecadd_good, and that error could be the profile's DRAM
+# bandwidth (428.7 B/cycle) or its launch overhead (base 1,409.6 cycles plus
+# 0.00274 per thread). Memory time grows with N and the launch base doesn't, so
+# the measured slope between sizes gives the bandwidth a real kernel gets:
+#
+#   BW = 12 B x (N_large - N_small) / (T_large - T_small)
+#
+# if the per-thread launch term is negligible. It is in the model (0.00274 x
+# 64M threads = 184K cycles at the largest size), so compare the model's slope
+# too: its T_mem slope is 12 / 428.7 cycles per element. The reference is the
+# smallest size, so the speedup column is the time ratio. From 4M up the 48 MB+
+# working set is far above L2, so stores that stay in L2 at 1M (4 MB of C fits
+# in 5.5 MB) are a small part.
+
+[defaults]
+block_size = 256
+
+[[kernel]]
+name = "n1m"
+file = "benchmarks/vecadd/vecadd_good.cu"
+problem_size = 1048576
+params = { N = 1048576 }
+program_args = ["1048576"]
+footprint = 12582912
+
+[[kernel]]
+name = "n4m"
+file = "benchmarks/vecadd/vecadd_good.cu"
+problem_size = 4194304
+params = { N = 4194304 }
+program_args = ["4194304"]
+footprint = 50331648
+
+[[kernel]]
+name = "n16m"
+file = "benchmarks/vecadd/vecadd_good.cu"
+problem_size = 16777216
+params = { N = 16777216 }
+program_args = ["16777216"]
+footprint = 201326592
+
+[[kernel]]
+name = "n64m"
+file = "benchmarks/vecadd/vecadd_good.cu"
+problem_size = 67108864
+params = { N = 67108864 }
+program_args = ["67108864"]
+footprint = 805306368

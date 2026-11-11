@@ -45,6 +45,16 @@ NCU_FLAGS = [
 ]
 CLOCK_TOLERANCE = 0.02  # warn if a run's clock is more than 2% from the median
 
+# Optional profile fields (the --model-opts floor rates): a measured value is
+# added even when the base profile has no such key, since measured profiles
+# leave them out until a benchmark fills them.
+OPTIONAL_PROFILE_KEYS = {
+    "l1_throughput_sectors_per_cycle_per_sm",
+    "l2_bandwidth_bytes_per_cycle",
+    "shared_mem_load_throughput_cycles",
+    "shared_mem_store_throughput_cycles",
+}
+
 # Run parameter -> profile key, where they differ.
 PROFILE_KEY = {
     "launch_base_cycles": "launch_overhead_base_cycles",
@@ -106,6 +116,11 @@ BENCHMARKS = [
         "shared_memory_store_throughput",
         "shared_memory_store_throughput.cu",
         ["shared_mem_store_throughput_cycles"],
+    ),
+    Benchmark(
+        "l1_throughput",
+        "l1_throughput.cu",
+        ["l1_throughput_sectors_per_cycle_per_sm"],
     ),
     Benchmark("departure_delay", "departure_delay.cu", ["departure_delay_cycles"]),
     Benchmark(
@@ -221,6 +236,15 @@ def dependency_order(names: list[str]) -> list[str]:
 # ---- Running one benchmark ------------------------------------------------------
 
 
+def l1_bytes_per_sm(gpu: str) -> int:
+    """L1 left for a kernel with no shared memory: the unified array minus the
+    smallest carveout, from the GPU's profile spec (64 KB on the RTX 2080 Ti)."""
+    spec = json.loads(default_base_profile(gpu).read_text())["spec"]
+    array = spec["l1_shared_array_bytes"]
+    carveouts = spec.get("shared_mem_carveouts_bytes") or [0]
+    return array - min(carveouts)
+
+
 def compile_benchmark(
     bench: Benchmark, build_dir: Path, arch: str, log_path: Path
 ) -> Path:
@@ -287,6 +311,8 @@ def run_benchmark(bench: Benchmark, root: Path, gpu: str, arch: str) -> None:
         shutil.copy(
             load_json, bench_dir / f"shared_mem_load_latency_cycles.{gpu}.run.json"
         )
+    if bench.name == "l1_throughput":
+        args += ["--l1-bytes", str(l1_bytes_per_sm(gpu))]
     if bench.name == "sync_cost":
         latency, _ = dependency_value(root, "dram_latency")
         bandwidth, _ = dependency_value(root, "dram_bandwidth")
@@ -325,7 +351,7 @@ def build_profile(
     profile = json.loads(json.dumps(base))
     profiled = profile["profiled"]
     sources: dict[str, dict] = {}
-    unknown = sorted(set(measured) - set(profiled))
+    unknown = sorted(set(measured) - set(profiled) - OPTIONAL_PROFILE_KEYS)
     if unknown:
         raise ValueError(
             f"measured fields not in the base profile: {', '.join(unknown)}"
@@ -345,6 +371,9 @@ def build_profile(
                 "value": profiled[key],
                 "source": "copied from base profile",
             }
+    for key in sorted(set(measured) - set(profiled)):
+        profiled[key] = measured[key]["value"]
+        sources[key] = measured[key]
     return profile, sources
 
 

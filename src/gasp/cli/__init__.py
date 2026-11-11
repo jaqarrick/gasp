@@ -753,6 +753,7 @@ def predict_kernel(
             ["MWP_peak_bw", f"{prediction.mwp_peak_bw:.2f}"],
             ["ITMLP", f"{prediction.itmlp:.2f}"],
             ["Avg Trans/Warp", f"{prediction.average_trans_warp:.2f}"],
+            ["Avg Access Width (bytes)", f"{prediction.access_width_bytes:.2f}"],
             ["Working set/SM (bytes)", str(prediction.working_set_per_sm_bytes)],
             ["Working set total (bytes)", str(prediction.working_set_total_bytes)],
             ["L1 size (bytes)", str(prediction.l1_cache_size_bytes)],

@@ -26,12 +26,17 @@
 //
 // Run      : ./dram_bandwidth [--gpu NAME] [--out-dir DIR] [--reps N]
 //                             [--working-set-kb N] [--l2-cache-size KB]
+//                             [--load-policy cs|default]
 //            Writes  <out-dir>/dram_bandwidth_bytes_per_cycle.<gpu>.run.json
 //            Default out-dir = ./hardware/runs   (created if missing)
 //            --l2-cache-size KB = the L2 size to assume (default: the size the
 //            GPU reports). Default working set = min(1 GiB, 1/4 of free GPU
 //            memory), but never less than 4x L2. An explicit --working-set-kb
 //            must be at least 2x the L2 size so reads cannot be served by L2.
+//            --load-policy: cs (default, ld.global.cs, evict-first, as in every
+//            run so far) or default (plain ld.global, the policy nvcc emits for
+//            ordinary kernel loads). Run both to see whether the policy moves
+//            the number (handoff I69); the JSON records which one ran.
 //
 // Inspect  : nvcc -O3 -arch=sm_80 -cubin dram_bandwidth.cu -o dram_bandwidth.cubin
 //            cuobjdump -sass dram_bandwidth.cubin     (checklist at bottom)
@@ -66,7 +71,7 @@
 // ---- Identity of this benchmark -------------------------------------------
 static const char* PARAMETER      = "dram_bandwidth_bytes_per_cycle";
 static const char* SCHEMA_VERSION = "1.1.0";   // bump if the JSON layout changes
-static const char* BENCH_VERSION  = "1.2.0";   // bump if the measurement method changes
+static const char* BENCH_VERSION  = "1.3.0";   // bump if the measurement method changes
 
 // ---- Experiment parameters -------------------------------------------------
 constexpr int  THREADS          = 256;     // threads per block
@@ -96,6 +101,7 @@ __device__ __forceinline__ uint64_t read_globaltimer() {
 // ts[4*block + {0,1,2,3}] = {timer_start_ns, timer_end_ns, clock_start, clock_end}
 // n_vec is a multiple of (gridDim.x * blockDim.x * UNROLL), so every load in the
 // loop is in range without a tail case.
+template <bool STREAMING>
 __global__ void __launch_bounds__(THREADS)
 dram_read_kernel(const uint4* __restrict__ buf, size_t n_vec, uint64_t* ts, uint32_t* sink) {
     const size_t tid    = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -113,9 +119,16 @@ dram_read_kernel(const uint4* __restrict__ buf, size_t n_vec, uint64_t* ts, uint
             // Volatile PTX: the compiler cannot delete or merge these loads.
             // .cs = cache-streaming (evict-first); consecutive threads read
             // consecutive 16-byte words, so each warp reads 512 contiguous bytes.
-            asm volatile("ld.global.cs.v4.u32 {%0, %1, %2, %3}, [%4];"
-                         : "=r"(v[k].x), "=r"(v[k].y), "=r"(v[k].z), "=r"(v[k].w)
-                         : "l"(addr));
+            // --load-policy default drops the .cs.
+            if (STREAMING) {
+                asm volatile("ld.global.cs.v4.u32 {%0, %1, %2, %3}, [%4];"
+                             : "=r"(v[k].x), "=r"(v[k].y), "=r"(v[k].z), "=r"(v[k].w)
+                             : "l"(addr));
+            } else {
+                asm volatile("ld.global.v4.u32 {%0, %1, %2, %3}, [%4];"
+                             : "=r"(v[k].x), "=r"(v[k].y), "=r"(v[k].z), "=r"(v[k].w)
+                             : "l"(addr));
+            }
         }
 #pragma unroll
         for (int k = 0; k < UNROLL; ++k) acc ^= v[k].x ^ v[k].y ^ v[k].z ^ v[k].w;
@@ -223,15 +236,23 @@ int main(int argc, char** argv) {
     int reps = DEFAULT_REPS;
     long working_set_kb = 0;   // 0 = choose automatically
     long l2_cache_kb = 0;      // 0 = use the size the GPU reports
+    bool streaming = true;     // --load-policy cs
     for (int i = 1; i < argc; ++i) {
         if (!strcmp(argv[i], "--out-dir") && i + 1 < argc) out_dir = argv[++i];
         else if (!strcmp(argv[i], "--gpu") && i + 1 < argc) gpu_override = argv[++i];
         else if (!strcmp(argv[i], "--reps") && i + 1 < argc) reps = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--working-set-kb") && i + 1 < argc) working_set_kb = atol(argv[++i]);
         else if (!strcmp(argv[i], "--l2-cache-size") && i + 1 < argc) l2_cache_kb = atol(argv[++i]);
+        else if (!strcmp(argv[i], "--load-policy") && i + 1 < argc) {
+            const char* policy = argv[++i];
+            if (!strcmp(policy, "cs")) streaming = true;
+            else if (!strcmp(policy, "default")) streaming = false;
+            else { fprintf(stderr, "--load-policy must be cs or default\n"); return 1; }
+        }
         else {
             fprintf(stderr, "Usage: %s [--gpu NAME] [--out-dir DIR] [--reps N] "
-                            "[--working-set-kb N] [--l2-cache-size KB]\n", argv[0]);
+                            "[--working-set-kb N] [--l2-cache-size KB] "
+                            "[--load-policy cs|default]\n", argv[0]);
             return 1;
         }
     }
@@ -267,7 +288,8 @@ int main(int argc, char** argv) {
 
     // Launch shape: fill every SM to its occupancy limit, in a single wave.
     int blocks_per_sm = 0;
-    CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&blocks_per_sm, dram_read_kernel, THREADS, 0));
+    CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&blocks_per_sm, dram_read_kernel<true>, THREADS, 0));
+    auto* const kernel = streaming ? dram_read_kernel<true> : dram_read_kernel<false>;
     if (blocks_per_sm < 1) { fprintf(stderr, "kernel cannot launch on this GPU\n"); return 1; }
     const int grid = blocks_per_sm * prop.multiProcessorCount;
     const size_t grid_threads = static_cast<size_t>(grid) * THREADS;
@@ -310,7 +332,7 @@ int main(int argc, char** argv) {
         const auto t_start = std::chrono::steady_clock::now();
         double elapsed_ms = 0.0;
         do {
-            dram_read_kernel<<<grid, THREADS>>>(d_vec, n_vec, d_ts, d_sink);
+            kernel<<<grid, THREADS>>>(d_vec, n_vec, d_ts, d_sink);
             CUDA_CHECK(cudaGetLastError());
             CUDA_CHECK(cudaDeviceSynchronize());
             ++warmup_launches_done;
@@ -321,7 +343,7 @@ int main(int argc, char** argv) {
 
     std::vector<double> kernel_ns, clock_ghz, gb_per_s, bytes_per_cycle;
     for (int r = 0; r < reps; ++r) {
-        dram_read_kernel<<<grid, THREADS>>>(d_vec, n_vec, d_ts, d_sink);
+        kernel<<<grid, THREADS>>>(d_vec, n_vec, d_ts, d_sink);
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
         CUDA_CHECK(cudaMemcpy(h_ts.data(), d_ts, h_ts.size() * sizeof(uint64_t), cudaMemcpyDeviceToHost));
@@ -432,7 +454,8 @@ int main(int argc, char** argv) {
     j << "  },\n";
     j << "  \"measurement\": {\n";
     j << "    \"method\": \"streaming coalesced reads, all SMs active, working set exceeds L2\",\n";
-    j << "    \"load_instruction\": \"ld.global.cs.v4.u32\",\n";
+    j << "    \"load_instruction\": \"" << (streaming ? "ld.global.cs.v4.u32" : "ld.global.v4.u32") << "\",\n";
+    j << "    \"load_policy\": \"" << (streaming ? "cs" : "default") << "\",\n";
     j << "    \"timer\": \"globaltimer (kernel span) and clock64 (SM clock)\",\n";
     j << "    \"working_set_bytes\": " << bytes_used << ",\n";
     j << "    \"working_set_requested_bytes\": " << requested_bytes << ",\n";

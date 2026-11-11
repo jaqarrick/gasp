@@ -1,0 +1,28 @@
+# gasp --gpu rtx2080ti --run --config benchmarks/stencil/stencil.toml
+#
+# L1 pair: a 1-D box stencil of radius 8 over N = 2^20 floats. "global" reads
+# all 17 inputs per thread from global memory, nearly all L1 hits, so it should
+# be bound by L1's load rate the way basic matmul is (ncu: LG throttle, L1/TEX
+# throughput near peak). "shared" loads each input once into shared memory and
+# reads the 17 from there. A second data point for the L1 floor besides basic
+# matmul, and one for the shared floor besides tiled matmul.
+#
+# The 17-term loop is unrolled, so there are no loop counts. Both kernels assume
+# N is a multiple of the block size.
+
+[defaults]
+problem_size = 1048576
+block_size = 256
+grid_size = 4096
+params = { N = 1048576 }
+program_args = ["1048576"]
+# in (N + 16 floats) and out (N floats)
+footprint = 8388672
+
+[[kernel]]
+name = "global"
+file = "benchmarks/stencil/stencil_global.cu"
+
+[[kernel]]
+name = "shared"
+file = "benchmarks/stencil/stencil_shared.cu"

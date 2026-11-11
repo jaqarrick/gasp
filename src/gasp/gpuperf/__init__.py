@@ -148,7 +148,8 @@ class GPUPerf:
         )
 
         # floors: traffic / the rate of the level that serves it. An
-        # uncoalesced access moves average_trans_warp lines
+        # access moves average_trans_warp 128-byte lines, which already counts
+        # the width (2 for a coalesced .64, predict.get_average_trans_warp)
         bytes_per_access = h.warp_size * WORD_BYTES * tw
         bytes_missing_l1 = sum(
             c.inst_count * o.total_warps * bytes_per_access * (1 - c.l1_hit_ratio)
