@@ -34,6 +34,7 @@ class OccupancyOutput:
     mwp: float
     warps_per_block: int
     blocks_per_sm: int
+    occupancy: float = 0.0
 
 
 def calculate_occupancy(input: OccupancyInput, logger: Logger) -> OccupancyOutput:
@@ -82,4 +83,5 @@ def calculate_occupancy(input: OccupancyInput, logger: Logger) -> OccupancyOutpu
         mwp=mwp,
         warps_per_block=warps_per_block,
         blocks_per_sm=blocks_per_sm,
+        occupancy=N / input.max_warps_per_sm,
     )

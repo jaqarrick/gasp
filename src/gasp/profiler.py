@@ -21,6 +21,7 @@ CYCLES_METRIC = "gpc__cycles_elapsed.max"
 GRID_SIZE_METRIC = "launch__grid_size"
 BLOCK_SIZE_METRIC = "launch__block_size"
 SHARED_CONFIG_METRIC = "launch__shared_mem_config_size"
+WARPS_ACTIVE_PCT_METRIC = "sm__warps_active.avg.pct_of_peak_sustained_active"
 METRICS: list[str] = [
     DURATION_METRIC,
     CYCLES_METRIC,
@@ -29,7 +30,7 @@ METRICS: list[str] = [
     SHARED_CONFIG_METRIC,
     # what profiled overrides are computed from
     *PROFILED_METRICS,
-    "sm__warps_active.avg.pct_of_peak_sustained_active",
+    WARPS_ACTIVE_PCT_METRIC,
 ]
 
 # cuobjdump -sass instruction line: /*0040*/  IMAD R2, R3, R4, RZ ;  /* 0x... */

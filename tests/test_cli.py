@@ -18,6 +18,7 @@ from gasp.cli import (
     report_loops,
     report_measured,
     resolve_traces,
+    trace_measured,
     unique_kernels,
 )
 from gasp.cli.config import ConfigError, KernelSpec
@@ -801,6 +802,50 @@ def test_measured_report_single_kernel_has_no_speedup(report_logger):
     assert "1 run per kernel" in title
     assert "Pred speedup" not in rows[0]
     assert rows[0]["Error"] == "+0.0%"
+
+
+def trace_logger(enabled: bool) -> MagicMock:
+    logger = MagicMock(spec=["trace_enabled", "trace_table"])
+    logger.trace_enabled.return_value = enabled
+    return logger
+
+
+def test_trace_measured_writes_nothing_when_profiler_trace_is_off():
+    logger = trace_logger(enabled=False)
+    trace_measured(BOTH_MODELS, {"good": measured(100), "poor": measured(125)}, logger)
+
+    logger.trace_table.assert_not_called()
+
+
+def test_trace_measured_writes_three_tables_per_kernel():
+    logger = trace_logger(enabled=True)
+    profiles = {"good": measured(90, 100, 110), "poor": measured(125)}
+    trace_measured(BOTH_MODELS, profiles, logger)
+
+    titles = [c.args[1] for c in logger.trace_table.call_args_list]
+    assert all(c.args[0] == "profiler" for c in logger.trace_table.call_args_list)
+    assert titles == [
+        "good: model inputs, static vs ncu (median of 3 runs)",
+        "good: timing, predicted vs measured (cycles, median of 3 runs)",
+        "good: measured runs",
+        "poor: model inputs, static vs ncu (median of 1 run)",
+        "poor: timing, predicted vs measured (cycles, median of 1 run)",
+        "poor: measured runs",
+    ]
+    _, _, columns, timing = logger.trace_table.call_args_list[1].args
+    # a row per model, both against the same measurement
+    assert [row[0] for row in timing] == ["GPUPerf", "GASPerf"]
+    assert [row[columns.index("Error")] for row in timing] == ["+0.0%", "-50.0%"]
+    runs = logger.trace_table.call_args_list[2].args[3]
+    assert [row[1] for row in runs] == ["90", "100", "110"]
+
+
+def test_trace_measured_notes_overrides():
+    logger = trace_logger(enabled=True)
+    overridden = dataclasses.replace(result("good", 100.0), overrides="cache=profiled")
+    trace_measured([overridden], {"good": measured(100)}, logger)
+
+    assert "before --override" in logger.trace_table.call_args_list[0].args[1]
 
 
 # loop table

@@ -1,8 +1,9 @@
 import shlex
 from dataclasses import dataclass
 
+from gasp.overrides import profiled_values
 from gasp.predict import PredictionOutput
-from gasp.profiler import ProfileOutput
+from gasp.profiler import WARPS_ACTIVE_PCT_METRIC, ProfileOutput
 
 
 @dataclass
@@ -15,6 +16,12 @@ class MeasuredSpeedup:
 def speedup(t_reference: float, t_kernel: float) -> float:
     """Above 1 means the kernel is faster than the reference."""
     return t_reference / t_kernel
+
+
+def relative_error(predicted: float, measured: float) -> str:
+    if measured == 0:
+        return "n/a"
+    return f"{(predicted - measured) / measured * 100:+.1f}%"
 
 
 def measured_speedup(
@@ -74,3 +81,63 @@ def carveout_mismatches(
                 f"({prediction.l1_cache_size_bytes:,} B) is off"
             )
     return warnings
+
+
+# (quantity, ModelInputs field, format): static model inputs ncu also measures
+_INPUT_QUANTITIES: tuple[tuple[str, str, str], ...] = (
+    ("L1 hit ratio", "l1_hit_ratio", ".3f"),
+    ("L2 hit ratio (whole kernel, GPUPerf)", "l2_hit_ratio", ".3f"),
+    ("Transactions / global access (ncu: loads)", "average_trans_warp", ".2f"),
+    ("Bank conflicts / warp", "bank_conflict_count", ".2f"),
+    ("Instructions / warp", "total_inst_count", ".1f"),
+    ("Global mem instructions / warp", "mem_inst_count", ".1f"),
+    ("SFU instructions / warp", "sfu_inst_count", ".1f"),
+)
+
+
+def _comparison_row(
+    quantity: str, predicted: float, measured: float, fmt: str
+) -> list[str]:
+    return [
+        quantity,
+        format(predicted, fmt),
+        format(measured, fmt),
+        format(predicted - measured, "+" + fmt),
+        relative_error(predicted, measured),
+    ]
+
+
+def input_comparisons(
+    prediction: PredictionOutput, metrics: dict[str, float]
+) -> list[list[str]]:
+    static = prediction.static_inputs
+    if static is None:
+        return []
+    measured = profiled_values(metrics, prediction.total_warps)
+    rows = []
+    for quantity, field, fmt in _INPUT_QUANTITIES:
+        if field in measured:
+            rows.append(
+                _comparison_row(quantity, getattr(static, field), measured[field], fmt)
+            )
+        if field == "l2_hit_ratio" and "l2_hit_ratio" in measured:
+            concurrent = static.l2_hit_ratio_concurrent
+            if concurrent is not None:
+                rows.append(
+                    _comparison_row(
+                        "L2 hit ratio (concurrent, GASPerf)",
+                        concurrent,
+                        measured["l2_hit_ratio"],
+                        fmt,
+                    )
+                )
+    if WARPS_ACTIVE_PCT_METRIC in metrics:
+        rows.append(
+            _comparison_row(
+                "Occupancy (theoretical vs achieved)",
+                prediction.occupancy,
+                metrics[WARPS_ACTIVE_PCT_METRIC] / 100,
+                ".3f",
+            )
+        )
+    return rows

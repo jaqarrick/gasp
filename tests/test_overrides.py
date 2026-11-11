@@ -21,6 +21,7 @@ from gasp.overrides import (
     build_overrides,
     format_overrides,
     parse_overrides,
+    profiled_values,
     uses_profiled,
 )
 from gasp.profiler import METRICS
@@ -193,6 +194,22 @@ def test_missing_metric_of_another_group_is_ignored():
     del m[L1_HIT_RATE_PCT]
 
     build_overrides({"counts": "profiled"}, m, TOTAL_WARPS)
+
+
+def test_profiled_values_match_all_profiled():
+    o = build_overrides(parse_overrides(["all=profiled"]), metrics(), TOTAL_WARPS)
+
+    assert profiled_values(metrics(), TOTAL_WARPS) == vars(o)
+
+
+def test_profiled_values_leave_out_a_group_with_a_missing_metric():
+    m = metrics()
+    del m[L1_HIT_RATE_PCT]
+    values = profiled_values(m, TOTAL_WARPS)
+
+    assert "l1_hit_ratio" not in values
+    assert "l2_hit_ratio" not in values
+    assert values["total_inst_count"] == 12.5
 
 
 def test_profiled_without_metrics_file():

@@ -164,6 +164,23 @@ def _counts(metrics: dict[str, float], total_warps: int) -> dict[str, float]:
     }
 
 
+def profiled_values(metrics: dict[str, float], total_warps: int) -> dict[str, float]:
+    """Every ModelOverrides field ncu measured, the same values `profiled` uses.
+    A group whose metrics are missing is left out."""
+    values: dict[str, float] = {}
+    for compute in (
+        _cache,
+        _coalescing,
+        lambda m: _bank(m, total_warps),
+        lambda m: _counts(m, total_warps),
+    ):
+        try:
+            values.update(compute(metrics))
+        except OverrideError:
+            continue
+    return values
+
+
 # what the model assumes without Pico (predict's fallback)
 CRUDE_VALUES: dict[str, dict[str, float]] = {
     "coalescing": {"average_trans_warp": 1.0},

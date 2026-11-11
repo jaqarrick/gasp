@@ -474,8 +474,12 @@ def test_crude_overrides_match_the_pico_fallback():
         {"coalescing": "crude", "bank": "crude"}, None, total_warps=320
     )
 
-    assert predict(uncoalesced, logger=MagicMock()) == predict(
-        fallback, logger=MagicMock()
+    overridden = predict(uncoalesced, logger=MagicMock())
+    expected = predict(fallback, logger=MagicMock())
+
+    # static_inputs records the pre-override inputs, which legitimately differ
+    assert replace(overridden, static_inputs=None) == replace(
+        expected, static_inputs=None
     )
 
 

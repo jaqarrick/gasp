@@ -1,15 +1,31 @@
 """Tests for gasp.compare — speedups and work-mismatch warnings."""
 
+import dataclasses
+
 import pytest
 
 from gasp.compare import (
     carveout_mismatches,
+    input_comparisons,
     measured_speedup,
+    relative_error,
     speedup,
     work_mismatches,
 )
+from gasp.models.inputs import ModelInputs
+from gasp.overrides import (
+    INSTS_EXECUTED,
+    L1_HIT_RATE_PCT,
+    L2_READ_HITS,
+    L2_READ_MISSES,
+)
 from gasp.predict import PredictionOutput
-from gasp.profiler import SHARED_CONFIG_METRIC, KernelMeasurement, ProfileOutput
+from gasp.profiler import (
+    SHARED_CONFIG_METRIC,
+    WARPS_ACTIVE_PCT_METRIC,
+    KernelMeasurement,
+    ProfileOutput,
+)
 
 
 def profile(*cycles: float) -> ProfileOutput:
@@ -117,3 +133,94 @@ def test_carveout_mismatch_warns():
 def test_carveout_not_reported_is_skipped():
     predictions = {"tiled": prediction(32768)}
     assert carveout_mismatches(predictions, {"tiled": measured_carveout(None)}) == []
+
+
+# static model inputs vs ncu's
+
+
+def test_relative_error():
+    assert relative_error(110.0, 100.0) == "+10.0%"
+    assert relative_error(1.0, 0.0) == "n/a"
+
+
+def static_prediction(concurrent: float | None = 0.9) -> PredictionOutput:
+    inputs = ModelInputs(
+        total_inst_count=10.0,
+        mem_inst_count=2.0,
+        sfu_inst_count=0.0,
+        sync_inst_count=0.0,
+        divergent_inst_count=0.0,
+        ilp=1.0,
+        mlp=1.0,
+        average_inst_latency=4.0,
+        average_trans_warp=1.0,
+        bank_conflict_count=0.0,
+        l1_hit_ratio=0.5,
+        l2_hit_ratio=0.25,
+        l2_hit_ratio_concurrent=concurrent,
+    )
+    return dataclasses.replace(
+        prediction(0), static_inputs=inputs, total_warps=100, occupancy=1.0
+    )
+
+
+# cache and counts groups only: coalescing and bank are left out
+NCU = {
+    L1_HIT_RATE_PCT: 0.0,
+    L2_READ_HITS: 50.0,
+    L2_READ_MISSES: 50.0,
+    INSTS_EXECUTED: 1250.0,
+    "smsp__inst_executed_op_global_ld.sum": 200.0,
+    "smsp__inst_executed_op_global_st.sum": 0.0,
+    "smsp__inst_executed_pipe_xu.sum": 0.0,
+    WARPS_ACTIVE_PCT_METRIC: 80.0,
+}
+
+
+def comparison_rows(p: PredictionOutput) -> dict[str, list[str]]:
+    return {row[0]: row[1:] for row in input_comparisons(p, NCU)}
+
+
+def test_input_comparisons_rows():
+    rows = comparison_rows(static_prediction())
+
+    assert list(rows) == [
+        "L1 hit ratio",
+        "L2 hit ratio (whole kernel, GPUPerf)",
+        "L2 hit ratio (concurrent, GASPerf)",
+        "Instructions / warp",
+        "Global mem instructions / warp",
+        "SFU instructions / warp",
+        "Occupancy (theoretical vs achieved)",
+    ]
+    assert rows["L2 hit ratio (whole kernel, GPUPerf)"] == [
+        "0.250",
+        "0.500",
+        "-0.250",
+        "-50.0%",
+    ]
+    assert rows["Instructions / warp"] == ["10.0", "12.5", "-2.5", "-20.0%"]
+    assert rows["Occupancy (theoretical vs achieved)"] == [
+        "1.000",
+        "0.800",
+        "+0.200",
+        "+25.0%",
+    ]
+
+
+def test_input_comparisons_measured_zero_has_no_relative_error():
+    rows = comparison_rows(static_prediction())
+
+    assert rows["L1 hit ratio"] == ["0.500", "0.000", "+0.500", "n/a"]
+
+
+def test_input_comparisons_without_concurrent_l2():
+    rows = comparison_rows(static_prediction(concurrent=None))
+
+    assert "L2 hit ratio (concurrent, GASPerf)" not in rows
+
+
+def test_input_comparisons_without_static_inputs():
+    p = dataclasses.replace(prediction(0), static_inputs=None)
+
+    assert input_comparisons(p, NCU) == []

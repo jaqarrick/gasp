@@ -1,5 +1,6 @@
 import argparse
 import shlex
+import statistics
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,7 +10,9 @@ from gasp.cfg import filter_cfg, format_cfg, gen_cfg_from_raw
 from gasp.common.constants import GPU_TO_ARCH
 from gasp.compare import (
     carveout_mismatches,
+    input_comparisons,
     measured_speedup,
+    relative_error,
     speedup,
     work_mismatches,
 )
@@ -322,12 +325,6 @@ def build_parser() -> argparse.ArgumentParser:
 
 def format_params(params: dict[str, int]) -> str:
     return ", ".join(f"{name}={value}" for name, value in params.items())
-
-
-def relative_error(predicted: float, measured: float) -> str:
-    if measured == 0:
-        return "n/a"
-    return f"{(predicted - measured) / measured * 100:+.1f}%"
 
 
 def check_args(parser: argparse.ArgumentParser, args: Args) -> None:
@@ -881,6 +878,79 @@ def report_measured(
     logger.table(title, columns, rows, force=True, trace="profiler")
 
 
+def trace_measured(
+    results: list[KernelResult],
+    measured: dict[str, ProfileOutput],
+    logger: Logger,
+) -> None:
+    """Profiler trace: each kernel's model inputs and timing terms beside ncu's."""
+    if not logger.trace_enabled("profiler"):
+        return
+    for kernel in unique_kernels(results):
+        name = kernel.spec.name
+        m = measured[name]
+        runs = f"{len(m.runs)} run{'s' if len(m.runs) != 1 else ''}"
+        overridden = any(r.overrides != "none" for r in results if r.spec.name == name)
+        note = ", predicted = static, before --override" if overridden else ""
+        rows = input_comparisons(kernel.prediction, median_metrics(m))
+        logger.trace_table(
+            "profiler",
+            f"{name}: model inputs, static vs ncu (median of {runs}{note})",
+            ["Quantity", "Predicted", "Measured", "Diff", "Error"],
+            rows or [["no comparable metrics", "", "", "", ""]],
+        )
+
+        duration_ns = statistics.median(run.duration_ns for run in m.runs)
+        timing = []
+        for r in results:
+            if r.spec.name != name:
+                continue
+            p = r.prediction
+            timing.append(
+                [
+                    r.model,
+                    f"{p.t_comp:.0f}",
+                    f"{p.t_mem:.0f}",
+                    f"{p.t_overlap:.0f}",
+                    f"{p.t_exec:.0f}",
+                    f"{p.launch_overhead:.0f}",
+                    f"{p.t_gpu:.0f}",
+                    f"{m.cycles:.0f}",
+                    f"{p.t_gpu - m.cycles:+.0f}",
+                    relative_error(p.t_gpu, m.cycles),
+                    f"{duration_ns:,.0f}",
+                ]
+            )
+        logger.trace_table(
+            "profiler",
+            f"{name}: timing, predicted vs measured (cycles, median of {runs})",
+            [
+                "Model",
+                "T_comp",
+                "T_mem",
+                "T_overlap",
+                "T_exec",
+                "Launch",
+                "Pred T_GPU",
+                "Meas cycles",
+                "Diff",
+                "Error",
+                "Meas duration (ns)",
+            ],
+            timing,
+        )
+
+        logger.trace_table(
+            "profiler",
+            f"{name}: measured runs",
+            ["Run", "Cycles", "Duration (ns)"],
+            [
+                [str(n), f"{run.cycles:.0f}", f"{run.duration_ns:,.0f}"]
+                for n, run in enumerate(m.runs, start=1)
+            ],
+        )
+
+
 def load_hardware(
     gpu: str | None, profile: str | None, logger: Logger
 ) -> tuple[str, str, HardwareProfile]:
@@ -998,6 +1068,7 @@ def main() -> None:
         return
 
     report_measured(results, measured, reference, repeats, logger)
+    trace_measured(results, measured, logger)
     # the cache numbers come before the model, so any one model's will do
     predictions = {r.spec.name: r.prediction for r in unique_kernels(results)}
     for warning in carveout_mismatches(predictions, measured):
