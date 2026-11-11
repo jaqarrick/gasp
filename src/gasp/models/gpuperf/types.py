@@ -77,3 +77,20 @@ class LaunchParameters:
     problem_size: int  # number of elements or threads launched
     registers_per_thread: int
     shared_mem_per_block_bytes: int
+
+
+@dataclass
+class ModelOutput:
+    """What one model run gives predict(): its derived parameters and times."""
+
+    itilp: float
+    cwp: float
+    mwp_cp: float
+    mwp_peak_bw: float
+    itmlp: float
+    amat: float
+    o_cfdiv: float
+    t_comp: float
+    t_mem: float
+    t_overlap: float
+    t_exec: float

@@ -22,7 +22,6 @@ from gasp.dependency import (
     analyze,
     describe_loops,
 )
-from gasp.gpuperf.types import HardwareParameters, LaunchParameters
 from gasp.kernels import resolve_kernel
 from gasp.launch import Dims, format_dims, parse_dims
 from gasp.logger import DEFAULT_TRACE_FILE, TRACE_MODULES, Logger
@@ -35,6 +34,8 @@ from gasp.metrics_file import (
     median_metrics,
     save_metrics,
 )
+from gasp.models import DEFAULT_MODEL, MODELS
+from gasp.models.gpuperf.types import HardwareParameters, LaunchParameters
 from gasp.occupancy import OccupancyInput, OccupancyOutput, calculate_occupancy
 from gasp.overrides import (
     GROUPS,
@@ -70,7 +71,8 @@ from .utils import (
 @dataclass
 class PreparedKernel:
     """One kernel's static analysis: everything predict() needs, computed once.
-    predict_kernel can then be called on it again for each set of overrides."""
+    predict_kernel can then be called on it again for each model and each set
+    of overrides."""
 
     spec: KernelSpec
     kernel_name: str  # mangled
@@ -88,6 +90,22 @@ class KernelResult:
     prediction: PredictionOutput
     pico_error: bool
     overrides: str = "none"  # label, see overrides.format_overrides
+    model: str = DEFAULT_MODEL  # one of models.MODELS
+
+
+def reference_times(results: list[KernelResult], reference: str) -> dict[str, float]:
+    """The reference kernel's T_GPU under each model: speedups compare kernels
+    within one model, never across models."""
+    return {r.model: r.prediction.t_gpu for r in results if r.spec.name == reference}
+
+
+def unique_kernels(results: list[KernelResult]) -> list[KernelResult]:
+    """One result per kernel, the first model's, for what doesn't depend on
+    the model (profiling, saved metrics, cache sizes)."""
+    seen: dict[str, KernelResult] = {}
+    for r in results:
+        seen.setdefault(r.spec.name, r)
+    return list(seen.values())
 
 
 def kernel_input(value: str) -> tuple[str, str | None]:
@@ -676,11 +694,13 @@ def predict_kernel(
     choices: dict[str, str],
     saved: SavedMetrics | None,
     logger: Logger,
+    model: str = DEFAULT_MODEL,
 ) -> KernelResult:
-    """Run the model on a prepared kernel, with the chosen overrides.
+    """Run one model on a prepared kernel, with the chosen overrides.
 
     choices: {group: source} from parse_overrides, empty for all static.
-    saved: the metrics file, needed when a source is profiled."""
+    saved: the metrics file, needed when a source is profiled.
+    model: one of models.MODELS."""
     spec = prepared.spec
     name = spec.name
     label = format_overrides(choices)
@@ -690,7 +710,7 @@ def predict_kernel(
     except OverrideError as e:
         logger.error(f"{name}: {e}")
         sys.exit(1)
-    logger.trace("predict", f"=== {name}: overrides {label} ===")
+    logger.trace("predict", f"=== {name} [{model}]: overrides {label} ===")
 
     prediction = predict(
         PredictionInput(
@@ -702,11 +722,12 @@ def predict_kernel(
             hardware=prepared.hardware,
             launch=prepared.launch,
             overrides=overrides,
+            model=model,
         ),
         logger=logger,
     )
     logger.table(
-        f"Prediction: {name} (overrides: {label})",
+        f"Prediction: {name} [{model}] (overrides: {label})",
         ["Parameter", "Value"],
         [
             ["ITILP", f"{prediction.itilp:.2f}"],
@@ -739,14 +760,30 @@ def predict_kernel(
         prediction=prediction,
         pico_error=prepared.pico.error,
         overrides=label,
+        model=model,
     )
+
+
+def predict_all_models(
+    prepared: list[PreparedKernel],
+    choices: dict[str, str],
+    saved: SavedMetrics | None,
+    logger: Logger,
+) -> list[KernelResult]:
+    """Every kernel under every model, once each: kernel by kernel, models in
+    models.MODELS order."""
+    return [
+        predict_kernel(p, choices, saved, logger, model)
+        for p in prepared
+        for model in MODELS
+    ]
 
 
 def report_comparison(
     results: list[KernelResult], reference: str, logger: Logger
 ) -> None:
-    compare = len(results) > 1
-    t_reference = next(r.prediction.t_gpu for r in results if r.spec.name == reference)
+    compare = len(unique_kernels(results)) > 1
+    t_reference = reference_times(results, reference)
 
     if len({r.pico_error for r in results}) > 1:
         logger.warning(
@@ -754,7 +791,7 @@ def report_comparison(
             "coalescing assumptions"
         )
 
-    columns = ["Kernel", "Launch", "T_comp", "T_mem", "T_overlap", "T_GPU"]
+    columns = ["Kernel", "Model", "Launch", "T_comp", "T_mem", "T_overlap", "T_GPU"]
     if compare:
         columns.append("Speedup")
     columns += ["Pico", "Overrides"]
@@ -764,6 +801,7 @@ def report_comparison(
         p = r.prediction
         row = [
             r.spec.name,
+            r.model,
             f"<<<{format_dims(r.spec.grid_dim)}, {format_dims(r.spec.block_dim)}>>>",
             f"{p.t_comp:.0f}",
             f"{p.t_mem:.0f}",
@@ -771,12 +809,14 @@ def report_comparison(
             f"{p.t_gpu:.0f}",
         ]
         if compare:
-            row.append(f"{speedup(t_reference, p.t_gpu):.2f}")
+            row.append(f"{speedup(t_reference[r.model], p.t_gpu):.2f}")
         row += ["fallback" if r.pico_error else "ok", r.overrides]
         rows.append(row)
 
     title = (
-        f"Predicted comparison (reference: {reference})" if compare else "Prediction"
+        f"Predicted comparison (reference: {reference}, within each model)"
+        if compare
+        else "Prediction"
     )
     logger.table(f"{title}, cycles", columns, rows, force=True, trace="predict")
 
@@ -788,11 +828,12 @@ def report_measured(
     repeats: int,
     logger: Logger,
 ) -> None:
-    compare = len(results) > 1
-    t_reference = next(r.prediction.t_gpu for r in results if r.spec.name == reference)
+    compare = len(unique_kernels(results)) > 1
+    t_reference = reference_times(results, reference)
 
     columns = [
         "Kernel",
+        "Model",
         "Pred T_GPU",
         "Meas cycles (median)",
         "Spread (min-max)",
@@ -807,6 +848,7 @@ def report_measured(
         t_gpu = r.prediction.t_gpu
         row = [
             r.spec.name,
+            r.model,
             f"{t_gpu:.0f}",
             f"{m.cycles:.0f}",
             f"{m.cycles_min:.0f}-{m.cycles_max:.0f}",
@@ -815,7 +857,7 @@ def report_measured(
         if compare and r.spec.name == reference:
             row += ["1.00", "1.00 (reference)", ""]
         elif compare:
-            predicted = speedup(t_reference, t_gpu)
+            predicted = speedup(t_reference[r.model], t_gpu)
             s = measured_speedup(measured[reference], m)
             row += [
                 f"{predicted:.2f}",
@@ -826,7 +868,7 @@ def report_measured(
 
     runs = f"{repeats} run{'s' if repeats != 1 else ''} per kernel"
     title = (
-        f"Predicted vs measured (reference: {reference}, {runs})"
+        f"Predicted vs measured (reference: {reference} within each model, {runs})"
         if compare
         else f"Predicted vs measured ({runs})"
     )
@@ -890,7 +932,7 @@ def profile_kernels(
                 logger=logger,
             )
         )
-        for r in results
+        for r in unique_kernels(results)
     }
 
 
@@ -937,7 +979,7 @@ def main() -> None:
         prepare_kernel(spec, arch, hp, warn_shared_program=args.run, logger=logger)
         for spec in specs
     ]
-    results = [predict_kernel(p, choices, saved, logger) for p in prepared]
+    results = predict_all_models(prepared, choices, saved, logger)
     report_comparison(results, reference, logger)
 
     if args.run:
@@ -950,7 +992,8 @@ def main() -> None:
         return
 
     report_measured(results, measured, reference, repeats, logger)
-    predictions = {r.spec.name: r.prediction for r in results}
+    # the cache numbers come before the model, so any one model's will do
+    predictions = {r.spec.name: r.prediction for r in unique_kernels(results)}
     for warning in carveout_mismatches(predictions, measured):
         logger.warning(warning)
 
@@ -968,7 +1011,7 @@ def main() -> None:
                             grid_size=r.spec.grid_size,
                             profile=measured[r.spec.name],
                         )
-                        for r in results
+                        for r in unique_kernels(results)
                     },
                 ),
             )

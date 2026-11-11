@@ -11,20 +11,13 @@ from gasp.cache import (
 )
 from gasp.common.constants import SECTORS_PER_LINE
 from gasp.dependency import DependencyOutput
-from gasp.gpuperf import GPUPerf
-from gasp.gpuperf.types import (
-    HardwareParameters,
-    KernelParameters,
-    LaunchParameters,
-    OccupancyParams,
-)
 from gasp.logger import Logger
+from gasp.models import DEFAULT_MODEL, MODELS
+from gasp.models.gpuperf.types import HardwareParameters, LaunchParameters
+from gasp.models.inputs import ModelInputs
 from gasp.occupancy import OccupancyOutput
 from gasp.overrides import ModelOverrides
 from gasp.pico import PicoOutput
-
-# bytes per thread per memory instruction, for MWP_peak_bw
-WORD_BYTES = 4
 
 
 @dataclass
@@ -40,26 +33,8 @@ class PredictionInput:
     block_reuse: float | None = None
     # values that replace static model inputs (--override), None for none
     overrides: ModelOverrides | None = None
-
-
-@dataclass
-class ModelInputs:
-    """Every input the model takes from static analysis, per warp where it's
-    a count. predict() fills this from the static analyses, applies the
-    overrides to it once, and derives everything else from the result."""
-
-    total_inst_count: float
-    mem_inst_count: float
-    sfu_inst_count: float
-    sync_inst_count: float
-    divergent_inst_count: float
-    ilp: float
-    mlp: float
-    average_inst_latency: float
-    average_trans_warp: float
-    bank_conflict_count: float
-    l1_hit_ratio: float
-    l2_hit_ratio: float
+    # which of MODELS to run
+    model: str = DEFAULT_MODEL
 
 
 def apply_overrides(
@@ -99,6 +74,7 @@ class PredictionOutput:
     launch_overhead: float
     t_gpu: float
     o_cfdiv: float = 0.0
+    model: str = DEFAULT_MODEL
 
 
 def get_average_trans_warp(p: PicoOutput, mem_inst_count: int) -> float:
@@ -121,13 +97,22 @@ def get_average_trans_warp(p: PicoOutput, mem_inst_count: int) -> float:
     return max(1.0, sectors_per_access / SECTORS_PER_LINE)
 
 
+def get_average_inst_latency(d: DependencyOutput) -> float:
+    """Average latency of the non-SFU instructions, which W_parallel and CWP
+    charge. SFU instructions are charged only in O_SFU (Eq. 9). A kernel of SFU
+    instructions only keeps the average over all of them."""
+    non_sfu = d.total_inst_count - d.sfu_inst_count
+    if non_sfu <= 0:
+        return d.total_latency / d.total_inst_count
+    return (d.total_latency - d.sfu_latency) / non_sfu
+
+
 def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
     d = input.dependency
     occ = input.occupancy
     p = input.pico
     h = input.hardware
     l = input.launch
-    n = occ.active_warps_per_sm
 
     # 1. static inputs
 
@@ -207,7 +192,7 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         divergent_inst_count=d.divergent_inst_count,
         ilp=d.ilp,
         mlp=d.mlp,
-        average_inst_latency=d.total_latency / d.total_inst_count,
+        average_inst_latency=get_average_inst_latency(d),
         average_trans_warp=get_average_trans_warp(p, d.mem_inst_count),
         bank_conflict_count=bank_conflict_count,
         l1_hit_ratio=l1_hit_ratio,
@@ -220,62 +205,12 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
 
     # 3. the model, from those inputs
 
-    # Eqs. 4-5
-    itilp_max = m.average_inst_latency / (h.warp_size / h.simd_width)
-    itilp = min(m.ilp * n, itilp_max)
-
-    # CWP = Mem_L / (Comp_cycles / #mem_insts), capped at N
-    # Comp_cycles: one warp's compute time, dependency-limited by ILP
-    comp_cycles = m.total_inst_count * m.average_inst_latency / m.ilp
-    if m.mem_inst_count > 0:
-        cwp = min(h.dram_latency / (comp_cycles / m.mem_inst_count), n)
-    else:
-        cwp = n
-
-    # Eq. 15
-    mwp_cp = min(max(1, cwp - 1), occ.mwp)
-
-    # Eq. 14, MWP_peak_bw as in Hong-Kim: bandwidth / (per-warp bandwidth x active SMs)
-    bw_per_warp = h.warp_size * WORD_BYTES / h.dram_latency
-    mwp_peak_bw = h.dram_bandwidth / (bw_per_warp * occ.active_sms)
-    itmlp = min(m.mlp * mwp_cp, mwp_peak_bw)
-
-    k = KernelParameters(
-        total_inst_count=m.total_inst_count,
-        mem_inst_count=m.mem_inst_count,
-        sfu_inst_count=m.sfu_inst_count,
-        sync_inst_count=m.sync_inst_count,
-        uncoalesced_count=uncoalesced_count,
-        divergent_inst_count=m.divergent_inst_count,
-        bank_conflict_count=m.bank_conflict_count,
-        ilp=m.ilp,
-        mlp=m.mlp,
-        average_inst_latency=m.average_inst_latency,
-        working_set_per_sm_bytes=working_set_per_sm,
-        working_set_total_bytes=working_set_total,
+    logger.trace("predict", f"model: {input.model}")
+    run = MODELS[input.model].run
+    out = run(
+        m, occ, l, h, working_set_per_sm, working_set_total, uncoalesced_count, logger
     )
-    o = OccupancyParams(
-        active_warps=n,
-        active_sms=occ.active_sms,
-        total_warps=occ.total_warps,
-        warps_per_block=occ.warps_per_block,
-        blocks_per_sm=occ.blocks_per_sm,
-        num_reps=occ.num_reps,
-        itilp=itilp,
-        itmlp=itmlp,
-        cwp=cwp,
-        mwp=occ.mwp,
-        mwp_cp=mwp_cp,
-        average_trans_warp=m.average_trans_warp,
-        l1_hit_ratio=m.l1_hit_ratio,
-        l2_hit_ratio=m.l2_hit_ratio,
-    )
-
-    logger.trace("predict", f"kernel parameters: {k}")
-    logger.trace("predict", f"occupancy parameters: {o}")
-
-    model = GPUPerf(k, o, l, h, logger)
-    t_exec = model.predict_total_exec_time_cycles()
+    t_exec = out.t_exec
     # launch overhead fit by launch_overhead_bench.cu: base + per thread launched
     threads = l.block_size * l.grid_size
     launch_overhead = h.launch_overhead_base + h.launch_overhead_per_thread * threads
@@ -283,11 +218,11 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
 
     logger.info("Prediction completed")
     return PredictionOutput(
-        itilp=itilp,
-        cwp=cwp,
-        mwp_cp=mwp_cp,
-        mwp_peak_bw=mwp_peak_bw,
-        itmlp=itmlp,
+        itilp=out.itilp,
+        cwp=out.cwp,
+        mwp_cp=out.mwp_cp,
+        mwp_peak_bw=out.mwp_peak_bw,
+        itmlp=out.itmlp,
         average_trans_warp=m.average_trans_warp,
         working_set_per_sm_bytes=working_set_per_sm,
         working_set_total_bytes=working_set_total,
@@ -296,12 +231,13 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         reuse_fraction=reuse_fraction,
         l1_hit_ratio=m.l1_hit_ratio,
         l2_hit_ratio=m.l2_hit_ratio,
-        amat=model.amat,
-        t_comp=model.t_comp,
-        t_mem=model.t_mem,
-        t_overlap=model.t_overlap,
+        amat=out.amat,
+        t_comp=out.t_comp,
+        t_mem=out.t_mem,
+        t_overlap=out.t_overlap,
         t_exec=t_exec,
         launch_overhead=launch_overhead,
         t_gpu=t_gpu,
-        o_cfdiv=model.o_cfdiv,
+        o_cfdiv=out.o_cfdiv,
+        model=input.model,
     )

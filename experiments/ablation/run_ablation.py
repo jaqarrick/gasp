@@ -1,5 +1,6 @@
 """The ablation: predict every kernel of a config once per row of ROWS, each row
-a different set of overrides, and compare each with the saved measurements.
+a different set of overrides, under every model (GPUPerf and GASPerf), and
+compare each with the saved measurements.
 
     make ablation ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml \\
         --metrics vecadd.metrics.json --out vecadd.ablation.csv"
@@ -15,8 +16,9 @@ from gasp.cli import (
     KernelResult,
     load_hardware,
     load_saved_metrics,
-    predict_kernel,
+    predict_all_models,
     prepare_kernel,
+    reference_times,
 )
 from gasp.cli.config import ConfigError, load_config
 from gasp.compare import measured_speedup, speedup
@@ -37,6 +39,7 @@ ROWS: dict[str, list[str]] = {
 COLUMNS = [
     "row",
     "kernel",
+    "model",
     "overrides",
     "pico",
     "predicted_cycles",
@@ -71,17 +74,19 @@ def build_parser() -> argparse.ArgumentParser:
 def row_records(
     row: str, results: list[KernelResult], measured: dict, reference: str
 ) -> list[dict]:
-    t_reference = next(r.prediction.t_gpu for r in results if r.spec.name == reference)
+    # speedups are within one model
+    t_reference = reference_times(results, reference)
     records = []
     for r in results:
         name = r.spec.name
         t_gpu = r.prediction.t_gpu
-        predicted = speedup(t_reference, t_gpu)
+        predicted = speedup(t_reference[r.model], t_gpu)
         actual = measured_speedup(measured[reference], measured[name]).median
         records.append(
             {
                 "row": row,
                 "kernel": name,
+                "model": r.model,
                 "overrides": r.overrides,
                 "pico": "fallback" if r.pico_error else "ok",
                 "predicted_cycles": t_gpu,
@@ -124,7 +129,7 @@ def main() -> None:
     saved = load_saved_metrics(args.metrics, gpu, arch, specs, logger)
     measured = {name: saved.kernels[name].profile for name in names}
 
-    # the static analysis runs once per kernel, the model once per row
+    # the static analysis runs once per kernel, each model once per row
     prepared = [
         prepare_kernel(spec, arch, hp, warn_shared_program=False, logger=logger)
         for spec in specs
@@ -132,7 +137,7 @@ def main() -> None:
     records = []
     for row, values in ROWS.items():
         choices = parse_overrides(values)
-        results = [predict_kernel(p, choices, saved, logger) for p in prepared]
+        results = predict_all_models(prepared, choices, saved, logger)
         records += row_records(row, results, measured, reference)
 
     logger.table(

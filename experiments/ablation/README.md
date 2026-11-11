@@ -1,6 +1,6 @@
 # Ablation
 
-Measures which static inputs matter: the model is run once per row below, each row replacing some static inputs with profiled (ncu) or crude values, and every row is compared with the same measurements.
+Measures which static inputs matter: each model (GPUPerf and GASPerf) is run once per row below, each row replacing some static inputs with profiled (ncu) or crude values, and every row is compared with the same measurements.
 
 | Row | Overrides | What it shows |
 |---|---|---|
@@ -28,6 +28,6 @@ Measures which static inputs matter: the model is run once per row below, each r
    make ablation ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --metrics vecadd.metrics.json --out vecadd.ablation.csv"
    ```
 
-It prints one line per (row, kernel) and writes the same to the CSV: predicted and measured cycles, their error, predicted and measured speedup against the reference kernel, and whether Pico fell back. When Pico fell back on a kernel, its static coalescing and bank values already are the crude ones.
+It prints one line per (row, kernel, model) and writes the same to the CSV: predicted and measured cycles, their error, predicted and measured speedup against the reference kernel under the same model, and whether Pico fell back. When Pico fell back on a kernel, its static coalescing and bank values already are the crude ones.
 
 The GPU, the config's kernel names and each kernel's block and grid size have to match the metrics file, or the script stops. A single row can be tried through the CLI with `--metrics FILE --override GROUP=SOURCE` (see the main README).
