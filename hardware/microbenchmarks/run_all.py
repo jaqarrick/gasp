@@ -113,6 +113,21 @@ BENCHMARKS = [
         "shared_memory_load_throughput.cu",
         ["shared_mem_load_throughput_cycles"],
     ),
+    Benchmark(
+        "l1_throughput",
+        "l1_throughput.cu",
+        ["l1_throughput_sectors_per_cycle_per_sm"],
+        # no profile field until the run JSON shows whether L1's limit is per
+        # sector or per request; the JSON has both rates
+        in_profile=False,
+    ),
+    Benchmark(
+        "l2_bandwidth",
+        "l2_bandwidth.cu",
+        ["l2_bandwidth_bytes_per_cycle"],
+        # no profile field until a model has an L2 bandwidth limit
+        in_profile=False,
+    ),
     Benchmark("departure_delay", "departure_delay.cu", ["departure_delay_cycles"]),
     Benchmark(
         "sync_cost",
@@ -227,6 +242,15 @@ def dependency_order(names: list[str]) -> list[str]:
 # ---- Running one benchmark ------------------------------------------------------
 
 
+def l1_bytes_per_sm(gpu: str) -> int:
+    """L1 left for a kernel with no shared memory: the unified array minus the
+    smallest carveout, from the GPU's profile spec (64 KB on the RTX 2080 Ti)."""
+    spec = json.loads(default_base_profile(gpu).read_text())["spec"]
+    array = spec["l1_shared_array_bytes"]
+    carveouts = spec.get("shared_mem_carveouts_bytes") or [0]
+    return array - min(carveouts)
+
+
 def compile_benchmark(
     bench: Benchmark, build_dir: Path, arch: str, log_path: Path
 ) -> Path:
@@ -293,6 +317,8 @@ def run_benchmark(bench: Benchmark, root: Path, gpu: str, arch: str) -> None:
         shutil.copy(
             load_json, bench_dir / f"shared_mem_load_latency_cycles.{gpu}.run.json"
         )
+    if bench.name == "l1_throughput":
+        args += ["--l1-bytes", str(l1_bytes_per_sm(gpu))]
     if bench.name == "sync_cost":
         latency, _ = dependency_value(root, "dram_latency")
         bandwidth, _ = dependency_value(root, "dram_bandwidth")
