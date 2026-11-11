@@ -76,6 +76,7 @@ VALID_PROFILE = {
         "clock_rate_ghz": 1.41,
         "shared_mem_load_latency_cycles": 23,
         "shared_mem_store_latency_cycles": 19,
+        "shared_mem_load_throughput_cycles": 1.0,
         "const_mem_latency_cycles": 4,
     },
 }

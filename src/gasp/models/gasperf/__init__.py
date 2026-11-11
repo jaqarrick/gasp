@@ -1,5 +1,6 @@
 # GASPerf: our performance model. It starts as a copy of GPUPerf (gasp.models.gpuperf)
 # and is ours to change; GPUPerf stays as published. Edit freely.
+# Changes from GPUPerf: a shared-memory pipe limit in T_comp (O_shmem).
 from gasp.logger import Logger
 from gasp.models.gpuperf.types import HardwareParameters, LaunchParameters
 from gasp.models.inputs import WORD_BYTES, ModelInputs
@@ -70,13 +71,22 @@ class GASPerf:
 
         o_cfdiv = ((divergent * o.total_warps) / o.active_sms) * effective_throughput
         self.o_cfdiv = o_cfdiv
+
+        # Calibration experiment 1
+        # Shared-memory pipe limit
+        shared_insts = k.shared_load_inst_count + k.shared_store_inst_count
+        self.shared_pipe_time = (
+            (shared_insts * o.total_warps) / o.active_sms
+        ) * h.shared_mem_throughput
+        o_shmem = max(0.0, self.shared_pipe_time - (w_parallel + o_cfdiv))
+        self.o_shmem = o_shmem
         # Pico's count is per warp (extra shared accesses, N - 1 for an N-way
         # conflict), so it scales by warps per SM like the other W_serial terms.
         o_bank = (
             (k.bank_conflict_count * o.total_warps) / o.active_sms
         ) * h.bank_penalty
 
-        w_serial = o_sync + o_sfu + o_cfdiv + o_bank
+        w_serial = o_sync + o_sfu + o_cfdiv + o_bank + o_shmem
 
         return w_parallel + w_serial
 
@@ -152,6 +162,8 @@ def run(
         uncoalesced_count=uncoalesced_count,
         divergent_inst_count=m.divergent_inst_count,
         bank_conflict_count=m.bank_conflict_count,
+        shared_load_inst_count=m.shared_load_inst_count,
+        shared_store_inst_count=m.shared_store_inst_count,
         ilp=m.ilp,
         mlp=m.mlp,
         average_inst_latency=m.average_inst_latency,
@@ -191,4 +203,6 @@ def run(
         t_mem=model.t_mem,
         t_overlap=model.t_overlap,
         t_exec=t_exec,
+        shared_pipe_time=model.shared_pipe_time,
+        o_shmem=model.o_shmem,
     )

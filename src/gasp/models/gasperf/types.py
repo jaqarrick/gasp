@@ -16,6 +16,8 @@ class KernelParameters:
     uncoalesced_count: int
     divergent_inst_count: float
     bank_conflict_count: float
+    shared_load_inst_count: float
+    shared_store_inst_count: float
     ilp: float
     mlp: float
     average_inst_latency: float
@@ -63,3 +65,6 @@ class ModelOutput:
     t_mem: float
     t_overlap: float
     t_exec: float
+    # shared loads + stores per SM x cycles each, and what it adds to T_comp
+    shared_pipe_time: float = 0.0
+    o_shmem: float = 0.0

@@ -14,6 +14,19 @@ Every profile, built-in or passed with `--profile`, needs:
 
 The required fields are the ones in `HardwareProfile` (`src/gasp/cli/utils.py`). GASP stops with an error that lists any missing, unknown, or non-numeric fields.
 
+## Shared-memory load throughput
+
+`profiled.shared_mem_load_throughput_cycles` is SM cycles per warp shared load with the shared-memory pipe saturated. No model uses it yet. `rtx2080ti.json` has the measured 2.0001 from `hardware/microbenchmarks/shared_memory_load_throughput.cu`. The placeholders hold values from published bandwidth (bytes per clock per SM; a conflict-free 32-bit warp load is 128 bytes):
+
+| Profile | Value | Basis |
+|---|---|---|
+| rtx2080ti.placeholder (sm_75) | 2.0 | 64 B/clk, Turing; matches the measured value |
+| v100 (sm_70) | 1.0 | 128 B/clk, Volta whitepaper |
+| a100 (sm_80) | 1.0 | 128 B/clk, Ampere whitepaper |
+| l4 (sm_89) | 1.0 | same SM design as Ampere (derived) |
+| h100 (sm_90) | 1.0 | not published; Ampere value assumed |
+| b200 (sm_100) | 1.0 | 128 B/clk (derived) |
+
 ## Sources
 
 - Source for rtx2080ti L1/shared size and carveout options: https://docs.nvidia.com/cuda/turing-tuning-guide/index.html

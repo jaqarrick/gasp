@@ -446,6 +446,22 @@ def test_counts_and_latency_weighted_by_iterations(logger):
     assert out.sfu_latency == SFU_LAT * 5
 
 
+def test_shared_counts_weighted_by_iterations(logger):
+    nodes = ["entry", "body"]
+    cfg = make_cfg(nodes, [("entry", "body"), ("body", "body")])
+    insts = {
+        "entry": [instr("STS", OpCategory.SHARED_STORE, ["R0", "R1"])],
+        "body": [
+            instr("LDS", OpCategory.SHARED_LOAD, ["R4"], ["R5"]),
+            instr("LDS", OpCategory.SHARED_LOAD, ["R4"], ["R6"]),
+            ffma("R7"),
+        ],
+    }
+    out = analyze(cfg, insts, loop_iterations=5, latency=LATENCY, logger=logger)
+    assert out.shared_load_inst_count == 2 * 5
+    assert out.shared_store_inst_count == 1
+
+
 def test_kernel_ilp_weighted_toward_loop(logger):
     # entry ILP 1 (chain), loop body ILP 4 (independent); loop_iterations=100
     # pulls the kernel ILP toward 4

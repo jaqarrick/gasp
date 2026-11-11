@@ -34,6 +34,9 @@ class DependencyOutput:
     divergent_inst_count: int = 0
     # the SFU instructions' share of total_latency, weighted the same way
     sfu_latency: float = 0.0
+    # shared-memory loads and stores, weighted by execution frequency
+    shared_load_inst_count: int = 0
+    shared_store_inst_count: int = 0
 
 
 @dataclass
@@ -325,6 +328,8 @@ def analyze(
     mem_inst_count = 0
     sfu_inst_count = 0
     sfu_latency = 0.0
+    shared_load_inst_count = 0
+    shared_store_inst_count = 0
     sync_inst_count = 0
     global_bytes_per_thread = 0
     num_address_groups = 0
@@ -385,6 +390,10 @@ def analyze(
             if inst.category is OpCategory.SFU:
                 sfu_inst_count += node_iter_count
                 sfu_latency += latency.get(inst) * node_iter_count
+            if inst.category is OpCategory.SHARED_LOAD:
+                shared_load_inst_count += node_iter_count
+            if inst.category is OpCategory.SHARED_STORE:
+                shared_store_inst_count += node_iter_count
             if inst.category is OpCategory.BARRIER:
                 sync_inst_count += node_iter_count
 
@@ -423,4 +432,6 @@ def analyze(
         global_bytes_accessed_per_thread=global_bytes_accessed_per_thread,
         divergent_inst_count=divergent_inst_count,
         sfu_latency=sfu_latency,
+        shared_load_inst_count=shared_load_inst_count,
+        shared_store_inst_count=shared_store_inst_count,
     )

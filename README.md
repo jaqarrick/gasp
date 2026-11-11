@@ -174,7 +174,9 @@ Every run predicts each kernel with two models and shows one row per kernel per 
 | Model     | Module                     | What it is |
 |-----------|----------------------------|------------|
 | `GPUPerf` | `src/gasp/models/gpuperf/` | GPUPerf as published (Sim et al.). One fix: SFU instructions are left out of `#insts` and of the average instruction latency, as in the paper, so they're charged only in O_SFU (Eq. 9). |
-| `GASPerf` | `src/gasp/models/gasperf/` | Our model. It starts as an exact copy of GPUPerf, and formula changes go here, never into GPUPerf. |
+| `GASPerf` | `src/gasp/models/gasperf/` | Our model. It starts as an exact copy of GPUPerf, and formula changes go here, never into GPUPerf. Changes so far: a shared-memory pipe limit (below). |
+
+**GASPerf's shared-memory pipe limit.** Shared loads and stores per SM take `shared_mem_load_throughput_cycles` each (profile field, measured by `hardware/microbenchmarks/shared_memory_load_throughput.cu`). When that pipe time exceeds the issue time (W_parallel + O_CFdiv), the difference is added to T_comp as O_shmem, so T_comp ≈ max(issue time, pipe time) + the other overheads. Both numbers are in the `--verbose` prediction table; GPUPerf always shows 0.
 
 - Speedups compare kernels under the same model: each kernel's speedup is against the reference kernel's T_GPU under that model.
 - Static analysis, the cache model and overrides run before the model, so both models get the same inputs. With `--run`, each kernel is profiled once.

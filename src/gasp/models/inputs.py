@@ -24,3 +24,6 @@ class ModelInputs:
     bank_conflict_count: float
     l1_hit_ratio: float
     l2_hit_ratio: float
+    # GASPerf's shared-memory pipe limit; GPUPerf ignores them
+    shared_load_inst_count: float = 0.0
+    shared_store_inst_count: float = 0.0

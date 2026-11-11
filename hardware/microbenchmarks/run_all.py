@@ -108,6 +108,11 @@ BENCHMARKS = [
         ["shared_mem_store_throughput_cycles"],
         in_profile=False,
     ),
+    Benchmark(
+        "shared_memory_load_throughput",
+        "shared_memory_load_throughput.cu",
+        ["shared_mem_load_throughput_cycles"],
+    ),
     Benchmark("departure_delay", "departure_delay.cu", ["departure_delay_cycles"]),
     Benchmark(
         "sync_cost",
