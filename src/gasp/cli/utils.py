@@ -64,6 +64,8 @@ class HardwareProfile:
     # bandwidth in 32-byte sectors per cycle per SM (wide requests)
     l1_cycles_per_request: float
     l1_sectors_per_cycle_per_sm: float
+    # whole-GPU L2 bandwidth with every load hitting L2; no model uses it yet
+    l2_bandwidth_bytes_per_cycle: float
     const_mem_latency_cycles: int
 
 
