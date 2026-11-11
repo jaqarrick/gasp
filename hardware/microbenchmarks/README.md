@@ -62,4 +62,5 @@ The configurations used are:
 Build and run:
 * `nvcc -O3 -std=c++17 -arch=sm_75 l1_throughput.cu -o l1_throughput`
 * `ncu --clock-control base --cache-control none ./l1_throughput --gpu rtx2080ti --out-dir hardware/runs/rtx2080ti/l1`
-* or `python hardware/microbenchmarks/run_all.py --gpu rtx2080ti --version 1.1 --only l1_throughput`
+* or `make microbenchmarks GPU=rtx2080ti VERSION=1.1 ARGS='--only l1_throughput'`
+* `dram_bandwidth.cu` takes `--load-policy cs|default`; through make, `ARGS='--only dram_bandwidth --dram-load-policy default'`

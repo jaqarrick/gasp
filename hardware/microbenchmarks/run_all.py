@@ -274,7 +274,9 @@ def dependency_value(root: Path, dep: str) -> tuple[float, Path]:
     return read_value(path), path
 
 
-def run_benchmark(bench: Benchmark, root: Path, gpu: str, arch: str) -> None:
+def run_benchmark(
+    bench: Benchmark, root: Path, gpu: str, arch: str, dram_load_policy: str = "cs"
+) -> None:
     bench_dir = root / bench.dir_name
     bench_dir.mkdir(parents=True, exist_ok=True)
     log_path = bench_dir / "run.log"
@@ -311,6 +313,8 @@ def run_benchmark(bench: Benchmark, root: Path, gpu: str, arch: str) -> None:
         shutil.copy(
             load_json, bench_dir / f"shared_mem_load_latency_cycles.{gpu}.run.json"
         )
+    if bench.name == "dram_bandwidth":
+        args += ["--load-policy", dram_load_policy]
     if bench.name == "l1_throughput":
         args += ["--l1-bytes", str(l1_bytes_per_sm(gpu))]
     if bench.name == "sync_cost":
@@ -405,6 +409,13 @@ def main() -> int:
     parser.add_argument(
         "--force", action="store_true", help="reuse an existing version directory"
     )
+    parser.add_argument(
+        "--dram-load-policy",
+        choices=["cs", "default"],
+        default="cs",
+        help="dram_bandwidth.cu's loads: cs (ld.global.cs, as in every earlier run) "
+        "or default (plain ld.global)",
+    )
     args = parser.parse_args()
 
     for tool in ("nvcc", "ncu", "nvidia-smi"):
@@ -449,7 +460,7 @@ def main() -> int:
             continue
         log(f"\n== {name}")
         try:
-            run_benchmark(bench, root, args.gpu, arch)
+            run_benchmark(bench, root, args.gpu, arch, args.dram_load_policy)
         except BenchmarkError as exc:
             failed[name] = str(exc)
             log(f"  FAILED: {exc}")
