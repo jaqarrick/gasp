@@ -55,6 +55,7 @@ def test_average_trans_warp_no_memory_accesses():
 
 LAUNCH_BASE = 1000
 LAUNCH_PER_THREAD = 0.01
+SHARED_THROUGHPUT = 2.0
 
 
 def prediction_input(mem_inst_count: int = 2, grid_size: int = 40) -> PredictionInput:
@@ -94,6 +95,7 @@ def prediction_input(mem_inst_count: int = 2, grid_size: int = 40) -> Prediction
             launch_overhead_base=LAUNCH_BASE,
             launch_overhead_per_thread=LAUNCH_PER_THREAD,
             dram_bandwidth=450,
+            shared_mem_throughput=SHARED_THROUGHPUT,
         ),
         launch=LaunchParameters(
             block_size=256,
@@ -581,10 +583,71 @@ def test_prediction_names_its_model():
     ],
 )
 def test_gasperf_matches_gpuperf(build):
-    """Holds while GASPerf is an unchanged copy; expected to fail once it changes."""
+    """Holds for kernels without shared-memory accesses, the only change so far."""
     gpuperf = build()
     gasperf = build()
     gasperf.model = "GASPerf"
 
     expected = predict(gpuperf, logger=MagicMock())
     assert predict(gasperf, logger=MagicMock()) == replace(expected, model="GASPerf")
+
+
+# ---------------------------------------------------------------------------
+# GASPerf: shared-memory pipe limit (O_shmem)
+# ---------------------------------------------------------------------------
+
+
+def shared_input(loads: int, stores: int = 0, model: str = "GASPerf"):
+    # prediction_input: 10 instructions per warp, each costing 1 cycle of
+    # W_parallel (latency 4 / ITILP 4), 320 warps on 10 SMs: issue time 320
+    base = prediction_input()
+    base.dependency = replace(
+        base.dependency,
+        shared_load_inst_count=loads,
+        shared_store_inst_count=stores,
+    )
+    base.model = model
+    return base
+
+
+def test_shared_pipe_under_issue_time_adds_nothing():
+    # 4 shared per warp x 32 warps/SM x 2 cycles = 256, under issue time 320
+    p = predict(shared_input(loads=4), logger=MagicMock())
+    gpuperf = predict(shared_input(loads=4, model="GPUPerf"), logger=MagicMock())
+
+    assert p.shared_pipe_time == pytest.approx(4 * 320 / 10 * SHARED_THROUGHPUT)
+    assert p.o_shmem == 0
+    assert p.t_comp == pytest.approx(gpuperf.t_comp)
+
+
+def test_shared_pipe_over_issue_time_sets_t_comp():
+    # 8 loads + 1 store per warp x 32 x 2 = 576 cycles, issue time 320
+    p = predict(shared_input(loads=8, stores=1), logger=MagicMock())
+    gpuperf = predict(
+        shared_input(loads=8, stores=1, model="GPUPerf"), logger=MagicMock()
+    )
+
+    issue = 10 * 320 / 10
+    assert p.shared_pipe_time == pytest.approx(9 * 320 / 10 * SHARED_THROUGHPUT)
+    assert p.o_shmem == pytest.approx(p.shared_pipe_time - issue)
+    # no other serial overheads here, so T_comp is the pipe time
+    assert p.t_comp == pytest.approx(p.shared_pipe_time)
+    assert gpuperf.t_comp == pytest.approx(issue)
+
+
+def test_shared_pipe_counts_o_cfdiv_as_issue_time():
+    # divergent instructions still take issue slots: moving 4 of the 10 into
+    # O_CFdiv leaves the comparison, and so O_shmem, unchanged
+    clean = predict(shared_input(loads=8, stores=1), logger=MagicMock())
+    divergent = shared_input(loads=8, stores=1)
+    divergent.dependency = replace(divergent.dependency, divergent_inst_count=4)
+    split = predict(divergent, logger=MagicMock())
+
+    assert split.o_cfdiv > 0
+    assert split.o_shmem == pytest.approx(clean.o_shmem)
+
+
+def test_gpuperf_ignores_shared_counts():
+    p = predict(shared_input(loads=8, stores=1, model="GPUPerf"), logger=MagicMock())
+
+    assert (p.shared_pipe_time, p.o_shmem) == (0, 0)

@@ -74,6 +74,8 @@ class PredictionOutput:
     launch_overhead: float
     t_gpu: float
     o_cfdiv: float = 0.0
+    shared_pipe_time: float = 0.0
+    o_shmem: float = 0.0
     model: str = DEFAULT_MODEL
 
 
@@ -197,6 +199,8 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         bank_conflict_count=bank_conflict_count,
         l1_hit_ratio=l1_hit_ratio,
         l2_hit_ratio=l2_hit_ratio,
+        shared_load_inst_count=d.shared_load_inst_count,
+        shared_store_inst_count=d.shared_store_inst_count,
     )
 
     # 2. overrides: the only place a static input is replaced
@@ -239,5 +243,7 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         launch_overhead=launch_overhead,
         t_gpu=t_gpu,
         o_cfdiv=out.o_cfdiv,
+        shared_pipe_time=out.shared_pipe_time,
+        o_shmem=out.o_shmem,
         model=input.model,
     )

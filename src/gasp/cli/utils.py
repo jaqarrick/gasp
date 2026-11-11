@@ -58,6 +58,8 @@ class HardwareProfile:
     clock_rate_ghz: float
     shared_mem_load_latency_cycles: int
     shared_mem_store_latency_cycles: int
+    # SM cycles per warp shared load with the shared-memory pipe saturated
+    shared_mem_load_throughput_cycles: float
     const_mem_latency_cycles: int
 
 

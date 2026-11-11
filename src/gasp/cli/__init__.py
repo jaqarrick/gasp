@@ -678,6 +678,7 @@ def prepare_kernel(
             launch_overhead_base=hp.launch_overhead_base_cycles,
             launch_overhead_per_thread=hp.launch_overhead_per_thread_cycles,
             dram_bandwidth=hp.dram_bandwidth_bytes_per_cycle,
+            shared_mem_throughput=hp.shared_mem_load_throughput_cycles,
         ),
         launch=LaunchParameters(
             block_size=spec.block_size,
@@ -745,6 +746,8 @@ def predict_kernel(
             ["L2 hit ratio", f"{prediction.l2_hit_ratio:.3f}"],
             ["AMAT (cycles)", f"{prediction.amat:.1f}"],
             ["O_CFdiv (cycles)", f"{prediction.o_cfdiv:.0f}"],
+            ["Shared pipe time (cycles)", f"{prediction.shared_pipe_time:.0f}"],
+            ["O_shmem (cycles)", f"{prediction.o_shmem:.0f}"],
             ["T_comp (cycles)", f"{prediction.t_comp:.0f}"],
             ["T_mem (cycles)", f"{prediction.t_mem:.0f}"],
             ["T_overlap (cycles)", f"{prediction.t_overlap:.0f}"],

@@ -90,6 +90,7 @@ def test_every_profile_parameter_maps_to_a_profile_key():
         "shared_mem_load_latency_cycles",
         "bank_penalty_cycles",
         "shared_mem_store_latency_cycles",
+        "shared_mem_load_throughput_cycles",
         "departure_delay_cycles",
         "sync_factor",
         "launch_overhead_base_cycles",

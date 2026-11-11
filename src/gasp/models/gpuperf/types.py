@@ -68,6 +68,8 @@ class HardwareParameters:
     launch_overhead_base: float  # cycles per launch
     launch_overhead_per_thread: float  # cycles per launched thread
     dram_bandwidth: float  # bytes per cycle, whole GPU
+    # SM cycles per warp shared access with the pipe saturated (GASPerf only)
+    shared_mem_throughput: float
 
 
 @dataclass
@@ -94,3 +96,6 @@ class ModelOutput:
     t_mem: float
     t_overlap: float
     t_exec: float
+    # GASPerf's shared-memory pipe limit; always 0 for GPUPerf
+    shared_pipe_time: float = 0.0
+    o_shmem: float = 0.0
