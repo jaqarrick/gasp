@@ -22,6 +22,7 @@ from gasp.cli import (
     unique_kernels,
 )
 from gasp.cli.config import ConfigError, KernelSpec
+from gasp.cli.json_output import build_json
 from gasp.cli.types import Args
 from gasp.cli.utils import (
     GPU_PROFILES,
@@ -942,3 +943,80 @@ def test_build_specs_passes_reuse():
 def test_reuse_out_of_range_is_rejected():
     with pytest.raises(ConfigError, match="reuse"):
         build_specs(checked_args(VECADD, "--reuse", "1.5"))
+
+
+# --json
+
+
+def test_json_defaults_to_off():
+    assert parse().json is False
+    assert parse("--json").json is True
+
+
+def test_json_is_accepted_with_config():
+    assert checked_args("--config", "x.toml", "--json").json is True
+
+
+def json_doc(results, measured_profiles=None, repeats=None, reference="good"):
+    return build_json(
+        "rtx2080ti", "sm_75", reference, "none", results, measured_profiles, repeats
+    )
+
+
+def test_json_prediction_per_kernel_and_model():
+    doc = json_doc(BOTH_MODELS)
+
+    assert doc["gpu"] == "rtx2080ti"
+    assert doc["reference"] == "good"
+    assert doc["result"] is None
+    kernels = doc["prediction"]["kernels"]
+    assert list(kernels) == ["good", "poor"]
+    poor = kernels["poor"]
+    assert poor["grid_dim"] == [4]
+    assert poor["block_dim"] == [256]
+    assert poor["pico"] == "ok"
+    assert list(poor["models"]) == ["GPUPerf", "GASPerf"]
+    assert poor["models"]["GPUPerf"]["t_gpu"] == 200.0
+    assert poor["models"]["GPUPerf"]["speedup"] == 0.5
+    assert poor["models"]["GASPerf"]["speedup"] == 0.25
+    assert kernels["good"]["models"]["GASPerf"]["speedup"] == 1.0
+    # the kernel's fields are on the kernel, not repeated per model
+    assert "static_inputs" not in poor["models"]["GPUPerf"]
+    assert "occupancy" in poor
+
+
+def test_json_is_serializable():
+    measured_profiles = {"good": measured(100.0), "poor": measured(400.0)}
+
+    json.dumps(json_doc(BOTH_MODELS, measured_profiles, 1))
+
+
+def test_json_result_compares_predicted_and_measured():
+    measured_profiles = {
+        "good": measured(90.0, 100.0, 110.0),
+        "poor": measured(380.0, 400.0, 420.0),
+    }
+    doc = json_doc(BOTH_MODELS, measured_profiles, 3)
+
+    result = doc["result"]
+    assert result["repeats"] == 3
+    good = result["kernels"]["good"]
+    assert good["measured"]["cycles"] == 100.0
+    assert [run["cycles"] for run in good["measured"]["runs"]] == [90.0, 100.0, 110.0]
+    assert good["models"]["GPUPerf"]["t_gpu"] == {
+        "predicted": 100.0,
+        "measured": 100.0,
+        "error_pct": 0.0,
+    }
+    assert good["models"]["GPUPerf"]["speedup"]["measured"] == 1.0
+
+    poor = result["kernels"]["poor"]["models"]["GPUPerf"]
+    assert poor["t_gpu"]["error_pct"] == pytest.approx(-50.0)
+    assert poor["speedup"]["predicted"] == 0.5
+    assert poor["speedup"]["measured"] == 0.25
+    assert poor["speedup"]["measured_low"] == pytest.approx(90.0 / 420.0)
+    assert poor["speedup"]["measured_high"] == pytest.approx(110.0 / 380.0)
+    assert poor["speedup"]["error_pct"] == pytest.approx(100.0)
+    # result has the same kernels and models as prediction
+    assert list(result["kernels"]) == list(doc["prediction"]["kernels"])
+    assert list(result["kernels"]["poor"]["models"]) == ["GPUPerf", "GASPerf"]

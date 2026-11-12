@@ -1,3 +1,5 @@
+import json
+import sys
 from datetime import datetime
 from typing import TextIO
 
@@ -38,9 +40,11 @@ class Logger:
         verbose: bool = False,
         traces: set[str] | None = None,
         trace_file: str = DEFAULT_TRACE_FILE,
+        json_mode: bool = False,
     ) -> None:
         self.err = Console(stderr=True, force_terminal=True)
-        self.out = Console(force_terminal=True)
+        # with --json stdout holds only the JSON document, so tables go to stderr
+        self.out = self.err if json_mode else Console(force_terminal=True)
         # currently info only prints in verbose mode, but could change later
         self.verbose = verbose
         self.traces: set[str] = set(traces or ())
@@ -81,6 +85,11 @@ class Logger:
 
         if self.verbose or force:
             self.out.print(t)
+
+    def emit_json(self, data: object) -> None:
+        """The JSON document, plain on stdout so it can be redirected to a file."""
+        sys.stdout.write(json.dumps(data, indent=2) + "\n")
+        sys.stdout.flush()
 
     def trace_enabled(self, module: str) -> bool:
         return "all" in self.traces or module in self.traces

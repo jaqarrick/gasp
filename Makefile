@@ -37,7 +37,7 @@ test:
 	$(PY) -m pytest tests/ -v
 
 run:
-	$(PY) -m gasp $(ARGS)
+	@$(PY) -m gasp $(ARGS)
 
 ablation:
 	$(PY) experiments/ablation/run_ablation.py $(ARGS)
@@ -52,7 +52,7 @@ build:
 	docker build --platform $(PLATFORM) -t $(IMAGE) .
 
 docker-run:
-	docker run --rm --platform $(PLATFORM) $(DOCKER_FLAGS) \
+	@docker run --rm --platform $(PLATFORM) $(DOCKER_FLAGS) \
 		-v $(PWD)/benchmarks:/workspace/benchmarks \
 		-v $(PWD)/hardware:/workspace/hardware \
 		$(IMAGE) $(ARGS)
