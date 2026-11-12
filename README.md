@@ -142,6 +142,15 @@ make run ARGS="--gpu rtx2080ti --run benchmarks/vecadd/vecadd_good.cu benchmarks
 - Measured speedup is the ratio of the medians. Its range is the widest the runs allow, so treat a gap inside the range as no measured difference.
 - Every run has to launch the requested grid and block size, or GASP stops. See [the benchmark notes](benchmarks/README.md) for how to write a program for `--run`.
 
+### JSON output
+
+`--json` writes one JSON document to stdout and sends everything else (tables, warnings, info) to stderr. 
+
+```bash
+make run ARGS="--gpu rtx2080ti --run --json --config benchmarks/vecadd/vecadd.toml" > result.json
+```
+
+
 ### Overrides
 
 An override replaces a group of the model's static inputs with what ncu measured, to see how much of the error that input causes. Profile once and save the measurements, then replay them with any override. Replaying needs no GPU:
@@ -217,6 +226,7 @@ These apply to the whole run:
 | `--save-metrics FILE` | With `--run`: save the ncu measurements to `FILE` (JSON) |
 | `--metrics FILE`      | Use the measurements in `FILE` instead of running `ncu`; can't be combined with `--run` |
 | `--override GROUP=SOURCE` | Replace a group of static inputs (repeatable), see [Overrides](#overrides) |
+| `--json`              | Write the prediction (and measured results) as JSON to stdout, everything else to stderr, see [JSON output](#json-output) |
 | `--verbose`           | Verbose output                                           |
 | `--trace`             | Write traces to the trace file; optional comma-separated modules (`config,cuda,cfg,sass,occupancy,pico,dependency,predict,profiler`), default `all` |
 | `--trace-file`        | Trace file path (default `./traces.log`); implies `--trace all` |

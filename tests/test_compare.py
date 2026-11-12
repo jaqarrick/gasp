@@ -6,9 +6,11 @@ import pytest
 
 from gasp.compare import (
     carveout_mismatches,
+    input_comparison_values,
     input_comparisons,
     measured_speedup,
     relative_error,
+    relative_error_pct,
     speedup,
     work_mismatches,
 )
@@ -143,6 +145,11 @@ def test_relative_error():
     assert relative_error(1.0, 0.0) == "n/a"
 
 
+def test_relative_error_pct():
+    assert relative_error_pct(110.0, 100.0) == pytest.approx(10.0)
+    assert relative_error_pct(1.0, 0.0) is None
+
+
 def static_prediction(concurrent: float | None = 0.9) -> PredictionOutput:
     inputs = ModelInputs(
         total_inst_count=10.0,
@@ -224,3 +231,31 @@ def test_input_comparisons_without_static_inputs():
     p = dataclasses.replace(prediction(0), static_inputs=None)
 
     assert input_comparisons(p, NCU) == []
+
+
+def test_input_comparison_values_match_the_rows():
+    p = static_prediction()
+    values = input_comparison_values(p, NCU)
+
+    assert list(values) == [
+        "l1_hit_ratio",
+        "l2_hit_ratio",
+        "l2_hit_ratio_concurrent",
+        "total_inst_count",
+        "mem_inst_count",
+        "sfu_inst_count",
+        "occupancy",
+    ]
+    assert len(values) == len(input_comparisons(p, NCU))
+    assert values["total_inst_count"] == {
+        "predicted": 10.0,
+        "measured": 12.5,
+        "error_pct": pytest.approx(-20.0),
+    }
+    assert values["l1_hit_ratio"]["error_pct"] is None  # measured 0
+
+
+def test_input_comparison_values_without_static_inputs():
+    p = dataclasses.replace(prediction(0), static_inputs=None)
+
+    assert input_comparison_values(p, NCU) == {}

@@ -50,7 +50,7 @@ from gasp.overrides import (
 )
 from gasp.parser import get_parser
 from gasp.pico import PicoInput, PicoOutput, perform_pico_analysis
-from gasp.predict import PredictionInput, PredictionOutput, predict
+from gasp.predict import PredictionInput, predict
 from gasp.profiler import ProfileInput, ProfileOutput, profile_kernel
 
 from .config import (
@@ -61,6 +61,8 @@ from .config import (
     specs_from_inputs,
 )
 from .constants import DEFAULT_REPEATS
+from .json_output import build_json
+from .results import KernelResult, reference_times, unique_kernels
 from .types import Args
 from .utils import (
     GPU_PROFILES,
@@ -84,31 +86,6 @@ class PreparedKernel:
     pico: PicoOutput
     hardware: HardwareParameters
     launch: LaunchParameters
-
-
-@dataclass
-class KernelResult:
-    spec: KernelSpec
-    kernel_name: str  # mangled
-    prediction: PredictionOutput
-    pico_error: bool
-    overrides: str = "none"  # label, see overrides.format_overrides
-    model: str = DEFAULT_MODEL  # one of models.MODELS
-
-
-def reference_times(results: list[KernelResult], reference: str) -> dict[str, float]:
-    """The reference kernel's T_GPU under each model: speedups compare kernels
-    within one model, never across models."""
-    return {r.model: r.prediction.t_gpu for r in results if r.spec.name == reference}
-
-
-def unique_kernels(results: list[KernelResult]) -> list[KernelResult]:
-    """One result per kernel, the first model's, for what doesn't depend on
-    the model (profiling, saved metrics, cache sizes)."""
-    seen: dict[str, KernelResult] = {}
-    for r in results:
-        seen.setdefault(r.spec.name, r)
-    return list(seen.values())
 
 
 def kernel_input(value: str) -> tuple[str, str | None]:
@@ -318,6 +295,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Replace a group of the model's static inputs (repeatable). Groups: "
         f"{', '.join(GROUPS)}, or all. Sources: profiled (from --metrics), or "
         "crude for coalescing and bank (no Pico: coalesced, no conflicts)",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Write the prediction, and with --run or --metrics the measured "
+        "results, as JSON to stdout. Everything else goes to stderr",
     )
 
     return parser
@@ -1019,7 +1002,9 @@ def main() -> None:
     check_args(parser, args)
 
     traces, trace_file = resolve_traces(args.trace, args.trace_file)
-    logger = Logger(args.verbose, traces=traces, trace_file=trace_file)
+    logger = Logger(
+        args.verbose, traces=traces, trace_file=trace_file, json_mode=args.json
+    )
     logger.info("Verbose mode enabled")
     logger.trace("config", f"command: {shlex.join(sys.argv)}")
 
@@ -1058,15 +1043,45 @@ def main() -> None:
     results = predict_all_models(prepared, choices, saved, logger)
     report_comparison(results, reference, logger)
 
+    measured: dict[str, ProfileOutput] | None = None
+    repeats: int | None = None
     if args.run:
         repeats = args.repeats or DEFAULT_REPEATS
         measured = profile_kernels(results, arch, repeats, logger)
     elif saved is not None:
         measured = {name: saved.kernels[name].profile for name in names}
         repeats = len(measured[reference].runs)
-    else:
-        return
 
+    if measured is not None and repeats is not None:
+        report_measurements(
+            results, measured, reference, repeats, gpu, arch, args, logger
+        )
+
+    if args.json:
+        logger.emit_json(
+            build_json(
+                gpu,
+                arch,
+                reference,
+                format_overrides(choices),
+                results,
+                measured,
+                repeats,
+            )
+        )
+
+
+def report_measurements(
+    results: list[KernelResult],
+    measured: dict[str, ProfileOutput],
+    reference: str,
+    repeats: int,
+    gpu: str,
+    arch: str,
+    args: Args,
+    logger: Logger,
+) -> None:
+    """Predicted vs measured tables, carveout warnings, and --save-metrics."""
     report_measured(results, measured, reference, repeats, logger)
     trace_measured(results, measured, logger)
     # the cache numbers come before the model, so any one model's will do

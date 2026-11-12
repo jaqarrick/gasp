@@ -18,10 +18,15 @@ def speedup(t_reference: float, t_kernel: float) -> float:
     return t_reference / t_kernel
 
 
-def relative_error(predicted: float, measured: float) -> str:
+def relative_error_pct(predicted: float, measured: float) -> float | None:
     if measured == 0:
-        return "n/a"
-    return f"{(predicted - measured) / measured * 100:+.1f}%"
+        return None
+    return (predicted - measured) / measured * 100
+
+
+def relative_error(predicted: float, measured: float) -> str:
+    error = relative_error_pct(predicted, measured)
+    return "n/a" if error is None else f"{error:+.1f}%"
 
 
 def measured_speedup(
@@ -95,36 +100,36 @@ _INPUT_QUANTITIES: tuple[tuple[str, str, str], ...] = (
 )
 
 
-def _comparison_row(
-    quantity: str, predicted: float, measured: float, fmt: str
-) -> list[str]:
-    return [
-        quantity,
-        format(predicted, fmt),
-        format(measured, fmt),
-        format(predicted - measured, "+" + fmt),
-        relative_error(predicted, measured),
-    ]
+@dataclass
+class InputComparison:
+    key: str
+    quantity: str
+    predicted: float
+    measured: float
+    fmt: str
 
 
-def input_comparisons(
+def _comparisons(
     prediction: PredictionOutput, metrics: dict[str, float]
-) -> list[list[str]]:
+) -> list[InputComparison]:
     static = prediction.static_inputs
     if static is None:
         return []
     measured = profiled_values(metrics, prediction.total_warps)
-    rows = []
+    found = []
     for quantity, field, fmt in _INPUT_QUANTITIES:
         if field in measured:
-            rows.append(
-                _comparison_row(quantity, getattr(static, field), measured[field], fmt)
+            found.append(
+                InputComparison(
+                    field, quantity, getattr(static, field), measured[field], fmt
+                )
             )
         if field == "l2_hit_ratio" and "l2_hit_ratio" in measured:
             concurrent = static.l2_hit_ratio_concurrent
             if concurrent is not None:
-                rows.append(
-                    _comparison_row(
+                found.append(
+                    InputComparison(
+                        "l2_hit_ratio_concurrent",
                         "L2 hit ratio (concurrent, GASPerf)",
                         concurrent,
                         measured["l2_hit_ratio"],
@@ -132,12 +137,41 @@ def input_comparisons(
                     )
                 )
     if WARPS_ACTIVE_PCT_METRIC in metrics:
-        rows.append(
-            _comparison_row(
+        found.append(
+            InputComparison(
+                "occupancy",
                 "Occupancy (theoretical vs achieved)",
                 prediction.occupancy,
                 metrics[WARPS_ACTIVE_PCT_METRIC] / 100,
                 ".3f",
             )
         )
-    return rows
+    return found
+
+
+def input_comparisons(
+    prediction: PredictionOutput, metrics: dict[str, float]
+) -> list[list[str]]:
+    return [
+        [
+            c.quantity,
+            format(c.predicted, c.fmt),
+            format(c.measured, c.fmt),
+            format(c.predicted - c.measured, "+" + c.fmt),
+            relative_error(c.predicted, c.measured),
+        ]
+        for c in _comparisons(prediction, metrics)
+    ]
+
+
+def input_comparison_values(
+    prediction: PredictionOutput, metrics: dict[str, float]
+) -> dict[str, dict[str, float | None]]:
+    return {
+        c.key: {
+            "predicted": c.predicted,
+            "measured": c.measured,
+            "error_pct": relative_error_pct(c.predicted, c.measured),
+        }
+        for c in _comparisons(prediction, metrics)
+    }
