@@ -24,7 +24,7 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 
 
 template <class T>
-__global__ void lat_fp32(uint32_t *startClk, uint32_t *stopClk, T *data1, T *data2, T *res) {
+__global__ void lat_fp32(uint64_t *startClk, uint64_t *stopClk, T *data1, T *data2, T *res) { // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
 	int gid = blockIdx.x*blockDim.x + threadIdx.x;
 	register T s1 = data1[gid];
 	register T s2 = data2[gid];
@@ -34,8 +34,8 @@ __global__ void lat_fp32(uint32_t *startClk, uint32_t *stopClk, T *data1, T *dat
 	asm volatile ("bar.sync 0;");
 
 	// start timing
-	uint32_t start = 0;
-	asm volatile ("mov.u32 %0, %%clock;" : "=r"(start) :: "memory");
+	uint64_t start = 0; // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
+	asm volatile ("mov.u64 %0, %%clock64;" : "=l"(start) :: "memory"); // EDIT: using clock64() instead of clock() [gasp-gpu]
 
 	for (int j=0 ; j<REPEAT_TIMES ; ++j) {
 		asm volatile ("{\t\n"
@@ -50,8 +50,8 @@ __global__ void lat_fp32(uint32_t *startClk, uint32_t *stopClk, T *data1, T *dat
 	asm volatile("bar.sync 0;");
 
 	// stop timing
-	uint32_t stop = 0;
-	asm volatile("mov.u32 %0, %%clock;" : "=r"(stop) :: "memory");
+	uint64_t stop = 0; // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
+	asm volatile("mov.u64 %0, %%clock64;" : "=l"(stop) :: "memory"); // EDIT: using clock64() instead of clock() [gasp-gpu]
 
 	// write time and data back to memory
 	startClk[gid] = start;
@@ -90,14 +90,14 @@ void print_output(float final_int32_clock_cycles) {
 }
 
 int main(int argc, char **argv){
-	uint32_t *startClk = (uint32_t*) malloc(TOTAL_THREADS*sizeof(uint32_t));
-	uint32_t *stopClk = (uint32_t*) malloc(TOTAL_THREADS*sizeof(uint32_t));
+	uint64_t *startClk = (uint64_t*) malloc(TOTAL_THREADS*sizeof(uint32_t)); // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
+	uint64_t *stopClk = (uint64_t*) malloc(TOTAL_THREADS*sizeof(uint32_t)); // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
 	float *data1 = (float*) malloc(TOTAL_THREADS*sizeof(int32_t));
 	float *data2 = (float*) malloc(TOTAL_THREADS*sizeof(int32_t));
 	float *res = (float*) malloc(TOTAL_THREADS*sizeof(int32_t));
 
-	uint32_t *startClk_g;
-	uint32_t *stopClk_g;
+	uint64_t *startClk_g; // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
+	uint64_t *stopClk_g; // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
 	float *data1_g;
 	float *data2_g;
 	float *res_g;
@@ -107,8 +107,8 @@ int main(int argc, char **argv){
 		data2[i] = (float)i;
 	}
 
-	gpuErrchk( cudaMalloc(&startClk_g, TOTAL_THREADS*sizeof(uint32_t)) );
-	gpuErrchk( cudaMalloc(&stopClk_g, TOTAL_THREADS*sizeof(uint32_t)) );
+	gpuErrchk( cudaMalloc(&startClk_g, TOTAL_THREADS*sizeof(uint64_t)) ); // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
+	gpuErrchk( cudaMalloc(&stopClk_g, TOTAL_THREADS*sizeof(uint64_t)) ); // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
 	gpuErrchk( cudaMalloc(&data1_g, TOTAL_THREADS*sizeof(float)) );
 	gpuErrchk( cudaMalloc(&data2_g, TOTAL_THREADS*sizeof(float)) );
 	gpuErrchk( cudaMalloc(&res_g, TOTAL_THREADS*sizeof(float)) );
@@ -119,8 +119,8 @@ int main(int argc, char **argv){
 	lat_fp32<float><<<BLOCKS_NUM,THREADS_PER_BLOCK>>>(startClk_g, stopClk_g, data1_g, data2_g, res_g);
 	gpuErrchk( cudaPeekAtLastError() );
 
-	gpuErrchk( cudaMemcpy(startClk, startClk_g, TOTAL_THREADS*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
-	gpuErrchk( cudaMemcpy(stopClk, stopClk_g, TOTAL_THREADS*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
+	gpuErrchk( cudaMemcpy(startClk, startClk_g, TOTAL_THREADS*sizeof(uint64_t), cudaMemcpyDeviceToHost) ); // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
+	gpuErrchk( cudaMemcpy(stopClk, stopClk_g, TOTAL_THREADS*sizeof(uint64_t), cudaMemcpyDeviceToHost) ); // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
 	gpuErrchk( cudaMemcpy(res, res_g, TOTAL_THREADS*sizeof(float), cudaMemcpyDeviceToHost) );
 
 	float latency;
