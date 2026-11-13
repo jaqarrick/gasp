@@ -59,9 +59,8 @@ class Benchmark:
     name: str
     source: str
     params: list[str]  # run parameters it writes (first one names its directory)
-    flags: bool = True  # takes --gpu / --out-dir; the fp32/fp64/int32/sfu ones do not
+    flags: bool = True  # takes --gpu / --out-dir; sfu_latency does not
     deps: list[str] = field(default_factory=list)
-    in_profile: bool = True  # shared_mem_store_throughput_cycles has no profile field
     aliases: list[str] = field(default_factory=list)  # other names its run JSON may use
     # profile key -> how to read it from the run JSON, for benchmarks whose
     # profile values aren't their "value" (empty: "value" under the param's key)
@@ -73,8 +72,6 @@ class Benchmark:
 
     @property
     def profile_keys(self) -> list[str]:
-        if not self.in_profile:
-            return []
         if self.derive:
             return list(self.derive)
         return [PROFILE_KEY.get(p, p) for p in self.params]
@@ -98,19 +95,8 @@ def l1_sectors_per_cycle(run: dict) -> float:
 
 BENCHMARKS = [
     Benchmark(
-        "fp32_latency", "fp32_latency.cu", ["fp32_inst_latency_cycles"], flags=False
-    ),
-    Benchmark(
-        "fp64_latency", "fp64_latency.cu", ["fp64_inst_latency_cycles"], flags=False
-    ),
-    Benchmark(
-        "int32_latency", "int32_latency.cu", ["int32_inst_latency_cycles"], flags=False
-    ),
-    Benchmark(
         "sfu_latency", "sfu_latency.cu", ["sfu_inst_latency_cycles"], flags=False
     ),
-    Benchmark("l1_latency", "l1_latency.cu", ["l1_cache_hit_latency_cycles"]),
-    Benchmark("l2_latency", "l2_latency.cu", ["l2_cache_hit_latency_cycles"]),
     Benchmark("dram_latency", "dram_latency.cu", ["dram_latency_cycles"]),
     Benchmark(
         "dram_bandwidth", "dram_bandwidth.cu", ["dram_bandwidth_bytes_per_cycle"]
@@ -129,12 +115,6 @@ BENCHMARKS = [
         "shared_memory_store_cycles.cu",
         ["shared_mem_store_latency_cycles"],
         deps=["shared_memory_load"],
-    ),
-    Benchmark(
-        "shared_memory_store_throughput",
-        "shared_memory_store_throughput.cu",
-        ["shared_mem_store_throughput_cycles"],
-        in_profile=False,
     ),
     Benchmark(
         "shared_memory_load_throughput",
@@ -493,8 +473,6 @@ def main() -> int:
             clock = read_clock(path)
             if clock is not None:
                 clocks[param] = clock
-            if not bench.in_profile:
-                continue
             source = str(path.relative_to(REPO_ROOT))
             if bench.derive:
                 run = json.loads(path.read_text())

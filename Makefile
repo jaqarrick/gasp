@@ -42,10 +42,10 @@ run:
 ablation:
 	$(PY) experiments/ablation/run_ablation.py $(ARGS)
 
-# Every microbenchmark under ncu at base clock, plus a profile; needs a GPU, nvcc and ncu.
+# Every gasp-bm microbenchmark under ncu at base clock, plus a profile; needs a GPU, nvcc and ncu.
 microbenchmarks:
 	@test -n "$(GPU)" -a -n "$(VERSION)" || { echo "usage: make microbenchmarks GPU=<gpu> VERSION=<label> [ARCH=sm_XX] [ARGS='--only ... --force']"; exit 1; }
-	$(PYTHON) hardware/microbenchmarks/run_all.py --gpu $(GPU) --version $(VERSION) $(if $(ARCH),--arch $(ARCH)) $(ARGS)
+	$(PYTHON) hardware/microbenchmarks/gasp-bm/run_all.py --gpu $(GPU) --version $(VERSION) $(if $(ARCH),--arch $(ARCH)) $(ARGS)
 
 microbenchmarks-hpmll:
 	@test -n "$(GPU)" -a -n "$(VERSION)" || { echo "usage: make microbenchmarks-hpmll GPU=<gpu> VERSION=<label> [ARCH=sm_XX] [ARGS='--only ... --reps N --force']"; exit 1; }
@@ -74,7 +74,7 @@ help:
 	@echo "make run ARGS='...'              - run locally"
 	@echo "make ablation ARGS='...'         - run the ablation from a saved metrics file"
 	@echo "make test                        - run tests"
-	@echo "make microbenchmarks GPU=.. VERSION=.. - run all microbenchmarks at base clock, build a profile"
+	@echo "make microbenchmarks GPU=.. VERSION=.. - run the gasp-bm microbenchmarks at base clock, build a profile"
 	@echo "make microbenchmarks-hpmll GPU=.. VERSION=.. - run the HPMLL benchmarks that match profile fields, build a profile"
 	@echo "make lint                        - lint Python code"
 	@echo "make format                      - format Python code"

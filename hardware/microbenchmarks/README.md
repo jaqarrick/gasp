@@ -1,6 +1,30 @@
 # Microbenchmarks
 This are targeted CUDA programs for specific operation measurements
 
+## Citation: HPMLL NVIDIA Hopper Benchmark
+The `hpmll/` submodule is [HPMLL/NVIDIA-Hopper-Benchmark](https://github.com/HPMLL/NVIDIA-Hopper-Benchmark) (GPL-3.0). Its authors ask that the project and these papers be cited:
+
+- Weile Luo, Ruibo Fan, Zeyu Li, Dayou Du, Qiang Wang, and Xiaowen Chu. "[Benchmarking and Dissecting the Nvidia Hopper GPU Architecture.](https://ieeexplore.ieee.org/abstract/document/10579250)" In 2024 IEEE International Parallel and Distributed Processing Symposium (IPDPS), pp. 656-667. IEEE, 2024.
+- Weile Luo, Ruibo Fan, Zeyu Li, Dayou Du, Hongyuan Liu, Qiang Wang, and Xiaowen Chu. "[Dissecting the NVIDIA Hopper Architecture through Microbenchmarking and Multiple Level Analysis.](https://arxiv.org/abs/2501.12084)" arXiv preprint arXiv:2501.12084 (2025).
+
+```bibtex
+@inproceedings{luo2024benchmarking,
+  title={Benchmarking and dissecting the nvidia hopper gpu architecture},
+  author={Luo, Weile and Fan, Ruibo and Li, Zeyu and Du, Dayou and Wang, Qiang and Chu, Xiaowen},
+  booktitle={2024 IEEE International Parallel and Distributed Processing Symposium (IPDPS)},
+  pages={656--667},
+  year={2024},
+  organization={IEEE}
+}
+
+@article{luo2025dissecting,
+  title={Dissecting the NVIDIA Hopper Architecture through Microbenchmarking and Multiple Level Analysis},
+  author={Luo, Weile and Fan, Ruibo and Li, Zeyu and Du, Dayou and Liu, Hongyuan and Wang, Qiang and Chu, Xiaowen},
+  journal={arXiv preprint arXiv:2501.12084},
+  year={2025}
+}
+```
+
 ## Shared memory load microbenchmark
 * Microbenchmark that measures the a sequence of shared-memory loads with a conflict-free warp access pattern
 * Launches one warp, where each lane follows their own dependent chain through shared memory. Each lane accesses a different bank on each load.
