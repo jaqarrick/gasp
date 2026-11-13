@@ -54,8 +54,12 @@ TIMED_METRICS = ["gpc__cycles_elapsed.max", CLOCK_METRIC]
 
 WARP_LOAD_BYTES = 128  # one 32-bit load per lane of a warp
 SECTOR_BYTES = 32
-MEM_BW_BYTES_NEEDED = 6 * 2 * 1024**3  # mem_bw allocates six 2 GiB arrays
-MEM_BW_HEADROOM = 512 * 1024**2
+# mem_bw allocates six float arrays of ARRAY_SIZE (2^29, 2 GiB each: 12 GiB)
+#  On a GPU without the memory, it is built from a copy with a smaller power-of-two ARRAY_SIZE
+MEM_BW_ARRAYS = 6
+MEM_BW_ARRAY_SIZE = 536870912
+MEM_BW_HEADROOM = 512 * 1024**2  # left free for the CUDA context
+MEM_BW_MIN_L2_MULTIPLE = 8  # a smaller array must still be at least 8x the L2
 
 
 @dataclass
@@ -366,13 +370,42 @@ def nvcc_version() -> str:
     return match.group(1) if match else "unknown"
 
 
-def skip_reason(bench: HpmllBench, device: Device) -> str | None:
-    if bench.name == "mem_bw" and device.memory_free_bytes < MEM_BW_BYTES_NEEDED + MEM_BW_HEADROOM:
-        return (
-            f"needs {MEM_BW_BYTES_NEEDED / 1024**3:.0f} GiB of device memory, "
-            f"{device.memory_free_bytes / 1024**3:.1f} GiB free"
-        )
+def mem_bw_array_size(free_bytes: int) -> int:
+    """Largest power-of-two ARRAY_SIZE, up to hpmll's, whose six arrays fit in free_bytes."""
+    size = MEM_BW_ARRAY_SIZE
+    while size > 1 and MEM_BW_ARRAYS * size * 4 + MEM_BW_HEADROOM > free_bytes:
+        size //= 2
+    return size
+
+
+def source_changes(bench: HpmllBench, device: Device) -> dict[str, int]:
+    """#defines to change in a copy of the source before building ({}: build it as is)."""
+    if bench.name != "mem_bw":
+        return {}
+    size = mem_bw_array_size(device.memory_free_bytes)
+    return {} if size == MEM_BW_ARRAY_SIZE else {"ARRAY_SIZE": size}
+
+
+def skip_reason(bench: HpmllBench, device: Device, l2_bytes: int) -> str | None:
+    if bench.name == "mem_bw":
+        size = mem_bw_array_size(device.memory_free_bytes)
+        if size * 4 < MEM_BW_MIN_L2_MULTIPLE * l2_bytes:
+            return (
+                f"{device.memory_free_bytes / 1024**3:.1f} GiB free fits arrays of "
+                f"{size * 4 / 1024**2:.0f} MiB, less than {MEM_BW_MIN_L2_MULTIPLE}x the "
+                f"{l2_bytes / 1024**2:.1f} MiB L2"
+            )
     return None
+
+
+def patch_defines(source: str, defines: dict[str, int]) -> str:
+    """source with each `#define NAME value` line set to the new value."""
+    for name, value in defines.items():
+        pattern = re.compile(rf"^(#define\s+{re.escape(name)}\s+)\S+", re.M)
+        source, n = pattern.subn(rf"\g<1>{value}", source)
+        if n != 1:
+            raise BenchmarkError(f"expected one #define {name} in the source, found {n}")
+    return source
 
 
 
@@ -385,16 +418,32 @@ class Result:
     stdout_lines: list[str]
     hit_rates: dict[str, float] = field(default_factory=dict)
     invalid: str | None = None
+    source_changes: dict[str, dict] = field(default_factory=dict)  # name -> {hpmll, used}
 
 
-def build(bench: HpmllBench, hpmll_dir: Path, build_dir: Path, arch: str, log_path: Path) -> Path:
+def build(
+    bench: HpmllBench,
+    hpmll_dir: Path,
+    build_dir: Path,
+    arch: str,
+    log_path: Path,
+    defines: dict[str, int],
+) -> Path:
+    """Compile the benchmark from the submodule, or from a patched copy in
+    build_dir/src/ when defines is not empty (the submodule is never edited)."""
     src_dir = hpmll_dir / "RegularUnits" / bench.name
+    source = src_dir / f"{bench.name}.cu"
+    if defines:
+        copy = build_dir / "src" / bench.name / source.name
+        copy.parent.mkdir(parents=True, exist_ok=True)
+        copy.write_text(patch_defines(source.read_text(), defines))
+        source = copy
     binary = build_dir / bench.name
     command = [
         "nvcc",
         *makefile_flags(src_dir / "Makefile"),
         f"-arch={arch}",
-        str(src_dir / f"{bench.name}.cu"),
+        str(source),
         "-o",
         str(binary),
         "-lcudart",
@@ -409,12 +458,29 @@ def run_once(binary: Path, metrics: list[str], log_path: Path, csv_path: Path) -
     return log_path.read_text(), ncu_rows(csv_path.read_text())
 
 
-def run_bench(bench: HpmllBench, hpmll_dir: Path, root: Path, arch: str, reps: int, max_clock: float) -> Result:
+def original_defines(source: str, names: list[str]) -> dict[str, int]:
+    values = {}
+    for name in names:
+        match = re.search(rf"^#define\s+{re.escape(name)}\s+(\d+)", source, re.M)
+        if match:
+            values[name] = int(match.group(1))
+    return values
+
+
+def run_bench(
+    bench: HpmllBench,
+    hpmll_dir: Path,
+    root: Path,
+    arch: str,
+    reps: int,
+    max_clock: float,
+    defines: dict[str, int],
+) -> Result:
     bench_dir = root / bench.name
     bench_dir.mkdir(parents=True, exist_ok=True)
     build_log = bench_dir / "build.log"
     build_log.write_text("")
-    binary = build(bench, hpmll_dir, root / "build", arch, build_log)
+    binary = build(bench, hpmll_dir, root / "build", arch, build_log, defines)
 
     printed, clocks, values, lines = [], [], [], []
     for i in range(reps):
@@ -428,6 +494,11 @@ def run_bench(bench: HpmllBench, hpmll_dir: Path, root: Path, arch: str, reps: i
         values.append(bench.convert(x, clock, max_clock))
         lines.append(re.search(bench.pattern, stdout).group(0))
     result = Result(bench, printed, clocks, values, lines)
+    if defines:
+        before = original_defines((hpmll_dir / bench.source).read_text(), list(defines))
+        result.source_changes = {
+            name: {"hpmll": before.get(name), "used": value} for name, value in defines.items()
+        }
 
     if bench.check is not None:
         log_path = bench_dir / "check.log"
@@ -467,6 +538,7 @@ def run_json(
             "hit_rates_pct": {k: round(v, 2) for k, v in r.hit_rates.items()},
             "valid": r.invalid is None,
             "invalid_reason": r.invalid,
+            "source_changes": r.source_changes,
             "notes": r.bench.notes,
         }
 
@@ -546,6 +618,7 @@ def main() -> int:
         raise SystemExit(f"base profile {base_path} not found; pass --base-profile")
     arch = args.arch or mb.detect_arch()
     device = query_device()
+    l2_bytes = json.loads(base_path.read_text())["spec"]["l2_cache_size_bytes"]
     mb.log(
         f"GPU {args.gpu} ({device.name}), {arch}, version {version}, {args.reps} reps, "
         f"max SM clock {device.max_sm_clock_ghz:.3f} GHz, base profile {base_path}"
@@ -556,14 +629,22 @@ def main() -> int:
     skipped: dict[str, str] = {}
     for name in names:
         bench = BY_NAME[name]
-        reason = skip_reason(bench, device)
+        reason = skip_reason(bench, device, l2_bytes)
         if reason:
             skipped[name] = reason
             mb.log(f"\n== {name}: SKIPPED, {reason}")
             continue
+        defines = source_changes(bench, device)
         mb.log(f"\n== {name}")
+        for define, value in defines.items():
+            mb.log(
+                f"  {device.memory_free_bytes / 1024**3:.1f} GiB free: building from a copy "
+                f"with {define} {value}"
+            )
         try:
-            result = run_bench(bench, hpmll_dir, root, arch, args.reps, device.max_sm_clock_ghz)
+            result = run_bench(
+                bench, hpmll_dir, root, arch, args.reps, device.max_sm_clock_ghz, defines
+            )
         except (mb.BenchmarkError, BenchmarkError) as exc:
             failed[name] = str(exc)
             mb.log(f"  FAILED: {exc}")
