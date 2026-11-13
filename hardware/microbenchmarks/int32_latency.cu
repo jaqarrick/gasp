@@ -1,4 +1,4 @@
-// Lines 3 - 60, 98 - 134 are from https://github.com/shen203/GPU_Microbenchmark/blob/master/alu_lat_int32/alu_lat_int32.cu
+// Lines 3 - 60, 92 - 127 are from https://github.com/shen203/GPU_Microbenchmark/blob/master/alu_lat_int32/alu_lat_int32.cu
 
 #include "cuda_runtime.h"
 #include <stdio.h>
@@ -59,7 +59,7 @@ __global__ void lat_int32(uint32_t *startClk, uint32_t *stopClk, T *data1, T *da
 	res[gid] = result;
 }
 
-void print_output(float final_int32_clock_cycles, cudaDeviceProp prop) {
+void print_output(float final_int32_clock_cycles) {
   // get timestamp
   char timestamp[32];
   time_t now = time(NULL);
@@ -71,24 +71,18 @@ void print_output(float final_int32_clock_cycles, cudaDeviceProp prop) {
   int runtime_version = 0;
   gpuErrchk(cudaRuntimeGetVersion(&runtime_version));
 
+	// get device properties
+	cudaDeviceProp prop;
+  gpuErrchk(cudaGetDeviceProperties(&prop, 0));
+
   printf("{\n");
   printf("  \"benchmark\": \"int32_latency.cu\",\n");
   printf("  \"parameter\": \"int32_inst_latency_cycles\",\n");
-  printf("  \"value\": %.4f,\n", final_int32_clock_cycles); // determine
+  printf("  \"value\": %.4f,\n", final_int32_clock_cycles); // <-- what we care about
   printf("  \"unit\": \"cycles\",\n");
-  //printf("  \"gpu\": \"%s\",\n", gpu);
   printf("  \"gpu_name\": \"%s\",\n", prop.name);
   printf("  \"arch\": \"sm_%d%d\",\n", prop.major, prop.minor);
   printf("  \"num_sms\": %d,\n", prop.multiProcessorCount);
-  //fprintf(output_file, "  \"stats\": {\n");
-  //fprintf(output_file, "    \"median\": %.4f,\n", median);
-  //fprintf(output_file, "    \"mean\": %.4f,\n", mean);
-  //fprintf(output_file, "    \"std\": %.4f,\n", stddev);
-  //fprintf(output_file, "    \"min\": %.4f,\n", mn);
-  //fprintf(output_file, "    \"max\": %.4f\n", mx);
-  //printf("  },\n");
-
-  //printf("  \"clock\": {\"sm_clock_ghz\": %.4f},\n", sm_clock_ghz);
   printf("  \"cuda_version\": \"%d.%d\",\n", runtime_version / 1000, (runtime_version % 1000) / 10);
   printf("  \"nvcc_version\": \"%d.%d\",\n", __CUDACC_VER_MAJOR__, __CUDACC_VER_MINOR__);
   printf("  \"timestamp\": \"%s\"\n", timestamp);
@@ -131,15 +125,9 @@ int main(int argc, char **argv){
 
 	float latency;
 	latency = ((float)(stopClk[0]-startClk[0]))/((float)(REPEAT_TIMES*4));
-  uint32_t total_clock = stopClk[0]-startClk[0];
 
   //gasp-gpu analysis----------------------------------------------------------------------------
-
-  cudaDeviceProp prop;
-  gpuErrchk(cudaGetDeviceProperties(&prop, 0));
-
-  print_output(latency, prop);
-
+  print_output(latency);
 
 	return 0;
 }
