@@ -1,4 +1,4 @@
-// Lines 3 - 101 are from https://github.com/shen203/GPU_Microbenchmark/blob/master/alu_lat_int32/alu_lat_int32.cu
+// Lines 3 - 60, 98 - 134 are from https://github.com/shen203/GPU_Microbenchmark/blob/master/alu_lat_int32/alu_lat_int32.cu
 
 #include "cuda_runtime.h"
 #include <stdio.h>
