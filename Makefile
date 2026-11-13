@@ -10,7 +10,7 @@ GPU ?=
 VERSION ?=
 ARCH ?=
 
-.PHONY: all build install run test lint lint-fix format pre-commit clean docker-clean docker-run help microbenchmarks microbenchmarks-hpmll ablation
+.PHONY: all build install run test lint lint-fix format pre-commit clean docker-clean docker-run help microbenchmarks microbenchmarks-hpmll microbenchmarks-gpu-benches ablation
 
 $(VENV):
 	PYTHON=$(PYTHON) ./scripts/init_python.sh
@@ -51,6 +51,11 @@ microbenchmarks-hpmll:
 	@test -n "$(GPU)" -a -n "$(VERSION)" || { echo "usage: make microbenchmarks-hpmll GPU=<gpu> VERSION=<label> [ARCH=sm_XX] [ARGS='--only ... --reps N --force']"; exit 1; }
 	$(PYTHON) scripts/run/run_hpmll_bmks.py --gpu $(GPU) --version $(VERSION) $(if $(ARCH),--arch $(ARCH)) $(ARGS)
 
+# gpu-benches' gpu-stream and gpu-latency, compared with the profile (a cross-check, no profile written).
+microbenchmarks-gpu-benches:
+	@test -n "$(GPU)" -a -n "$(VERSION)" || { echo "usage: make microbenchmarks-gpu-benches GPU=<gpu> VERSION=<label> [ARCH=sm_XX] [ARGS='--only ... --latency-max-l2 N --force']"; exit 1; }
+	$(PYTHON) scripts/run/run_gpu_benches.py --gpu $(GPU) --version $(VERSION) $(if $(ARCH),--arch $(ARCH)) $(ARGS)
+
 # FOR DOCKER
 build:
 	docker build --platform $(PLATFORM) -t $(IMAGE) .
@@ -76,7 +81,8 @@ help:
 	@echo "make test                        - run tests"
 	@echo "make microbenchmarks GPU=.. VERSION=.. - run the gasp-bm microbenchmarks at base clock, build a profile"
 	@echo "make microbenchmarks-hpmll GPU=.. VERSION=.. - run the HPMLL benchmarks that match profile fields, build a profile"
-	@echo "make lint                        - lint Python code"
+	@echo "make microbenchmarks-gpu-benches GPU=.. VERSION=.. - run gpu-stream and gpu-latency, compare with the profile"
+	@echo "make lint                       - lint Python code"
 	@echo "make format                      - format Python code"
 	@echo "make pre-commit                  - run all pre-commit hooks on all files"
 	@echo "make build                       - build Docker image"

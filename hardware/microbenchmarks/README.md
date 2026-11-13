@@ -25,6 +25,15 @@ The `hpmll/` submodule is [HPMLL/NVIDIA-Hopper-Benchmark](https://github.com/HPM
 }
 ```
 
+## gpu-benches cross-check
+The `gpu-benches/` submodule is [RRZE-HPC/gpu-benches](https://github.com/RRZE-HPC/gpu-benches) (GPL-3.0). It is built and run from the submodule, not copied into GASP. Its authors ask for citations of ["Analytical performance estimation during code generation on modern GPUs"](https://doi.org/10.1016/j.jpdc.2022.11.003) and ["Performance engineering for real and complex tall & skinny matrix multiplication kernels on GPUs"](http://dx.doi.org/10.1177/1094342020965661).
+
+`make microbenchmarks-gpu-benches GPU=<gpu> VERSION=<label>` runs `gpu-stream` and `gpu-latency` and compares their values with the base profile, and with this version's gasp-bm and HPMLL profiles if they exist. It does not write a profile. Results go to `hardware/runs/<gpu>/<version>/gpu-benches/<gpu>.<version>.gpu-benches.json`.
+
+* `gpu-stream`: the highest read-kernel GB/s over its occupancy sweep, divided by the base clock, gives `dram_bandwidth_bytes_per_cycle`. This is exact because DRAM-bound GB/s does not depend on the SM clock.
+* `gpu-latency`: a one-thread random pointer chase over working sets from 2 KB up to `--latency-max-l2` x L2 (default 8x). Its source is copied and patched to stop the sweep there; the original goes to 2 GB. The median ns per load over a window of sizes, times the base clock, gives `l1_cache_hit_latency_cycles` (up to half the L1), `l2_cache_hit_latency_cycles` (4x L1 to half the L2) and `dram_latency_cycles` (4x to 8x L2).
+* gpu-benches times from the host, so it runs without ncu and cannot lock the base clock itself. The latency cycles are exact only when the SM clock is at base. Lock it first with `sudo nvidia-smi -lgc <MHz>,<MHz>` and reset it after with `sudo nvidia-smi -rgc`. The runner samples the SM clock during each run and warns when it is not at base.
+
 ## Shared memory load microbenchmark
 * Microbenchmark that measures the a sequence of shared-memory loads with a conflict-free warp access pattern
 * Launches one warp, where each lane follows their own dependent chain through shared memory. Each lane accesses a different bank on each load.
