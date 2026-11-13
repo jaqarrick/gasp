@@ -1,3 +1,12 @@
+#include <cerrno>
+#include <climits>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <cuda_runtime.h>
+
+// References https://github.com/accel-sim/gpu-app-collection/blob/dev/src/cuda/GPU_Microbenchmark/ubench/system/kernel_lat/kernel_lat.cu
+
 // Measures effective GPU-timeline cycles per minimal kernel launch.
 // Does not measure CPU-side launch-call times: the Python driver
 // (run_launch_overhead.py) reads sm__cycles_elapsed / sm__cycles_active from
@@ -13,12 +22,8 @@
 //
 // Every run prints one line "GPU_INFO {json}" to stdout so the driver script
 // can check that all runs used the same GPU.
-#include <cerrno>
-#include <climits>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <cuda_runtime.h>
+
+// we use ncu as an external profiler to measure the hardware cycles elapsed during the empty kernel.
 
 #define BENCH_VERSION 2
 
@@ -120,7 +125,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // Warmup launches (same configuration as the measured launch).
+    // Warmup launches (same configuration as the measured launch)
     for (int i = 0; i < warmup; ++i) {
         launch_empty_kernel<<<grid, block>>>();
     }
@@ -129,7 +134,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // Measured launch.
+    // Measured launch
     launch_empty_kernel<<<grid, block>>>();
     if (!cuda_ok(cudaGetLastError(), "Kernel launch") ||
         !cuda_ok(cudaDeviceSynchronize(), "Kernel execution")) {
