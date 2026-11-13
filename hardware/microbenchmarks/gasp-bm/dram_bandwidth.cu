@@ -52,16 +52,7 @@
 #include <vector>
 
 #include <cuda_runtime.h>
-
-#define CUDA_CHECK(call)                                                       \
-    do {                                                                       \
-        cudaError_t err__ = (call);                                            \
-        if (err__ != cudaSuccess) {                                            \
-            fprintf(stderr, "CUDA error '%s' at %s:%d\n",                      \
-                    cudaGetErrorString(err__), __FILE__, __LINE__);            \
-            exit(EXIT_FAILURE);                                                \
-        }                                                                      \
-    } while (0)
+#include "common.h"
 
 // ---- Identity of this benchmark -------------------------------------------
 static const char* PARAMETER      = "dram_bandwidth_bytes_per_cycle";
@@ -81,17 +72,6 @@ constexpr long DEFAULT_WS_KB    = 1024L * 1024L;   // 1 GiB
 constexpr uint64_t DATA_SEED    = 0x2545F4914F6CDD1DULL;   // fixed seed: reproducible data
 
 // ---- Device ----------------------------------------------------------------
-__device__ __forceinline__ uint64_t read_clock64() {
-    uint64_t c;
-    asm volatile("mov.u64 %0, %%clock64;" : "=l"(c)::"memory");
-    return c;
-}
-
-__device__ __forceinline__ uint64_t read_globaltimer() {
-    uint64_t t;
-    asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t)::"memory");
-    return t;
-}
 
 // ts[4*block + {0,1,2,3}] = {timer_start_ns, timer_end_ns, clock_start, clock_end}
 // n_vec is a multiple of (gridDim.x * blockDim.x * UNROLL), so every load in the
@@ -129,91 +109,6 @@ dram_read_kernel(const uint4* __restrict__ buf, size_t n_vec, uint64_t* ts, uint
         ts[4 * blockIdx.x + 3] = read_clock64();
     }
     sink[tid] = acc;   // keeps the loaded data observable
-}
-
-// splitmix64: a cheap, well-mixed 64-bit hash. Used to fill the buffer with
-// pseudo-random, effectively incompressible data. Fixed seed => reproducible.
-__device__ __forceinline__ uint64_t splitmix64(uint64_t x) {
-    x += 0x9E3779B97F4A7C15ULL;
-    x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ULL;
-    x = (x ^ (x >> 27)) * 0x94D049BB133111EBULL;
-    return x ^ (x >> 31);
-}
-
-__global__ void fill_random_kernel(uint64_t* buf, size_t n_words, uint64_t seed) {
-    const size_t stride = static_cast<size_t>(gridDim.x) * blockDim.x;
-    for (size_t i = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x; i < n_words; i += stride)
-        buf[i] = splitmix64(seed + i);
-}
-
-// ---- Host helpers ----------------------------------------------------------
-static std::string run_cmd(const char* cmd) {
-    FILE* pipe = popen(cmd, "r");
-    if (!pipe) return "";
-    char buf[256];
-    std::string s;
-    while (fgets(buf, sizeof(buf), pipe)) s += buf;
-    pclose(pipe);
-    while (!s.empty() && isspace(static_cast<unsigned char>(s.back()))) s.pop_back();
-    return s;
-}
-
-static std::string json_escape(const std::string& in) {
-    std::string o;
-    for (char c : in) {
-        if (c == '"' || c == '\\') { o += '\\'; o += c; }
-        else if (static_cast<unsigned char>(c) < 0x20) o += ' ';
-        else o += c;
-    }
-    return o;
-}
-
-static std::string cuda_ver_string(int v) {   // 12080 -> "12.8"
-    return std::to_string(v / 1000) + "." + std::to_string((v % 1000) / 10);
-}
-
-static std::string short_gpu_name(const std::string& full) {
-    std::string l;
-    for (char c : full) l += static_cast<char>(tolower(static_cast<unsigned char>(c)));
-    for (const char* k : {"a100", "h100", "h200", "b200", "b100"})
-        if (l.find(k) != std::string::npos) return k;
-    std::string s;
-    for (char c : l) s += isalnum(static_cast<unsigned char>(c)) ? c : '_';
-    return s;
-}
-
-static std::string utc_timestamp() {
-    std::time_t t = std::time(nullptr);
-    std::tm tm{};
-    gmtime_r(&t, &tm);
-    char b[32];
-    std::strftime(b, sizeof(b), "%Y-%m-%dT%H:%M:%SZ", &tm);
-    return b;
-}
-
-static double median_of(std::vector<double> v) {
-    std::sort(v.begin(), v.end());
-    size_t n = v.size();
-    return (n % 2) ? v[n / 2] : 0.5 * (v[n / 2 - 1] + v[n / 2]);
-}
-
-struct Stats { double median, mean, stddev, mn, mx; };
-static Stats compute_stats(const std::vector<double>& v) {
-    Stats s;
-    s.median = median_of(v);
-    s.mean   = std::accumulate(v.begin(), v.end(), 0.0) / v.size();
-    double var = 0.0;
-    for (double x : v) var += (x - s.mean) * (x - s.mean);
-    s.stddev = std::sqrt(var / (v.size() - 1));
-    s.mn = *std::min_element(v.begin(), v.end());
-    s.mx = *std::max_element(v.begin(), v.end());
-    return s;
-}
-
-static void json_array(std::ostringstream& j, const char* key, const std::vector<double>& v) {
-    j << "  \"" << key << "\": [";
-    for (size_t i = 0; i < v.size(); ++i) j << (i ? ", " : "") << v[i];
-    j << "],\n";
 }
 
 // ---- Main ------------------------------------------------------------------
@@ -366,9 +261,9 @@ int main(int argc, char** argv) {
                         "the GPU, or the GPU is in a low-power state. Check nvidia-smi and rerun.\n", pct_peak);
     // Contamination check on GB/s (the physical quantity, independent of the SM clock).
     const Stats gst = compute_stats(gb_per_s);
-    if (gst.median < 0.95 * gst.mx)
+    if (gst.median < 0.95 * gst.max)
         fprintf(stderr, "WARNING: median %.1f GB/s is >5%% below the best run (%.1f GB/s). Another "
-                        "process may be sharing the GPU; check nvidia-smi and rerun.\n", gst.median, gst.mx);
+                        "process may be sharing the GPU; check nvidia-smi and rerun.\n", gst.median, gst.max);
 
     // Clock-drift check: bytes/cycle is only stable if the SM clock is.
     {
@@ -383,10 +278,8 @@ int main(int argc, char** argv) {
     }
 
     // ---- Build JSON --------------------------------------------------------
-    std::string driver = run_cmd("nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -n1");
-    std::string commit = run_cmd("git rev-parse --short HEAD 2>/dev/null");
-    if (driver.empty()) driver = "unknown";
-    if (commit.empty()) commit = "unknown";
+    std::string driver = driver_version();
+    std::string commit = git_commit();
 
     std::ostringstream j;
     j.setf(std::ios::fixed);
@@ -403,22 +296,16 @@ int main(int argc, char** argv) {
     j << "  \"arch\": \"" << arch << "\",\n";
     j << "  \"num_sms\": " << prop.multiProcessorCount << ",\n";
     j << "  \"l2_cache_bytes\": " << prop.l2CacheSize << ",\n";
-    j << "  \"stats\": {\n";
-    j << "    \"median\": " << st.median << ",\n";
-    j << "    \"mean\": " << st.mean << ",\n";
-    j << "    \"std\": " << st.stddev << ",\n";
-    j << "    \"min\": " << st.mn << ",\n";
-    j << "    \"max\": " << st.mx << "\n";
-    j << "  },\n";
+    j << json_stats(st);
     // Per-run arrays, one entry per timed launch:
     //   raw_kernel_ns          : latest block end - earliest block start (in-kernel %globaltimer)
     //   sm_clock_ghz_samples   : median over blocks of (clock64 delta / globaltimer ns delta)
     //   gb_per_s_samples       : bytes_read / raw_kernel_ns
     //   per_run_bytes_per_cycle: bytes_read / (raw_kernel_ns * sm_clock_ghz); stats are computed over these
-    json_array(j, "raw_kernel_ns", kernel_ns);
-    json_array(j, "sm_clock_ghz_samples", clock_ghz);
-    json_array(j, "gb_per_s_samples", gb_per_s);
-    json_array(j, "per_run_bytes_per_cycle", bytes_per_cycle);
+    j << "  \"raw_kernel_ns\": " << json_array(kernel_ns) << ",\n";
+    j << "  \"sm_clock_ghz_samples\": " << json_array(clock_ghz) << ",\n";
+    j << "  \"gb_per_s_samples\": " << json_array(gb_per_s) << ",\n";
+    j << "  \"per_run_bytes_per_cycle\": " << json_array(bytes_per_cycle) << ",\n";
     j << "  \"derived\": {\n";
     j << "    \"bandwidth_gb_per_s_median\": " << med_gbs << ",\n";
     j << "    \"sm_clock_ghz_median\": " << med_ghz << ",\n";
@@ -448,7 +335,7 @@ int main(int argc, char** argv) {
     j << "    \"warmup_ms_min\": " << WARMUP_MS << ",\n";
     j << "    \"reps\": " << reps << "\n";
     j << "  },\n";
-    j << "  \"cuda_version\": \"" << cuda_ver_string(rt_ver) << "\",\n";
+    j << "  \"cuda_version\": \"" << cuda_version_string(rt_ver) << "\",\n";
     j << "  \"nvcc_version\": \"" << __CUDACC_VER_MAJOR__ << "." << __CUDACC_VER_MINOR__ << "\",\n";
     j << "  \"driver_version\": \"" << json_escape(driver) << "\",\n";
     j << "  \"git_commit\": \"" << json_escape(commit) << "\",\n";
@@ -456,20 +343,12 @@ int main(int argc, char** argv) {
     j << "}\n";
 
     // ---- Save to <out_dir>/{parameter}.{gpu}.run.json -----------------------
-    namespace fs = std::filesystem;
-    std::error_code ec;
-    fs::create_directories(out_dir, ec);
-    if (ec) { fprintf(stderr, "Cannot create %s: %s\n", out_dir.c_str(), ec.message().c_str()); return 1; }
-    fs::path out_path = fs::path(out_dir) / (std::string(PARAMETER) + "." + gpu + ".run.json");
-
-    FILE* f = fopen(out_path.string().c_str(), "w");
-    if (!f) { perror("fopen"); return 1; }
-    fputs(j.str().c_str(), f);
-    fclose(f);
+    const std::string out_path = write_run_json(out_dir, PARAMETER, gpu, j.str());
+    if (out_path.empty()) return 1;
 
     printf("%s", j.str().c_str());
     fprintf(stderr, "\nDRAM bandwidth: %.2f bytes/cycle (%.1f GB/s at %.3f GHz, std %.3f)\nSaved: %s\n",
-            st.median, med_gbs, med_ghz, st.stddev, out_path.string().c_str());
+            st.median, med_gbs, med_ghz, st.std, out_path.c_str());
 
     CUDA_CHECK(cudaFree(d_buf));
     CUDA_CHECK(cudaFree(d_ts));

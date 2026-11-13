@@ -50,16 +50,7 @@
 #include <vector>
 
 #include <cuda_runtime.h>
-
-#define CUDA_CHECK(call)                                                       \
-    do {                                                                       \
-        cudaError_t err__ = (call);                                            \
-        if (err__ != cudaSuccess) {                                            \
-            fprintf(stderr, "CUDA error '%s' at %s:%d\n",                      \
-                    cudaGetErrorString(err__), __FILE__, __LINE__);            \
-            exit(EXIT_FAILURE);                                                \
-        }                                                                      \
-    } while (0)
+#include "common.h"
 
 static const char* PARAMETER = "bank_penalty_cycles";
 
@@ -77,19 +68,6 @@ static_assert(CHASE_LOADS % UNROLL == 0, "CHASE_LOADS must be a multiple of UNRO
 static_assert(SMEM_WORDS % 32 == 0, "SMEM_WORDS must be a multiple of 32");
 
 // ---- Device ----------------------------------------------------------------
-__device__ __forceinline__ uint64_t read_clock64() {
-    uint64_t c;
-    asm volatile("mov.u64 %0, %%clock64;" : "=l"(c)::"memory");
-    return c;
-}
-
-// Nanoseconds since an arbitrary epoch, independent of the SM clock. Read next to
-// clock64 so the run records the SM clock it ran at (cycles / ns).
-__device__ __forceinline__ uint64_t read_globaltimer() {
-    uint64_t t;
-    asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t)::"memory");
-    return t;
-}
 
 // Dependent shared-memory load: the register holds a shared-memory address and
 // receives the address of the next word, so there is no arithmetic between loads.
@@ -151,55 +129,6 @@ __global__ void bank_kernel(int stride_words, long long* out, unsigned* sink) {
 }
 
 // ---- Host helpers ----------------------------------------------------------
-static std::string run_cmd(const char* cmd) {
-    FILE* pipe = popen(cmd, "r");
-    if (!pipe) return "";
-    char buf[256];
-    std::string s;
-    while (fgets(buf, sizeof(buf), pipe)) s += buf;
-    pclose(pipe);
-    while (!s.empty() && isspace(static_cast<unsigned char>(s.back()))) s.pop_back();
-    return s;
-}
-
-static std::string json_escape(const std::string& in) {
-    std::string o;
-    for (char c : in) {
-        if (c == '"' || c == '\\') { o += '\\'; o += c; }
-        else if (static_cast<unsigned char>(c) < 0x20) o += ' ';
-        else o += c;
-    }
-    return o;
-}
-
-static std::string cuda_ver_string(int v) {   // 12080 -> "12.8"
-    return std::to_string(v / 1000) + "." + std::to_string((v % 1000) / 10);
-}
-
-static std::string short_gpu_name(const std::string& full) {
-    std::string l;
-    for (char c : full) l += static_cast<char>(tolower(static_cast<unsigned char>(c)));
-    for (const char* k : {"a100", "h100", "h200", "b200", "b100"})
-        if (l.find(k) != std::string::npos) return k;
-    std::string s;
-    for (char c : l) s += isalnum(static_cast<unsigned char>(c)) ? c : '_';
-    return s;
-}
-
-static std::string utc_timestamp() {
-    std::time_t t = std::time(nullptr);
-    std::tm tm{};
-    gmtime_r(&t, &tm);
-    char b[32];
-    std::strftime(b, sizeof(b), "%Y-%m-%dT%H:%M:%SZ", &tm);
-    return b;
-}
-
-static double median_of(std::vector<double> v) {
-    std::sort(v.begin(), v.end());
-    size_t n = v.size();
-    return (n % 2) ? v[n / 2] : 0.5 * (v[n / 2 - 1] + v[n / 2]);
-}
 
 static int gcd_int(int a, int b) { return b == 0 ? a : gcd_int(b, a % b); }
 
@@ -221,17 +150,6 @@ static Fit fit_line(const std::vector<double>& x, const std::vector<double>& y) 
     }
     f.r2 = ss_tot > 0 ? 1.0 - ss_res / ss_tot : 1.0;
     return f;
-}
-
-static void json_array_ll(std::ostringstream& j, const std::vector<long long>& v) {
-    j << "[";
-    for (size_t i = 0; i < v.size(); ++i) j << (i ? ", " : "") << v[i];
-    j << "]";
-}
-static void json_array_d(std::ostringstream& j, const std::vector<double>& v) {
-    j << "[";
-    for (size_t i = 0; i < v.size(); ++i) j << (i ? ", " : "") << v[i];
-    j << "]";
 }
 
 // ---- Main ------------------------------------------------------------------
@@ -318,13 +236,8 @@ int main(int argc, char** argv) {
     for (int s = 0; s < NUM_STRIDES; ++s) med_lat[s] = median_of(per_load[s]);
     const Fit mfit = fit_line(x, med_lat);
 
-    const double median = median_of(penalty);
-    const double mean = std::accumulate(penalty.begin(), penalty.end(), 0.0) / reps;
-    double var = 0.0;
-    for (double p : penalty) var += (p - mean) * (p - mean);
-    const double stddev = std::sqrt(var / (reps - 1));
-    const double mn = *std::min_element(penalty.begin(), penalty.end());
-    const double mx = *std::max_element(penalty.begin(), penalty.end());
+    const Stats stats = compute_stats(penalty);
+    const double median = stats.median;
     const double base_median = median_of(base);
 
     fprintf(stderr, "\nMedian shared-load latency per conflict degree (cycles):\n");
@@ -345,13 +258,12 @@ int main(int argc, char** argv) {
     if (base_median < 8.0 || base_median > 60.0)
         fprintf(stderr, "WARNING: conflict-free latency %.1f cycles is outside the usual 8 to 60 range for "
                         "a shared load.\n", base_median);
-    if (stddev > 0.05 * std::fabs(median) && stddev > 0.01)
+    if (stats.std > 0.05 * std::fabs(median) && stats.std > 0.01)
         fprintf(stderr, "WARNING: the penalty varies between runs (std %.4f); another process may be "
-                        "sharing the GPU. Check nvidia-smi and rerun.\n", stddev);
+                        "sharing the GPU. Check nvidia-smi and rerun.\n", stats.std);
 
     // ---- Build JSON --------------------------------------------------------
-    std::string driver = run_cmd("nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -n1");
-    if (driver.empty()) driver = "unknown";
+    std::string driver = driver_version();
 
     std::ostringstream j;
     j.setf(std::ios::fixed);
@@ -365,13 +277,7 @@ int main(int argc, char** argv) {
     j << "  \"gpu_name\": \"" << json_escape(gpu_name) << "\",\n";
     j << "  \"arch\": \"" << arch << "\",\n";
     j << "  \"num_sms\": " << prop.multiProcessorCount << ",\n";
-    j << "  \"stats\": {\n";
-    j << "    \"median\": " << median << ",\n";
-    j << "    \"mean\": " << mean << ",\n";
-    j << "    \"std\": " << stddev << ",\n";
-    j << "    \"min\": " << mn << ",\n";
-    j << "    \"max\": " << mx << "\n";
-    j << "  },\n";
+    j << json_stats(stats);
     // stats/value are over per_run_penalty_cycles: the slope of latency vs (conflict degree - 1),
     // fitted separately for each repetition. Per-stride arrays below hold one entry per repetition:
     //   raw_cycles_by_conflict_degree : clock64 delta around the chain, clock-read cost INCLUDED
@@ -379,7 +285,7 @@ int main(int argc, char** argv) {
     //   per_load_cycles_by_conflict_degree : (raw - overhead) / loads_per_rep
     j << "  \"base_latency_cycles\": " << base_median << ",\n";
     j << "  \"loads_per_rep\": " << CHASE_LOADS << ",\n";
-    j << "  \"per_run_penalty_cycles\": "; json_array_d(j, penalty); j << ",\n";
+    j << "  \"per_run_penalty_cycles\": " << json_array(penalty) << ",\n";
     j << "  \"overhead_cycles\": " << overhead << ",\n";
     j << "  \"overhead_subtracted\": true,\n";
     j << "  \"sweep\": [\n";
@@ -387,8 +293,8 @@ int main(int argc, char** argv) {
         j << "    {\"conflict_degree\": " << static_cast<int>(conflict_degree[s])
           << ", \"stride_words\": " << STRIDES[s]
           << ", \"median_cycles_per_load\": " << med_lat[s]
-          << ", \"raw_cycles\": "; json_array_ll(j, raw[s]);
-        j << ", \"per_load_cycles\": "; json_array_d(j, per_load[s]);
+          << ", \"raw_cycles\": " << json_array(raw[s]);
+        j << ", \"per_load_cycles\": " << json_array(per_load[s]);
         j << "}" << (s + 1 < NUM_STRIDES ? "," : "") << "\n";
     }
     j << "  ],\n";
@@ -397,27 +303,19 @@ int main(int argc, char** argv) {
     // clock.sm_clock_ghz: total clock64 cycles / total globaltimer ns over all timed runs
     j << "  \"clock\": {\"sm_clock_ghz\": "
       << (sum_clock_ns > 0.0 ? sum_clock_cycles / sum_clock_ns : 0.0) << "},\n";
-    j << "  \"cuda_version\": \"" << cuda_ver_string(rt_ver) << "\",\n";
+    j << "  \"cuda_version\": \"" << cuda_version_string(rt_ver) << "\",\n";
     j << "  \"nvcc_version\": \"" << __CUDACC_VER_MAJOR__ << "." << __CUDACC_VER_MINOR__ << "\",\n";
     j << "  \"driver_version\": \"" << json_escape(driver) << "\",\n";
     j << "  \"timestamp\": \"" << utc_timestamp() << "\"\n";
     j << "}\n";
 
     // ---- Save to <out_dir>/{parameter}.{gpu}.run.json -----------------------
-    namespace fs = std::filesystem;
-    std::error_code ec;
-    fs::create_directories(out_dir, ec);
-    if (ec) { fprintf(stderr, "Cannot create %s: %s\n", out_dir.c_str(), ec.message().c_str()); return 1; }
-    fs::path out_path = fs::path(out_dir) / (std::string(PARAMETER) + "." + gpu + ".run.json");
-
-    FILE* f = fopen(out_path.string().c_str(), "w");
-    if (!f) { perror("fopen"); return 1; }
-    fputs(j.str().c_str(), f);
-    fclose(f);
+    const std::string out_path = write_run_json(out_dir, PARAMETER, gpu, j.str());
+    if (out_path.empty()) return 1;
 
     printf("%s", j.str().c_str());
     fprintf(stderr, "\nBank penalty: %.4f cycles per extra conflict (std %.4f), conflict-free latency %.2f cycles\nSaved: %s\n",
-            median, stddev, base_median, out_path.string().c_str());
+            median, stats.std, base_median, out_path.c_str());
 
     CUDA_CHECK(cudaFree(d_out));
     CUDA_CHECK(cudaFree(d_sink));

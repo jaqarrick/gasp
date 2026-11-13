@@ -51,16 +51,7 @@
 #include <vector>
 
 #include <cuda_runtime.h>
-
-#define CUDA_CHECK(call)                                                       \
-    do {                                                                       \
-        cudaError_t err__ = (call);                                            \
-        if (err__ != cudaSuccess) {                                            \
-            fprintf(stderr, "CUDA error '%s' at %s:%d\n",                      \
-                    cudaGetErrorString(err__), __FILE__, __LINE__);            \
-            exit(EXIT_FAILURE);                                                \
-        }                                                                      \
-    } while (0)
+#include "common.h"
 
 static const char* PARAMETER = "departure_delay_cycles";
 
@@ -76,19 +67,6 @@ constexpr int WARP_SWEEP[]    = {8, 16, 32};
 static_assert(ITERS_PER_WARP % UNROLL == 0, "ITERS_PER_WARP must be a multiple of UNROLL");
 
 // ---- Device ----------------------------------------------------------------
-__device__ __forceinline__ uint64_t read_clock64() {
-    uint64_t c;
-    asm volatile("mov.u64 %0, %%clock64;" : "=l"(c)::"memory");
-    return c;
-}
-
-// Nanoseconds since an arbitrary epoch, independent of the SM clock. Read next to
-// clock64 so the run records the SM clock it ran at (cycles / ns).
-__device__ __forceinline__ uint64_t read_globaltimer() {
-    uint64_t t;
-    asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t)::"memory");
-    return t;
-}
 
 // out[0] = gross cycles of the timed loop (clock + barrier overhead included)
 // out[1] = clock overhead (two back-to-back clock reads, nothing between)
@@ -132,55 +110,6 @@ __global__ void departure_kernel(const unsigned* __restrict__ buf, long long* ou
 }
 
 // ---- Host helpers ----------------------------------------------------------
-static std::string run_cmd(const char* cmd) {
-    FILE* pipe = popen(cmd, "r");
-    if (!pipe) return "";
-    char buf[256];
-    std::string s;
-    while (fgets(buf, sizeof(buf), pipe)) s += buf;
-    pclose(pipe);
-    while (!s.empty() && isspace(static_cast<unsigned char>(s.back()))) s.pop_back();
-    return s;
-}
-
-static std::string json_escape(const std::string& in) {
-    std::string o;
-    for (char c : in) {
-        if (c == '"' || c == '\\') { o += '\\'; o += c; }
-        else if (static_cast<unsigned char>(c) < 0x20) o += ' ';
-        else o += c;
-    }
-    return o;
-}
-
-static std::string cuda_ver_string(int v) {   // 12080 -> "12.8"
-    return std::to_string(v / 1000) + "." + std::to_string((v % 1000) / 10);
-}
-
-static std::string short_gpu_name(const std::string& full) {
-    std::string l;
-    for (char c : full) l += static_cast<char>(tolower(static_cast<unsigned char>(c)));
-    for (const char* k : {"a100", "h100", "h200", "b200", "b100"})
-        if (l.find(k) != std::string::npos) return k;
-    std::string s;
-    for (char c : l) s += isalnum(static_cast<unsigned char>(c)) ? c : '_';
-    return s;
-}
-
-static std::string utc_timestamp() {
-    std::time_t t = std::time(nullptr);
-    std::tm tm{};
-    gmtime_r(&t, &tm);
-    char b[32];
-    std::strftime(b, sizeof(b), "%Y-%m-%dT%H:%M:%SZ", &tm);
-    return b;
-}
-
-static double median_of(std::vector<double> v) {
-    std::sort(v.begin(), v.end());
-    size_t n = v.size();
-    return (n % 2) ? v[n / 2] : 0.5 * (v[n / 2 - 1] + v[n / 2]);
-}
 
 struct SweepResult {
     int warps = 0;
@@ -286,13 +215,8 @@ int main(int argc, char** argv) {
     for (long long c : S.raw_cycles) gross_per_request.push_back(static_cast<double>(c) / requests_per_rep);
     const double uncorrected_value = median_of(gross_per_request);
 
+    const Stats stats = compute_stats(S.per_request);
     const double median = S.median;
-    const double mean = std::accumulate(S.per_request.begin(), S.per_request.end(), 0.0) / reps;
-    double var = 0.0;
-    for (double s : S.per_request) var += (s - mean) * (s - mean);
-    const double stddev = std::sqrt(var / (reps - 1));
-    const double mn = *std::min_element(S.per_request.begin(), S.per_request.end());
-    const double mx = *std::max_element(S.per_request.begin(), S.per_request.end());
 
     fprintf(stderr, "\nSweep (median cycles per warp request):\n");
     for (const SweepResult& sr : sweep)
@@ -309,13 +233,12 @@ int main(int argc, char** argv) {
     if (median < 0.4)
         fprintf(stderr, "WARNING: median %.2f cycles per request is implausibly low; check the SASS "
                         "(loads may have been removed).\n", median);
-    if (median > 1.05 * mn)
+    if (median > 1.05 * stats.min)
         fprintf(stderr, "WARNING: median %.3f is >5%% above the fastest run (%.3f). Another process may "
-                        "be sharing the GPU; check nvidia-smi and rerun.\n", median, mn);
+                        "be sharing the GPU; check nvidia-smi and rerun.\n", median, stats.min);
 
     // ---- Build JSON --------------------------------------------------------
-    std::string driver = run_cmd("nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -n1");
-    if (driver.empty()) driver = "unknown";
+    std::string driver = driver_version();
 
     std::ostringstream j;
     j.setf(std::ios::fixed);
@@ -329,13 +252,7 @@ int main(int argc, char** argv) {
     j << "  \"gpu_name\": \"" << json_escape(gpu_name) << "\",\n";
     j << "  \"arch\": \"" << arch << "\",\n";
     j << "  \"num_sms\": " << prop.multiProcessorCount << ",\n";
-    j << "  \"stats\": {\n";
-    j << "    \"median\": " << median << ",\n";
-    j << "    \"mean\": " << mean << ",\n";
-    j << "    \"std\": " << stddev << ",\n";
-    j << "    \"min\": " << mn << ",\n";
-    j << "    \"max\": " << mx << "\n";
-    j << "  },\n";
+    j << json_stats(stats);
     // Arrays below are for the reported warp count (warps_per_block), one entry per timed launch:
     //   raw_cycles          : clock64 delta around the loop, clock-read cost INCLUDED
     //   overhead_samples    : clock64 delta of two back-to-back reads (cost of the clock)
@@ -344,20 +261,12 @@ int main(int argc, char** argv) {
     //   per_request_cycles  : net_cycles / requests_per_rep; stats are computed over these
     j << "  \"warps_per_block\": " << S.warps << ",\n";
     j << "  \"requests_per_rep\": " << static_cast<long long>(requests_per_rep) << ",\n";
-    j << "  \"raw_cycles\": [";
-    for (size_t i = 0; i < S.raw_cycles.size(); ++i) j << (i ? ", " : "") << S.raw_cycles[i];
-    j << "],\n";
-    j << "  \"overhead_samples_cycles\": [";
-    for (size_t i = 0; i < S.overheads.size(); ++i) j << (i ? ", " : "") << S.overheads[i];
-    j << "],\n";
+    j << "  \"raw_cycles\": " << json_array(S.raw_cycles) << ",\n";
+    j << "  \"overhead_samples_cycles\": " << json_array(S.overheads) << ",\n";
     j << "  \"overhead_cycles\": " << S.overhead << ",\n";
     j << "  \"overhead_subtracted\": true,\n";
-    j << "  \"net_cycles\": [";
-    for (size_t i = 0; i < S.net_cycles.size(); ++i) j << (i ? ", " : "") << S.net_cycles[i];
-    j << "],\n";
-    j << "  \"per_request_cycles\": [";
-    for (size_t i = 0; i < S.per_request.size(); ++i) j << (i ? ", " : "") << S.per_request[i];
-    j << "],\n";
+    j << "  \"net_cycles\": " << json_array(S.net_cycles) << ",\n";
+    j << "  \"per_request_cycles\": " << json_array(S.per_request) << ",\n";
     j << "  \"uncorrected_value\": " << uncorrected_value << ",\n";
     j << "  \"sweep_median_cycles_per_request\": {";
     for (size_t i = 0; i < sweep.size(); ++i)
@@ -365,28 +274,20 @@ int main(int argc, char** argv) {
     j << "},\n";
     // sm_clock_ghz: total clock64 cycles / total globaltimer ns over every timed launch
     j << "  \"clock\": {\"sm_clock_ghz\": " << clock_ghz_all << "},\n";
-    j << "  \"cuda_version\": \"" << cuda_ver_string(rt_ver) << "\",\n";
+    j << "  \"cuda_version\": \"" << cuda_version_string(rt_ver) << "\",\n";
     j << "  \"nvcc_version\": \"" << __CUDACC_VER_MAJOR__ << "." << __CUDACC_VER_MINOR__ << "\",\n";
     j << "  \"driver_version\": \"" << json_escape(driver) << "\",\n";
     j << "  \"timestamp\": \"" << utc_timestamp() << "\"\n";
     j << "}\n";
 
     // ---- Save to <out_dir>/{parameter}.{gpu}.run.json -----------------------
-    namespace fs = std::filesystem;
-    std::error_code ec;
-    fs::create_directories(out_dir, ec);
-    if (ec) { fprintf(stderr, "Cannot create %s: %s\n", out_dir.c_str(), ec.message().c_str()); return 1; }
-    fs::path out_path = fs::path(out_dir) / (std::string(PARAMETER) + "." + gpu + ".run.json");
-
-    FILE* f = fopen(out_path.string().c_str(), "w");
-    if (!f) { perror("fopen"); return 1; }
-    fputs(j.str().c_str(), f);
-    fclose(f);
+    const std::string out_path = write_run_json(out_dir, PARAMETER, gpu, j.str());
+    if (out_path.empty()) return 1;
 
     printf("%s", j.str().c_str());
     fprintf(stderr, "\nDeparture delay: %.3f cycles per warp request at %.3f GHz SM clock (std %.4f, "
                     "overhead %.1f cycles subtracted)\nSaved: %s\n",
-            median, clock_ghz_all, stddev, S.overhead, out_path.string().c_str());
+            median, clock_ghz_all, stats.std, S.overhead, out_path.c_str());
 
     CUDA_CHECK(cudaFree(d_buf));
     CUDA_CHECK(cudaFree(d_out));

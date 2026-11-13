@@ -39,16 +39,7 @@
 #include <vector>
 
 #include <cuda_runtime.h>
-
-#define CUDA_CHECK(call)                                                       \
-    do {                                                                       \
-        cudaError_t err__ = (call);                                            \
-        if (err__ != cudaSuccess) {                                            \
-            fprintf(stderr, "CUDA error '%s' at %s:%d\n",                      \
-                    cudaGetErrorString(err__), __FILE__, __LINE__);            \
-            exit(EXIT_FAILURE);                                                \
-        }                                                                      \
-    } while (0)
+#include "common.h"
 
 constexpr int WARP_THREADS = 32;
 constexpr int LOAD_SLOTS = 16;    // rows of 32 words every warp reads
@@ -70,24 +61,6 @@ static const char* PARAMETER = "shared_mem_load_throughput_cycles";
 static const char* SCHEMA_VERSION = "1.1.0";
 static const char* BENCH_VERSION = "1.0.0";
 
-__device__ __forceinline__ uint64_t read_clock64() {
-    uint64_t cycles;
-    asm volatile("mov.u64 %0, %%clock64;" : "=l"(cycles) :: "memory");
-    return cycles;
-}
-
-__device__ __forceinline__ uint64_t read_globaltimer() {
-    uint64_t t;
-    asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t) :: "memory");
-    return t;
-}
-
-__device__ __forceinline__ uint32_t read_smid() {
-    uint32_t id;
-    asm volatile("mov.u32 %0, %%smid;" : "=r"(id));
-    return id;
-}
-
 // volatile: the compiler may not merge repeated loads of one address
 __device__ __forceinline__ uint32_t load_shared_volatile(uint32_t address) {
     uint32_t value;
@@ -96,14 +69,6 @@ __device__ __forceinline__ uint32_t load_shared_volatile(uint32_t address) {
                  : "r"(address)
                  : "memory");
     return value;
-}
-
-__device__ __forceinline__ void store_shared_volatile(uint32_t address,
-                                                      uint32_t value) {
-    asm volatile("st.volatile.shared.u32 [%0], %1;"
-                 :
-                 : "r"(address), "r"(value)
-                 : "memory");
 }
 
 // N_LOADS loads and N_STORES stores per group; N_LOADS = 0 is the empty loop
@@ -167,17 +132,6 @@ __global__ void shared_load_kernel(uint32_t* sink, unsigned long long* timing) {
     if (total == 0x9e3779b9u) sink[0] = total;  // keeps the loads live
 }
 
-// SM clock for the JSON: clock64 cycles per globaltimer ns over a spin
-__global__ void clock_kernel(unsigned long long* out) {
-    const uint64_t g0 = read_globaltimer();
-    const uint64_t c0 = read_clock64();
-    uint64_t c = c0;
-    while (c - c0 < 2000000) c = read_clock64();
-    const uint64_t g1 = read_globaltimer();
-    out[0] = c - c0;
-    out[1] = g1 - g0;
-}
-
 struct Shape {
     int loads;   // per group
     int stores;  // per group
@@ -210,64 +164,6 @@ static void launch_shape(const Shape& s, int grid, int threads, uint32_t* sink,
         shared_load_kernel<MIX_LOADS, MIX_STORES><<<grid, threads>>>(sink, timing);
     }
     CUDA_CHECK(cudaGetLastError());
-}
-
-static double median(std::vector<double> values) {
-    std::sort(values.begin(), values.end());
-    const size_t n = values.size();
-    if (n == 0) return 0.0;
-    return n % 2 ? values[n / 2] : 0.5 * (values[n / 2 - 1] + values[n / 2]);
-}
-
-static std::string json_escape(const std::string& value) {
-    std::string escaped;
-    for (char c : value) {
-        if (c == '"' || c == '\\') {
-            escaped += '\\';
-            escaped += c;
-        } else if (static_cast<unsigned char>(c) < 0x20) {
-            escaped += ' ';
-        } else {
-            escaped += c;
-        }
-    }
-    return escaped;
-}
-
-static std::string short_gpu_name(const std::string& full_name) {
-    std::string lower;
-    for (char c : full_name) {
-        lower += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    }
-    std::string result;
-    for (char c : lower) {
-        result += std::isalnum(static_cast<unsigned char>(c)) ? c : '_';
-    }
-    return result;
-}
-
-static std::string architecture_name(int major, int minor) {
-    switch (major) {
-        case 7: return minor >= 5 ? "turing" : "volta";
-        case 8: return minor == 9 ? "ada" : "ampere";
-        case 9: return "hopper";
-        case 10: return "blackwell";
-        default: return "unknown";
-    }
-}
-
-static std::string cuda_version_string(int version) {
-    return std::to_string(version / 1000) + "." +
-           std::to_string((version % 1000) / 10);
-}
-
-static std::string utc_timestamp() {
-    const std::time_t now = std::time(nullptr);
-    std::tm utc{};
-    gmtime_r(&now, &utc);
-    char buffer[32];
-    std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", &utc);
-    return buffer;
 }
 
 // Median over reps of the median per-SM span (latest end - earliest start of
@@ -314,13 +210,13 @@ static Span measure(const Shape& shape, int sms, int threads, int reps,
             }
         }
         sms_measured = static_cast<int>(sm_spans.size());
-        spans.push_back(median(sm_spans));
-        warps_seen.push_back(median(sm_warps));
+        spans.push_back(median_of(sm_spans));
+        warps_seen.push_back(median_of(sm_warps));
     }
-    const double m = median(spans);
+    const double m = median_of(spans);
     const double lo = *std::min_element(spans.begin(), spans.end());
     const double hi = *std::max_element(spans.begin(), spans.end());
-    return {m, median(warps_seen), m > 0 ? (hi - lo) / m : 0.0, sms_measured};
+    return {m, median_of(warps_seen), m > 0 ? (hi - lo) / m : 0.0, sms_measured};
 }
 
 int main(int argc, char** argv) {
@@ -503,29 +399,12 @@ int main(int argc, char** argv) {
          << "  \"timestamp\": \"" << utc_timestamp() << "\"\n"
          << "}\n";
 
-    namespace fs = std::filesystem;
-    std::error_code ec;
-    fs::create_directories(out_dir, ec);
-    if (ec) {
-        fprintf(stderr, "Cannot create output directory: %s\n", ec.message().c_str());
-        return 1;
-    }
-    const fs::path output_path =
-        fs::path(out_dir) / (std::string(PARAMETER) + "." + gpu + ".run.json");
-    FILE* file = std::fopen(output_path.string().c_str(), "w");
-    if (file == nullptr) {
-        perror("Could not open results JSON");
-        return 1;
-    }
     const std::string result = json.str();
-    bool write_ok = std::fputs(result.c_str(), file) >= 0;
-    if (std::fclose(file) != 0) write_ok = false;
-    if (!write_ok) {
-        fprintf(stderr, "Failed writing results to %s\n", output_path.string().c_str());
-        return 1;
-    }
+    const std::string output_path = write_run_json(out_dir, PARAMETER, gpu, result);
+    if (output_path.empty()) return 1;
+
     printf("%s", result.c_str());
-    fprintf(stderr, "Saved results to %s\n", output_path.string().c_str());
+    fprintf(stderr, "Saved results to %s\n", output_path.c_str());
 
     CUDA_CHECK(cudaFree(d_sink));
     CUDA_CHECK(cudaFree(d_timing));

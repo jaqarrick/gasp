@@ -33,16 +33,7 @@
 #include <vector>
 
 #include <cuda_runtime.h>
-
-#define CUDA_CHECK(call)                                                       \
-    do {                                                                       \
-        cudaError_t err__ = (call);                                            \
-        if (err__ != cudaSuccess) {                                            \
-            fprintf(stderr, "CUDA error '%s' at %s:%d\n",                      \
-                    cudaGetErrorString(err__), __FILE__, __LINE__);            \
-            exit(EXIT_FAILURE);                                                \
-        }                                                                      \
-    } while (0)
+#include "common.h"
 
 constexpr int WARP_THREADS = 32;
 constexpr int UNROLL = 8;         // independent loads in flight per warp
@@ -57,24 +48,6 @@ constexpr int TIMING_FIELDS = 4;  // start, end, smid, warps
 static const char* PARAMETER = "l1_throughput_sectors_per_cycle_per_sm";
 static const char* SCHEMA_VERSION = "1.1.0";
 static const char* BENCH_VERSION = "1.0.0";
-
-__device__ __forceinline__ uint64_t read_clock64() {
-    uint64_t cycles;
-    asm volatile("mov.u64 %0, %%clock64;" : "=l"(cycles) :: "memory");
-    return cycles;
-}
-
-__device__ __forceinline__ uint64_t read_globaltimer() {
-    uint64_t t;
-    asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t) :: "memory");
-    return t;
-}
-
-__device__ __forceinline__ uint32_t read_smid() {
-    uint32_t id;
-    asm volatile("mov.u32 %0, %%smid;" : "=r"(id));
-    return id;
-}
 
 // Default cache policy (ld.global, no .cs/.cg), so loads allocate in L1 as a
 // normal kernel's do. Returns the loaded words XORed together.
@@ -168,17 +141,6 @@ __global__ void l1_kernel(const char* __restrict__ data, uint32_t slice_bytes,
     if (acc == 0x9e3779b9u) sink[0] = acc;  // keeps acc live
 }
 
-// SM clock for the JSON: clock64 cycles per globaltimer ns over a spin
-__global__ void clock_kernel(unsigned long long* out) {
-    const uint64_t g0 = read_globaltimer();
-    const uint64_t c0 = read_clock64();
-    uint64_t c = c0;
-    while (c - c0 < 2000000) c = read_clock64();
-    const uint64_t g1 = read_globaltimer();
-    out[0] = c - c0;
-    out[1] = g1 - g0;
-}
-
 struct Shape {
     int width;           // bytes per lane
     int distinct_lanes;  // lanes reading different words
@@ -231,64 +193,6 @@ static void launch_shape(const Shape& s, int grid, int threads, const char* data
         launch<4, STORES>(grid, threads, data, slice, d, scratch, sink, timing);
     }
     CUDA_CHECK(cudaGetLastError());
-}
-
-static double median(std::vector<double> values) {
-    std::sort(values.begin(), values.end());
-    const size_t n = values.size();
-    if (n == 0) return 0.0;
-    return n % 2 ? values[n / 2] : 0.5 * (values[n / 2 - 1] + values[n / 2]);
-}
-
-static std::string json_escape(const std::string& value) {
-    std::string escaped;
-    for (char c : value) {
-        if (c == '"' || c == '\\') {
-            escaped += '\\';
-            escaped += c;
-        } else if (static_cast<unsigned char>(c) < 0x20) {
-            escaped += ' ';
-        } else {
-            escaped += c;
-        }
-    }
-    return escaped;
-}
-
-static std::string short_gpu_name(const std::string& full_name) {
-    std::string lower;
-    for (char c : full_name) {
-        lower += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    }
-    std::string result;
-    for (char c : lower) {
-        result += std::isalnum(static_cast<unsigned char>(c)) ? c : '_';
-    }
-    return result;
-}
-
-static std::string architecture_name(int major, int minor) {
-    switch (major) {
-        case 7: return minor >= 5 ? "turing" : "volta";
-        case 8: return minor == 9 ? "ada" : "ampere";
-        case 9: return "hopper";
-        case 10: return "blackwell";
-        default: return "unknown";
-    }
-}
-
-static std::string cuda_version_string(int version) {
-    return std::to_string(version / 1000) + "." +
-           std::to_string((version % 1000) / 10);
-}
-
-static std::string utc_timestamp() {
-    const std::time_t now = std::time(nullptr);
-    std::tm utc{};
-    gmtime_r(&now, &utc);
-    char buffer[32];
-    std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", &utc);
-    return buffer;
 }
 
 int main(int argc, char** argv) {
@@ -401,9 +305,9 @@ int main(int argc, char** argv) {
                     if (span > 0) sm_rates.push_back(requests / span);
                 }
                 sms_measured = static_cast<int>(sm_rates.size());
-                rates.push_back(median(sm_rates));
+                rates.push_back(median_of(sm_rates));
             }
-            const double m = median(rates);
+            const double m = median_of(rates);
             const double lo = *std::min_element(rates.begin(), rates.end());
             const double hi = *std::max_element(rates.begin(), rates.end());
             const double stores_per_load =
@@ -525,29 +429,12 @@ int main(int argc, char** argv) {
          << "  \"timestamp\": \"" << utc_timestamp() << "\"\n"
          << "}\n";
 
-    namespace fs = std::filesystem;
-    std::error_code ec;
-    fs::create_directories(out_dir, ec);
-    if (ec) {
-        fprintf(stderr, "Cannot create output directory: %s\n", ec.message().c_str());
-        return 1;
-    }
-    const fs::path output_path =
-        fs::path(out_dir) / (std::string(PARAMETER) + "." + gpu + ".run.json");
-    FILE* file = std::fopen(output_path.string().c_str(), "w");
-    if (file == nullptr) {
-        perror("Could not open results JSON");
-        return 1;
-    }
     const std::string result = json.str();
-    bool write_ok = std::fputs(result.c_str(), file) >= 0;
-    if (std::fclose(file) != 0) write_ok = false;
-    if (!write_ok) {
-        fprintf(stderr, "Failed writing results to %s\n", output_path.string().c_str());
-        return 1;
-    }
+    const std::string output_path = write_run_json(out_dir, PARAMETER, gpu, result);
+    if (output_path.empty()) return 1;
+
     printf("%s", result.c_str());
-    fprintf(stderr, "Saved results to %s\n", output_path.string().c_str());
+    fprintf(stderr, "Saved results to %s\n", output_path.c_str());
 
     CUDA_CHECK(cudaFree(d_data));
     CUDA_CHECK(cudaFree(d_scratch));

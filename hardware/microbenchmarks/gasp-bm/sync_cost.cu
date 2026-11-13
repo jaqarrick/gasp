@@ -15,16 +15,7 @@
 #include <vector>
 
 #include <cuda_runtime.h>
-
-#define CUDA_CHECK(call)                                                       \
-    do {                                                                       \
-        cudaError_t err__ = (call);                                            \
-        if (err__ != cudaSuccess) {                                            \
-            fprintf(stderr, "CUDA error '%s' at %s:%d\n",                      \
-                    cudaGetErrorString(err__), __FILE__, __LINE__);            \
-            exit(EXIT_FAILURE);                                                \
-        }                                                                      \
-    } while (0)
+#include "common.h"
 
 static const char* PARAMETER      = "sync_factor_cycles";
 static const char* SCHEMA_VERSION = "1.2.0";
@@ -42,32 +33,10 @@ constexpr double CV_WARN           = 0.25;        // warn if Γ varies more than
 // the latency-exposure effect GPUPerf's sync term models, so it is excluded from Γ.
 constexpr double DEFAULT_BW_FRAC   = 0.85;
 
-
 constexpr int LOADS[]        = {1, 4};
 constexpr int FFMAS[]        = {0, 8, 32, 128};
 constexpr int WARPS_PER_BLOCK[] = {4, 8, 16};
 constexpr int BLOCKS_PER_SM[]   = {1, 2, 4};
-
-__device__ __forceinline__ long long read_clock64() {
-    long long c;
-    asm volatile("mov.u64 %0, %%clock64;" : "=l"(c)::"memory");
-    return c;
-}
-
-// Nanoseconds since an arbitrary epoch, independent of the SM clock. Read next to
-// clock64 so the run records the SM clock it ran at (cycles / ns).
-__device__ __forceinline__ unsigned long long read_globaltimer() {
-    unsigned long long t;
-    asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t)::"memory");
-    return t;
-}
-
-// to check what SM the given kernel is on
-__device__ __forceinline__ int read_smid() {
-    int s;
-    asm volatile("mov.u32 %0, %%smid;" : "=r"(s));
-    return s;
-}
 
 // M - global loads per iter
 // C - number of FFMAs per iteration
@@ -147,77 +116,12 @@ static bool lookup_kernels(int m, int c, KernelFn& no_bar, KernelFn& bar) {
     return false;
 }
 
-static std::string run_cmd(const char* cmd) {
-    FILE* pipe = popen(cmd, "r");
-    if (!pipe) return "";
-    char buf[256];
-    std::string s;
-    while (fgets(buf, sizeof(buf), pipe)) s += buf;
-    pclose(pipe);
-    while (!s.empty() && isspace(static_cast<unsigned char>(s.back()))) s.pop_back();
-    return s;
-}
-
-static std::string json_escape(const std::string& in) {
-    std::string o;
-    for (char c : in) {
-        if (c == '"' || c == '\\') { o += '\\'; o += c; }
-        else if (static_cast<unsigned char>(c) < 0x20) o += ' ';
-        else o += c;
-    }
-    return o;
-}
-
-static std::string cuda_ver_string(int v) {   // 12080 -> "12.8"
-    return std::to_string(v / 1000) + "." + std::to_string((v % 1000) / 10);
-}
-
-static std::string short_gpu_name(const std::string& full) {
-    std::string l;
-    for (char c : full) l += static_cast<char>(tolower(static_cast<unsigned char>(c)));
-    for (const char* k : {"a100", "h100", "h200", "b200", "b100"})
-        if (l.find(k) != std::string::npos) return k;
-    std::string s;
-    for (char c : l) s += isalnum(static_cast<unsigned char>(c)) ? c : '_';
-    return s;
-}
-
-static std::string utc_timestamp() {
-    std::time_t t = std::time(nullptr);
-    std::tm tm{};
-    gmtime_r(&t, &tm);
-    char b[32];
-    std::strftime(b, sizeof(b), "%Y-%m-%dT%H:%M:%SZ", &tm);
-    return b;
-}
-
-static double median_of(std::vector<double> v) {
-    std::sort(v.begin(), v.end());
-    size_t n = v.size();
-    return (n % 2) ? v[n / 2] : 0.5 * (v[n / 2 - 1] + v[n / 2]);
-}
-
 static double stddev_of(const std::vector<double>& v) {
     if (v.size() < 2) return 0.0;
     const double mean = std::accumulate(v.begin(), v.end(), 0.0) / v.size();
     double var = 0.0;
     for (double x : v) var += (x - mean) * (x - mean);
     return std::sqrt(var / (v.size() - 1));
-}
-
-// Reads "value" from a run JSON written by another microbenchmark. Returns
-// a value <= 0 if the file is missing, its "parameter" is not `parameter`,
-// or it has no "value".
-static double read_run_value(const std::string& path, const std::string& parameter) {
-    std::ifstream f(path);
-    if (!f) return -1.0;
-    std::stringstream ss;
-    ss << f.rdbuf();
-    const std::string s = ss.str();
-    if (s.find("\"parameter\": \"" + parameter + "\"") == std::string::npos) return -1.0;
-    const size_t k = s.find("\"value\":");
-    if (k == std::string::npos) return -1.0;
-    return atof(s.c_str() + k + 8);
 }
 
 struct LaunchResult {
@@ -528,10 +432,8 @@ int main(int argc, char** argv) {
                         "memory ratio and warps per SM before using the median.\n", 100 * cv);
 
     // ---- Build JSON --------------------------------------------------------
-    std::string driver = run_cmd("nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -n1");
-    std::string commit = run_cmd("git rev-parse --short HEAD 2>/dev/null");
-    if (driver.empty()) driver = "unknown";
-    if (commit.empty()) commit = "unknown";
+    std::string driver = driver_version();
+    std::string commit = git_commit();
 
     std::ostringstream j;
     j.setf(std::ios::fixed);
@@ -616,7 +518,7 @@ int main(int argc, char** argv) {
     j << "    \"reps_per_variant\": " << reps << ",\n";
     j << "    \"ring_bytes\": " << ring_bytes << "\n";
     j << "  },\n";
-    j << "  \"cuda_version\": \"" << cuda_ver_string(rt_ver) << "\",\n";
+    j << "  \"cuda_version\": \"" << cuda_version_string(rt_ver) << "\",\n";
     j << "  \"nvcc_version\": \"" << __CUDACC_VER_MAJOR__ << "." << __CUDACC_VER_MINOR__ << "\",\n";
     j << "  \"driver_version\": \"" << json_escape(driver) << "\",\n";
     j << "  \"git_commit\": \"" << json_escape(commit) << "\",\n";
@@ -624,22 +526,15 @@ int main(int argc, char** argv) {
     j << "}\n";
 
     // ---- Save to <out_dir>/{parameter}.{gpu}.run.json -----------------------
-    std::error_code ec;
-    fs::create_directories(out_dir, ec);
-    if (ec) { fprintf(stderr, "Cannot create %s: %s\n", out_dir.c_str(), ec.message().c_str()); return 1; }
-    fs::path out_path = fs::path(out_dir) / (std::string(PARAMETER) + "." + gpu + ".run.json");
-
-    FILE* f = fopen(out_path.string().c_str(), "w");
-    if (!f) { perror("fopen"); return 1; }
-    fputs(j.str().c_str(), f);
-    fclose(f);
+    const std::string out_path = write_run_json(out_dir, PARAMETER, gpu, j.str());
+    if (out_path.empty()) return 1;
 
     printf("%s", j.str().c_str());
     fprintf(stderr, "\nGamma: %.3f median over %zu configurations (std %.3f, least-squares fit %.3f); "
                     "%d bandwidth-bound excluded\nMedian barrier cost: %.1f SM cycles per barrier round\n"
                     "Saved: %s\n",
             median, gammas.size(), stddev, gamma_fit, bw_bound_count, median_delta_per_iter,
-            out_path.string().c_str());
+            out_path.c_str());
 
     CUDA_CHECK(cudaFree(d_ring));
     CUDA_CHECK(cudaFree(d_start));

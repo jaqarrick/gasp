@@ -26,16 +26,7 @@
 #include <string.h>
 #include <time.h>
 #include <cuda_runtime.h>
-
-#define CUDA_CHECK(call)                                                       \
-    do {                                                                       \
-        cudaError_t err__ = (call);                                            \
-        if (err__ != cudaSuccess) {                                            \
-            fprintf(stderr, "CUDA error '%s' at %s:%d\n",                      \
-                    cudaGetErrorString(err__), __FILE__, __LINE__);            \
-            exit(EXIT_FAILURE);                                                \
-        }                                                                      \
-    } while (0)
+#include "common.h"
 
 #define CHAIN_OPS 1024 // number of chained DADD operations in the timed region
 #define UNROLL 16 // number of DADDs per loop iteration
@@ -44,21 +35,6 @@
 #define REPS 200 // timed launches (issue asks for >= 100)
 
 // ---- Device ----------------------------------------------------------------
-
-// Read the SM cycle counter. Written as volatile asm (instead of calling clock64()) so the compiler keeps it in order with the volatile asm DADDs.
-__device__ unsigned long long read_clock64(void) {
-    unsigned long long c;
-    asm volatile("mov.u64 %0, %%clock64;" : "=l"(c) :: "memory");
-    return c;
-}
-
-// Nanoseconds since an arbitrary epoch, independent of the SM clock. Read next to
-// clock64 so the run records the SM clock it ran at (cycles / ns).
-__device__ unsigned long long read_globaltimer(void) {
-    unsigned long long t;
-    asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t) :: "memory");
-    return t;
-}
 
 // One dependent add: x = x + step. "+d"(x) makes x a double register that is both
 // input and output, so every DADD must wait for the previous one.
@@ -98,75 +74,6 @@ __global__ void fp64_latency_kernel(double step, long long *out, double *sink) {
     out[1] = (long long)(b1 - b0);
     out[2] = (long long)(g1 - g0);
     sink[0] = x;
-}
-
-// ---- Host helpers ----------------------------------------------------------
-
-static int compare_doubles(const void *a, const void *b) {
-    double da = *(const double *)a;
-    double db = *(const double *)b;
-    return (da > db) - (da < db);
-}
-
-// Median of n values. Sorts a copy, so the caller's array is unchanged.
-static double median_of(const double *values, int n) {
-    double *sorted = (double *)malloc(n * sizeof(double));
-    memcpy(sorted, values, n * sizeof(double));
-    qsort(sorted, n, sizeof(double), compare_doubles);
-    double m = (n % 2) ? sorted[n / 2] : 0.5 * (sorted[n / 2 - 1] + sorted[n / 2]);
-    free(sorted);
-    return m;
-}
-
-// Run a shell command and copy the first line of its output into buf.
-// buf is "unknown" if the command fails or prints nothing.
-static void run_cmd_first_line(const char *cmd, char *buf, size_t size) {
-    snprintf(buf, size, "unknown");
-    FILE *pipe = popen(cmd, "r");
-    if (!pipe) return;
-    char line[256];
-    if (fgets(line, sizeof(line), pipe)) {
-        line[strcspn(line, "\r\n")] = '\0';
-        if (line[0] != '\0') snprintf(buf, size, "%s", line);
-    }
-    pclose(pipe);
-}
-
-// "NVIDIA A100-SXM4-80GB" -> "a100". Other GPUs get the lowercased name with
-// anything that isn't a letter or digit replaced by '_'
-// ("NVIDIA GeForce RTX 2080 Ti" -> "nvidia_geforce_rtx_2080_ti").
-static void short_gpu_name(const char *full, char *buf, size_t size) {
-    const char *known[] = {"a100", "h100", "h200", "b200", "b100"};
-    char lower[256];
-    size_t n = 0;
-    for (; full[n] != '\0' && n < sizeof(lower) - 1; n++) {
-        lower[n] = (char)tolower((unsigned char)full[n]);
-    }
-    lower[n] = '\0';
-
-    for (size_t k = 0; k < sizeof(known) / sizeof(known[0]); k++) {
-        if (strstr(lower, known[k])) {
-            snprintf(buf, size, "%s", known[k]);
-            return;
-        }
-    }
-    for (n = 0; lower[n] != '\0' && n < size - 1; n++) {
-        buf[n] = isalnum((unsigned char)lower[n]) ? lower[n] : '_';
-    }
-    buf[n] = '\0';
-}
-
-// Folder that holds the executable, taken from argv[0]:
-// "./fp64_latency" -> ".", "hardware/microbenchmarks/fp64_latency" -> "hardware/microbenchmarks".
-static void executable_dir(const char *argv0, char *buf, size_t size) {
-    const char *slash = strrchr(argv0, '/');
-    if (!slash) {
-        snprintf(buf, size, ".");
-    } else if (slash == argv0) {
-        snprintf(buf, size, "/");
-    } else {
-        snprintf(buf, size, "%.*s", (int)(slash - argv0), argv0);
-    }
 }
 
 // ---- Main ------------------------------------------------------------------
@@ -241,101 +148,61 @@ int main(int argc, char **argv) {
     }
     double uncorrected_value = median_of(gross_per_op, REPS);  // no subtraction
 
-    double sum = 0.0;
-    double mn = per_op[0];
-    double mx = per_op[0];
-    for (int r = 0; r < REPS; r++) {
-        sum += per_op[r];
-        if (per_op[r] < mn) mn = per_op[r];
-        if (per_op[r] > mx) mx = per_op[r];
-    }
-    double mean = sum / REPS;
-    double var = 0.0;
-    for (int r = 0; r < REPS; r++) {
-        var += (per_op[r] - mean) * (per_op[r] - mean);
-    }
-    double stddev = sqrt(var / (REPS - 1));
-    double median = median_of(per_op, REPS);
+    const Stats stats = compute_stats(per_op, REPS);
+    const double median = stats.median;
 
     if (median < 4.0) {
         fprintf(stderr, "WARNING: median below 4 cycles; the adds may not be dependent. Check the SASS.\n");
     }
 
     // ---- Collect run metadata ----------------------------------------------
-    char gpu[128];
-    short_gpu_name(prop.name, gpu, sizeof(gpu));
+    const std::string gpu = short_gpu_name(prop.name);
 
     int runtime_version = 0;  // e.g. 12080 for CUDA 12.8
     CUDA_CHECK(cudaRuntimeGetVersion(&runtime_version));
 
-    char driver[64];
-    run_cmd_first_line("nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null",
-                       driver, sizeof(driver));
+    const std::string driver = driver_version();
 
-    char timestamp[32];
-    time_t now = time(NULL);
-    struct tm utc;
-    gmtime_r(&now, &utc);
-    strftime(timestamp, sizeof(timestamp), "%Y-%m-%dT%H:%M:%SZ", &utc);
+    const std::string timestamp = utc_timestamp();
 
     // ---- Write <exe dir>/fp64_inst_latency_cycles.<gpu>.run.json ------------
-    char out_dir[1024];
-    executable_dir(argv[0], out_dir, sizeof(out_dir));
-    char out_path[1400];
-    snprintf(out_path, sizeof(out_path), "%s/fp64_inst_latency_cycles.%s.run.json", out_dir, gpu);
-
-    FILE *f = fopen(out_path, "w");
-    if (!f) {
-        perror(out_path);
-        return 1;
-    }
-    fprintf(f, "{\n");
-    fprintf(f, "  \"benchmark\": \"fp64_latency.cu\",\n");
-    fprintf(f, "  \"parameter\": \"fp64_inst_latency_cycles\",\n");
-    fprintf(f, "  \"value\": %.4f,\n", median);
-    fprintf(f, "  \"unit\": \"cycles\",\n");
-    fprintf(f, "  \"gpu\": \"%s\",\n", gpu);
-    fprintf(f, "  \"gpu_name\": \"%s\",\n", prop.name);
-    fprintf(f, "  \"arch\": \"sm_%d%d\",\n", prop.major, prop.minor);
-    fprintf(f, "  \"num_sms\": %d,\n", prop.multiProcessorCount);
-    fprintf(f, "  \"stats\": {\n");
-    fprintf(f, "    \"median\": %.4f,\n", median);
-    fprintf(f, "    \"mean\": %.4f,\n", mean);
-    fprintf(f, "    \"std\": %.4f,\n", stddev);
-    fprintf(f, "    \"min\": %.4f,\n", mn);
-    fprintf(f, "    \"max\": %.4f\n", mx);
-    fprintf(f, "  },\n");
+    std::string json;
+    json += "{\n";
+    json += "  \"benchmark\": \"fp64_latency.cu\",\n";
+    json += "  \"parameter\": \"fp64_inst_latency_cycles\",\n";
+    json += strprintf("  \"value\": %.4f,\n", median);
+    json += "  \"unit\": \"cycles\",\n";
+    json += strprintf("  \"gpu\": \"%s\",\n", gpu.c_str());
+    json += strprintf("  \"gpu_name\": \"%s\",\n", prop.name);
+    json += strprintf("  \"arch\": \"sm_%d%d\",\n", prop.major, prop.minor);
+    json += strprintf("  \"num_sms\": %d,\n", prop.multiProcessorCount);
+    json += json_stats(stats);
     // raw_cycles           : per run, clock64 delta around the chain, clock-read cost INCLUDED
     // overhead_samples     : per run, clock64 delta of two back-to-back reads (cost of the clock)
     // overhead_cycles      : median of overhead_samples; the value subtracted from every run
     // net_cycles           : raw_cycles - overhead_cycles (per run)
     // per_op_cycles        : net_cycles / CHAIN_OPS (per run); stats are computed over these
     // uncorrected_value    : median of raw_cycles / CHAIN_OPS (no overhead subtracted)
-    fprintf(f, "  \"raw_cycles\": [");
-    for (int r = 0; r < REPS; r++) fprintf(f, "%s%.0f", r ? ", " : "", raw_cycles[r]);
-    fprintf(f, "],\n");
-    fprintf(f, "  \"overhead_samples_cycles\": [");
-    for (int r = 0; r < REPS; r++) fprintf(f, "%s%.0f", r ? ", " : "", overhead_samples[r]);
-    fprintf(f, "],\n");
-    fprintf(f, "  \"overhead_cycles\": %.4f,\n", overhead);
-    fprintf(f, "  \"overhead_subtracted\": true,\n");
-    fprintf(f, "  \"net_cycles\": [");
-    for (int r = 0; r < REPS; r++) fprintf(f, "%s%.4f", r ? ", " : "", net_cycles[r]);
-    fprintf(f, "],\n");
-    fprintf(f, "  \"per_op_cycles\": [");
-    for (int r = 0; r < REPS; r++) fprintf(f, "%s%.4f", r ? ", " : "", per_op[r]);
-    fprintf(f, "],\n");
-    fprintf(f, "  \"uncorrected_value\": %.4f,\n", uncorrected_value);
+    json += strprintf("  \"raw_cycles\": %s,\n", json_array(raw_cycles, REPS, 0).c_str());
+    json += strprintf("  \"overhead_samples_cycles\": %s,\n", json_array(overhead_samples, REPS, 0).c_str());
+    json += strprintf("  \"overhead_cycles\": %.4f,\n", overhead);
+    json += "  \"overhead_subtracted\": true,\n";
+    json += strprintf("  \"net_cycles\": %s,\n", json_array(net_cycles, REPS).c_str());
+    json += strprintf("  \"per_op_cycles\": %s,\n", json_array(per_op, REPS).c_str());
+    json += strprintf("  \"uncorrected_value\": %.4f,\n", uncorrected_value);
     // clock.sm_clock_ghz: total clock64 cycles / total globaltimer ns over all reps
-    fprintf(f, "  \"clock\": {\"sm_clock_ghz\": %.4f},\n", sm_clock_ghz);
-    fprintf(f, "  \"cuda_version\": \"%d.%d\",\n", runtime_version / 1000, (runtime_version % 1000) / 10);
-    fprintf(f, "  \"nvcc_version\": \"%d.%d\",\n", __CUDACC_VER_MAJOR__, __CUDACC_VER_MINOR__);
-    fprintf(f, "  \"driver_version\": \"%s\",\n", driver);
-    fprintf(f, "  \"timestamp\": \"%s\"\n", timestamp);
-    fprintf(f, "}\n");
-    fclose(f);
+    json += strprintf("  \"clock\": {\"sm_clock_ghz\": %.4f},\n", sm_clock_ghz);
+    json += strprintf("  \"cuda_version\": \"%s\",\n", cuda_version_string(runtime_version).c_str());
+    json += strprintf("  \"nvcc_version\": \"%d.%d\",\n", __CUDACC_VER_MAJOR__, __CUDACC_VER_MINOR__);
+    json += strprintf("  \"driver_version\": \"%s\",\n", driver.c_str());
+    json += strprintf("  \"timestamp\": \"%s\"\n", timestamp.c_str());
+    json += "}\n";
 
-    fprintf(stderr, "Saved %s (median %.3f cycles per DADD)\n", out_path, median);
+    const std::string out_dir = executable_dir(argv[0]);
+    const std::string out_path = write_run_json(out_dir, "fp64_inst_latency_cycles", gpu, json);
+    if (out_path.empty()) return 1;
+
+    fprintf(stderr, "Saved %s (median %.3f cycles per DADD)\n", out_path.c_str(), median);
 
     CUDA_CHECK(cudaFree(d_out));
     CUDA_CHECK(cudaFree(d_sink));

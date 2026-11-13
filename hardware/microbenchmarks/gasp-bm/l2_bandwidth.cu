@@ -47,16 +47,7 @@
 #include <vector>
 
 #include <cuda_runtime.h>
-
-#define CUDA_CHECK(call)                                                       \
-    do {                                                                       \
-        cudaError_t err__ = (call);                                            \
-        if (err__ != cudaSuccess) {                                            \
-            fprintf(stderr, "CUDA error '%s' at %s:%d\n",                      \
-                    cudaGetErrorString(err__), __FILE__, __LINE__);            \
-            exit(EXIT_FAILURE);                                                \
-        }                                                                      \
-    } while (0)
+#include "common.h"
 
 static const char* PARAMETER = "l2_bandwidth_bytes_per_cycle";
 static const char* SCHEMA_VERSION = "1.1.0";
@@ -76,18 +67,6 @@ constexpr int PROFILE_PCT = 40;         // the working set the profile value is 
 constexpr int MAX_PCT = 60;             // above this, evictions are likely
 constexpr double AGREE_TOLERANCE = 0.05;
 constexpr uint64_t DATA_SEED = 0x2545F4914F6CDD1DULL;
-
-__device__ __forceinline__ uint64_t read_clock64() {
-    uint64_t c;
-    asm volatile("mov.u64 %0, %%clock64;" : "=l"(c) :: "memory");
-    return c;
-}
-
-__device__ __forceinline__ uint64_t read_globaltimer() {
-    uint64_t t;
-    asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t) :: "memory");
-    return t;
-}
 
 // ts[4*block + {0,1,2,3}] = {timer_start_ns, timer_end_ns, clock_start, clock_end}
 // rows is a multiple of UNROLL, and so is every block's starting row, so a
@@ -130,61 +109,6 @@ l2_read_kernel(const uint4* __restrict__ buf, uint32_t rows, uint32_t passes,
         ts[4 * blockIdx.x + 3] = read_clock64();
     }
     sink[static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x] = acc;
-}
-
-// splitmix64: pseudo-random fill, so no compression can shrink the traffic
-__device__ __forceinline__ uint64_t splitmix64(uint64_t x) {
-    x += 0x9E3779B97F4A7C15ULL;
-    x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ULL;
-    x = (x ^ (x >> 27)) * 0x94D049BB133111EBULL;
-    return x ^ (x >> 31);
-}
-
-__global__ void fill_random_kernel(uint64_t* buf, size_t n_words, uint64_t seed) {
-    const size_t stride = static_cast<size_t>(gridDim.x) * blockDim.x;
-    for (size_t i = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-         i < n_words; i += stride) {
-        buf[i] = splitmix64(seed + i);
-    }
-}
-
-static std::string json_escape(const std::string& in) {
-    std::string o;
-    for (char c : in) {
-        if (c == '"' || c == '\\') { o += '\\'; o += c; }
-        else if (static_cast<unsigned char>(c) < 0x20) o += ' ';
-        else o += c;
-    }
-    return o;
-}
-
-static std::string cuda_version_string(int v) {
-    return std::to_string(v / 1000) + "." + std::to_string((v % 1000) / 10);
-}
-
-static std::string short_gpu_name(const std::string& full) {
-    std::string s;
-    for (char c : full) {
-        const char l = static_cast<char>(tolower(static_cast<unsigned char>(c)));
-        s += isalnum(static_cast<unsigned char>(l)) ? l : '_';
-    }
-    return s;
-}
-
-static std::string utc_timestamp() {
-    std::time_t t = std::time(nullptr);
-    std::tm tm{};
-    gmtime_r(&t, &tm);
-    char b[32];
-    std::strftime(b, sizeof(b), "%Y-%m-%dT%H:%M:%SZ", &tm);
-    return b;
-}
-
-static double median_of(std::vector<double> v) {
-    std::sort(v.begin(), v.end());
-    const size_t n = v.size();
-    if (n == 0) return 0.0;
-    return (n % 2) ? v[n / 2] : 0.5 * (v[n / 2 - 1] + v[n / 2]);
 }
 
 struct Result {
@@ -432,22 +356,13 @@ int main(int argc, char** argv) {
       << "  \"timestamp\": \"" << utc_timestamp() << "\"\n"
       << "}\n";
 
-    namespace fs = std::filesystem;
-    std::error_code ec;
-    fs::create_directories(out_dir, ec);
-    if (ec) { fprintf(stderr, "Cannot create %s: %s\n", out_dir.c_str(), ec.message().c_str()); return 1; }
-    const fs::path out_path =
-        fs::path(out_dir) / (std::string(PARAMETER) + "." + gpu + ".run.json");
-    FILE* f = fopen(out_path.string().c_str(), "w");
-    if (!f) { perror("fopen"); return 1; }
-    bool write_ok = fputs(j.str().c_str(), f) >= 0;
-    if (fclose(f) != 0) write_ok = false;
-    if (!write_ok) { fprintf(stderr, "Failed writing %s\n", out_path.string().c_str()); return 1; }
+    const std::string out_path = write_run_json(out_dir, PARAMETER, gpu, j.str());
+    if (out_path.empty()) return 1;
 
     printf("%s", j.str().c_str());
     fprintf(stderr, "\nL2 bandwidth: %.2f bytes/cycle (%.1f GB/s at %.3f GHz)\nSaved: %s\n",
             value, main_result->gb_per_s, main_result->sm_clock_ghz,
-            out_path.string().c_str());
+            out_path.c_str());
 
     CUDA_CHECK(cudaFree(d_buf));
     CUDA_CHECK(cudaFree(d_ts));
