@@ -49,7 +49,8 @@ NCU_FLAGS = [
     "--print-kernel-base",
     "function",
 ]
-# Two cheap metrics, so every kernel still runs once (no replay passes).
+
+
 TIMED_METRICS = ["gpc__cycles_elapsed.max", CLOCK_METRIC]
 
 WARP_LOAD_BYTES = 128  # one 32-bit load per lane of a warp
@@ -60,6 +61,10 @@ MEM_BW_ARRAYS = 6
 MEM_BW_ARRAY_SIZE = 536870912
 MEM_BW_HEADROOM = 512 * 1024**2  # left free for the CUDA context
 MEM_BW_MIN_L2_MULTIPLE = 8  # a smaller array must still be at least 8x the L2
+# we need to increase this because hpmll only uses 8 trips. since one of those is the first
+# l1 load (i.e. the first DRAM trip), the average is brought down. Increasing this iteration count
+# Makes 256 trips
+L1_LAT_ITERS = 1048576
 
 
 @dataclass
@@ -158,8 +163,11 @@ BENCHES = [
         "l1_cache_hit_latency_cycles",
         "cycles",
         as_printed,
-        "printed value (ld.global.ca pointer chase, 32 KB array)",
-        check=Check(L1_HIT, low=90.0, why="the chase must hit L1"),
+        "printed value (ld.global.ca pointer chase, 32 KB array, 256 passes)",
+        # 256 passes leave one cold pass in 256 (>= 99.6% hits); at 99%, misses
+        # at L2 latency add at most ~2 cycles
+        check=Check(L1_HIT, low=99.0, why="the chase must hit L1"),
+        notes=[f"built with ITERS {L1_LAT_ITERS} (hpmll: 32768) so the cold first pass is negligible"],
     ),
     HpmllBench(
         "l2_lat",
@@ -380,6 +388,8 @@ def mem_bw_array_size(free_bytes: int) -> int:
 
 def source_changes(bench: HpmllBench, device: Device) -> dict[str, int]:
     """#defines to change in a copy of the source before building ({}: build it as is)."""
+    if bench.name == "l1_lat":
+        return {"ITERS": L1_LAT_ITERS}
     if bench.name != "mem_bw":
         return {}
     size = mem_bw_array_size(device.memory_free_bytes)
@@ -566,9 +576,6 @@ def run_json(
     }
 
 
-# ---- Main ------------------------------------------------------------------------------
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -637,10 +644,7 @@ def main() -> int:
         defines = source_changes(bench, device)
         mb.log(f"\n== {name}")
         for define, value in defines.items():
-            mb.log(
-                f"  {device.memory_free_bytes / 1024**3:.1f} GiB free: building from a copy "
-                f"with {define} {value}"
-            )
+            mb.log(f"  building from a copy with {define} {value}")
         try:
             result = run_bench(
                 bench, hpmll_dir, root, arch, args.reps, device.max_sm_clock_ghz, defines
@@ -667,7 +671,7 @@ def main() -> int:
         "timestamp": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
 
-    # ---- One run JSON per field, from this run's results
+    # One run JSON per field, from this run's results
     measured: dict[str, dict] = {}
     not_measured: dict[str, str] = {}
     for key in FIELDS:
