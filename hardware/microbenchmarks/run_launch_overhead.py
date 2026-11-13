@@ -1,5 +1,6 @@
-# This script runs ncu on launch_overhead_bench for 4 configurations
-# (<<<1,1>>>, <<<1,256>>>, <<<32,256>>>, <<<512,256>>>), repeated --reps times.
+# This script runs ncu on launch_overhead_bench for 8 configurations
+# (<<<1,1>>>, <<<1,32>>>, <<<1,256>>>, <<<1,1024>>>, <<<32,256>>>, <<<128,256>>>, <<<256,256>>>, <<<512,256>>>),
+# repeated --reps times.
 # Each benchmark process launches the empty kernel --warmup times and then once
 # more; ncu profiles every launch, so each run yields a cold measurement (the
 # first launch) and a warm measurement (the last launch).
@@ -33,7 +34,7 @@ from pathlib import Path
 # Default output locations are anchored to the repo root (this file lives in
 # hardware/microbenchmarks/), so results land in hardware/runs/ regardless of cwd.
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCHEMA_VERSION = "1"  # TODO: set to the schema_version agreed on Discord
+SCHEMA_VERSION = "1.1.0"
 BENCHMARK = "launch_overhead_bench.cu"
 METRICS = (
     "sm__cycles_elapsed.max",
@@ -96,6 +97,7 @@ def slugify(name: str) -> str:
     return slug or "unknown_gpu"
 
 
+# converts gpu compute-capability major/minor number into the broader architecture label for use in JSON
 def architecture_name(compute_capability: str) -> str:
     """Map CUDA compute capability to a GPU architecture family."""
     major, minor = map(int, compute_capability.split("."))
@@ -114,6 +116,7 @@ def architecture_name(compute_capability: str) -> str:
     return "unknown"
 
 
+# extracts the GPU_INFO line printed by launch_overhead_bench and parses the JSON
 def parse_gpu_info(*texts: str) -> dict:
     """Find the benchmark's GPU_INFO line in the given outputs and decode it."""
     for text in texts:
@@ -162,6 +165,7 @@ def to_float(raw: str | None, metric: str) -> float:
     return value
 
 
+# parses the raw ncu CSV output to extract elapsed and active cycles for each launch
 def parse_launch_metrics(csv_output: str) -> list[dict[str, float]]:
     """Return one {metric: value} dict per profiled launch, in launch order.
 
@@ -221,6 +225,7 @@ def parse_launch_metrics(csv_output: str) -> list[dict[str, float]]:
     )
 
 
+# least-squares linear regression to separate fixed base launch cost from per-thread cost
 def fit_line(xs: list[float], ys: list[float]) -> tuple[float, float, float]:
     """Fit y = base + slope*x; return base, slope, and R-squared."""
     mean_x = sum(xs) / len(xs)
@@ -239,6 +244,7 @@ def fit_line(xs: list[float], ys: list[float]) -> tuple[float, float, float]:
     return base, slope, r_squared
 
 
+# statistics collection
 def summarize(values: list[float]) -> dict[str, float]:
     return {
         "median": statistics.median(values),
@@ -249,6 +255,7 @@ def summarize(values: list[float]) -> dict[str, float]:
     }
 
 
+# subtracts active cycles from elapsed cycles to isolate the true launch overhead
 def launch_record(
     launch_index: int, metrics: dict[str, float]
 ) -> dict[str, float | int]:
@@ -262,6 +269,7 @@ def launch_record(
     }
 
 
+# runs the binary under ncu for one grid/block config and returns the cold and warm records
 def profile_one(
     ncu: str,
     binary: Path,
@@ -343,6 +351,7 @@ def run_experiment(args: argparse.Namespace) -> int:
         raise RuntimeError(f"{binary} --info failed:\n{probe.stderr}")
     reference_gpu = parse_gpu_info(probe.stdout)
 
+    # extract device properties, reads them into our properties
     gpu_name = reference_gpu["name"]
     gpu_slug = slugify(gpu_name)
     gpu_key = args.gpu or gpu_slug
@@ -389,6 +398,7 @@ def run_experiment(args: argparse.Namespace) -> int:
                 }
             )
 
+    # fits base + slope * total_threads across the 8 configs for each rep
     def fits_for(kind: str) -> list[tuple[float, float, float]]:
         fits = []
         for rep in range(args.reps):
@@ -401,6 +411,7 @@ def run_experiment(args: argparse.Namespace) -> int:
     warm_fits = fits_for("warm")
     cold_fits = fits_for("cold")
 
+    # save each config's median cold and warm samples to compare warmup effect
     warmup_effect = []
     for grid, block in CONFIGS:
         mine = [r for r in runs if (r["grid"], r["block"]) == (grid, block)]
@@ -421,6 +432,7 @@ def run_experiment(args: argparse.Namespace) -> int:
             }
         )
 
+    # runs nvidia-smi to read installed NVIDIA driver version for results JSON
     script_dir = Path(__file__).resolve().parent
     driver = run_text(
         ["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"]
@@ -458,6 +470,7 @@ def run_experiment(args: argparse.Namespace) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     written = []
 
+    # json file processing
     for parameter, unit, index in PARAMETERS:
         warm_values = [fit[index] for fit in warm_fits]
         cold_values = [fit[index] for fit in cold_fits]
@@ -474,6 +487,7 @@ def run_experiment(args: argparse.Namespace) -> int:
             "architecture": architecture,
             "arch": arch,
             "device": device_info,
+            "stats": warm_stats,
             "gpu_name": gpu_name,
             "num_sms": reference_gpu["num_sms"],
             "l2_cache_bytes": reference_gpu["l2_cache_bytes"],
