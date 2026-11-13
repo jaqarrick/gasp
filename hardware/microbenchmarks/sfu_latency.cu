@@ -83,8 +83,8 @@ void print_output(float final_sfu_clock_cycles) {
   gpuErrchk(cudaGetDeviceProperties(&prop, 0));
 
   printf("{\n");
-  printf("  \"benchmark\": \"int32_latency.cu\",\n");
-  printf("  \"parameter\": \"int32_inst_latency_cycles\",\n");
+  printf("  \"benchmark\": \"sfu_latency.cu\",\n");
+  printf("  \"parameter\": \"sfu_inst_latency_cycles\",\n");
   printf("  \"value\": %.4f,\n", final_sfu_clock_cycles); // <-- what we care about
   printf("  \"unit\": \"cycles\",\n");
   printf("  \"gpu_name\": \"%s\",\n", prop.name);
