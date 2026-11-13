@@ -589,6 +589,7 @@ def main() -> int:
         "(default: hardware/profiles/<gpu>.json, else <gpu>.placeholder.json)",
     )
     parser.add_argument("--only", help="comma-separated benchmarks: " + ", ".join(BY_NAME))
+    parser.add_argument("--skip", help="comma-separated benchmarks to leave out")
     parser.add_argument("--reps", type=int, default=5, help="runs per benchmark (default 5)")
     parser.add_argument("--hpmll-dir", type=Path, default=DEFAULT_HPMLL_DIR, help="hpmll checkout")
     parser.add_argument("--force", action="store_true", help="reuse an existing output directory")
@@ -613,6 +614,12 @@ def main() -> int:
         unknown = [n for n in names if n not in BY_NAME]
         if unknown:
             raise SystemExit(f"unknown benchmark(s): {', '.join(unknown)}")
+    if args.skip:
+        skip = [n.strip() for n in args.skip.split(",") if n.strip()]
+        unknown = [n for n in skip if n not in BY_NAME]
+        if unknown:
+            raise SystemExit(f"unknown benchmark(s) to skip: {', '.join(unknown)}")
+        names = [n for n in names if n not in skip]
 
     version = args.version.replace(".", "_")
     root = REPO_ROOT / "hardware" / "runs" / args.gpu / version / "hpmll"

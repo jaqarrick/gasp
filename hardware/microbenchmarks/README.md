@@ -1,6 +1,17 @@
 # Microbenchmarks
 This are targeted CUDA programs for specific operation measurements
 
+## Building a profile
+`make microbenchmarks GPU=<gpu> VERSION=<label>` (`gasp-bm/run_all.py`) runs three suites and merges them into one profile, `hardware/runs/<gpu>/<version>/<gpu>.<version>.json`. Each field takes the first valid result of:
+
+1. gpu-benches' `gpu-stream`, for `dram_bandwidth_bytes_per_cycle` only (see "gpu-benches: DRAM bandwidth").
+2. HPMLL (`scripts/run/run_hpmll_bmks.py`, results in `<version>/hpmll/`), for every field it measures: fp32/fp64/int32 instruction latency, L1/L2/DRAM latency, shared load latency and throughput, and L1 and L2 bandwidth. Its `mem_bw` is not run, since `gpu-stream` supplies that field.
+3. gasp-bm (`gasp-bm/*.cu`), for every other field, and for an HPMLL field whose HPMLL result was invalid or missing.
+
+The gasp-bm benchmarks that HPMLL overrides still run, as the fallback. `shared_memory_store_cycles` also needs gasp-bm's shared load latency. `sync_cost` gets the same DRAM latency and bandwidth as the profile. `<gpu>.<version>.sources.json` records each field's source file, the gasp-bm value an HPMLL value replaced (`replaces`), and why an HPMLL result was not used (`hpmll_not_used`). Fields nothing measures are copied from the base profile. `ARGS='--only hpmll,dram_latency'` runs a subset; results already in the version directory are reused.
+
+`make microbenchmarks-hpmll` and `make microbenchmarks-gpu-benches` still run one suite on its own.
+
 ## Citation: HPMLL NVIDIA Hopper Benchmark
 The `hpmll/` submodule is [HPMLL/NVIDIA-Hopper-Benchmark](https://github.com/HPMLL/NVIDIA-Hopper-Benchmark) (GPL-3.0). Its authors ask that the project and these papers be cited:
 
@@ -25,14 +36,44 @@ The `hpmll/` submodule is [HPMLL/NVIDIA-Hopper-Benchmark](https://github.com/HPM
 }
 ```
 
-## gpu-benches cross-check
-The `gpu-benches/` submodule is [RRZE-HPC/gpu-benches](https://github.com/RRZE-HPC/gpu-benches) (GPL-3.0). It is built and run from the submodule, not copied into GASP. Its authors ask for citations of ["Analytical performance estimation during code generation on modern GPUs"](https://doi.org/10.1016/j.jpdc.2022.11.003) and ["Performance engineering for real and complex tall & skinny matrix multiplication kernels on GPUs"](http://dx.doi.org/10.1177/1094342020965661).
+## Citation: gpu-benches
+The `gpu-benches/` submodule is [RRZE-HPC/gpu-benches](https://github.com/RRZE-HPC/gpu-benches) (GPL-3.0). It is built and run from the submodule as published, not copied into GASP. Its README lists these papers as using its benchmarks and welcomes citations:
 
-`make microbenchmarks-gpu-benches GPU=<gpu> VERSION=<label>` runs `gpu-stream` and `gpu-latency` and compares their values with the base profile, and with this version's gasp-bm and HPMLL profiles if they exist. It does not write a profile. Results go to `hardware/runs/<gpu>/<version>/gpu-benches/<gpu>.<version>.gpu-benches.json`.
+- Dominik Ernst, Markus Holzer, Georg Hager, Matthias Knorr, and Gerhard Wellein. "[Analytical performance estimation during code generation on modern GPUs.](https://doi.org/10.1016/j.jpdc.2022.11.003)" Journal of Parallel and Distributed Computing 173 (2023): 152-167.
+- Dominik Ernst, Georg Hager, Jonas Thies, and Gerhard Wellein. "[Performance engineering for real and complex tall & skinny matrix multiplication kernels on GPUs.](https://doi.org/10.1177/1094342020965661)" The International Journal of High Performance Computing Applications 35, no. 1 (2020): 5-19.
 
-* `gpu-stream`: the highest read-kernel GB/s over its occupancy sweep, divided by the base clock, gives `dram_bandwidth_bytes_per_cycle`. This is exact because DRAM-bound GB/s does not depend on the SM clock.
-* `gpu-latency`: a one-thread random pointer chase over working sets from 2 KB up to `--latency-max-l2` x L2 (default 8x). Its source is copied and patched to stop the sweep there; the original goes to 2 GB. The median ns per load over a window of sizes, times the base clock, gives `l1_cache_hit_latency_cycles` (up to half the L1), `l2_cache_hit_latency_cycles` (4x L1 to half the L2) and `dram_latency_cycles` (4x to 8x L2).
-* gpu-benches times from the host, so it runs without ncu and cannot lock the base clock itself. The latency cycles are exact only when the SM clock is at base. Lock it first with `sudo nvidia-smi -lgc <MHz>,<MHz>` and reset it after with `sudo nvidia-smi -rgc`. The runner samples the SM clock during each run and warns when it is not at base.
+```bibtex
+@article{ernst2023analytical,
+  title={Analytical performance estimation during code generation on modern GPUs},
+  author={Ernst, Dominik and Holzer, Markus and Hager, Georg and Knorr, Matthias and Wellein, Gerhard},
+  journal={Journal of Parallel and Distributed Computing},
+  volume={173},
+  pages={152--167},
+  year={2023},
+  publisher={Elsevier},
+  doi={10.1016/j.jpdc.2022.11.003}
+}
+
+@article{ernst2020performance,
+  title={Performance engineering for real and complex tall \& skinny matrix multiplication kernels on GPUs},
+  author={Ernst, Dominik and Hager, Georg and Thies, Jonas and Wellein, Gerhard},
+  journal={The International Journal of High Performance Computing Applications},
+  volume={35},
+  number={1},
+  pages={5--19},
+  year={2020},
+  publisher={SAGE},
+  doi={10.1177/1094342020965661}
+}
+```
+
+## gpu-benches: DRAM bandwidth
+
+Its `gpu-stream` supplies the profile's `dram_bandwidth_bytes_per_cycle`: the highest read-kernel GB/s over its occupancy sweep, divided by the base profile's `clock_rate_ghz`. It runs without ncu, since it times from the host. This is exact because DRAM-bound GB/s does not depend on the SM clock, so no clock lock is needed.
+
+`make microbenchmarks` runs it through `scripts/run/run_gpu_benches.py`, which writes the run JSON into the version directory, where `sync_cost` also reads it. `make microbenchmarks-gpu-benches GPU=<gpu> VERSION=<label>` runs it on its own and also compares the value with the base profile and with this version's gasp-bm and HPMLL profiles, in `hardware/runs/<gpu>/<version>/gpu-benches/<gpu>.<version>.gpu-benches.json`.
+
+DRAM latency stays with gasp-bm's `dram_latency.cu`. gpu-benches' `gpu-latency` would need its source patched to give base-clock cycles and a usable run time, so it is not used.
 
 ## Shared memory load microbenchmark
 * Microbenchmark that measures the a sequence of shared-memory loads with a conflict-free warp access pattern

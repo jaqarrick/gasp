@@ -42,18 +42,20 @@ run:
 ablation:
 	$(PY) experiments/ablation/run_ablation.py $(ARGS)
 
-# Every gasp-bm microbenchmark under ncu at base clock, plus a profile; needs a GPU, nvcc and ncu.
+# The complete profile: HPMLL (its valid fields), gpu-stream (DRAM bandwidth) and gasp-bm (the
+# rest, and HPMLL's fallback), all at base clock; needs a GPU, nvcc, ncu and both submodules.
 microbenchmarks:
-	@test -n "$(GPU)" -a -n "$(VERSION)" || { echo "usage: make microbenchmarks GPU=<gpu> VERSION=<label> [ARCH=sm_XX] [ARGS='--only ... --force']"; exit 1; }
+	@test -n "$(GPU)" -a -n "$(VERSION)" || { echo "usage: make microbenchmarks GPU=<gpu> VERSION=<label> [ARCH=sm_XX] [ARGS='--only hpmll,... --force']"; exit 1; }
 	$(PYTHON) hardware/microbenchmarks/gasp-bm/run_all.py --gpu $(GPU) --version $(VERSION) $(if $(ARCH),--arch $(ARCH)) $(ARGS)
 
 microbenchmarks-hpmll:
 	@test -n "$(GPU)" -a -n "$(VERSION)" || { echo "usage: make microbenchmarks-hpmll GPU=<gpu> VERSION=<label> [ARCH=sm_XX] [ARGS='--only ... --reps N --force']"; exit 1; }
 	$(PYTHON) scripts/run/run_hpmll_bmks.py --gpu $(GPU) --version $(VERSION) $(if $(ARCH),--arch $(ARCH)) $(ARGS)
 
-# gpu-benches' gpu-stream and gpu-latency, compared with the profile (a cross-check, no profile written).
+# DRAM bandwidth from gpu-benches' gpu-stream, written as a run JSON for `make microbenchmarks`
+# (which also calls this), plus a comparison with the profiles.
 microbenchmarks-gpu-benches:
-	@test -n "$(GPU)" -a -n "$(VERSION)" || { echo "usage: make microbenchmarks-gpu-benches GPU=<gpu> VERSION=<label> [ARCH=sm_XX] [ARGS='--only ... --latency-max-l2 N --force']"; exit 1; }
+	@test -n "$(GPU)" -a -n "$(VERSION)" || { echo "usage: make microbenchmarks-gpu-benches GPU=<gpu> VERSION=<label> [ARCH=sm_XX] [ARGS='--force']"; exit 1; }
 	$(PYTHON) scripts/run/run_gpu_benches.py --gpu $(GPU) --version $(VERSION) $(if $(ARCH),--arch $(ARCH)) $(ARGS)
 
 # FOR DOCKER
@@ -79,9 +81,9 @@ help:
 	@echo "make run ARGS='...'              - run locally"
 	@echo "make ablation ARGS='...'         - run the ablation from a saved metrics file"
 	@echo "make test                        - run tests"
-	@echo "make microbenchmarks GPU=.. VERSION=.. - run the gasp-bm microbenchmarks at base clock, build a profile"
+	@echo "make microbenchmarks GPU=.. VERSION=.. - run HPMLL, gpu-stream and gasp-bm, merge into one profile"
 	@echo "make microbenchmarks-hpmll GPU=.. VERSION=.. - run the HPMLL benchmarks that match profile fields, build a profile"
-	@echo "make microbenchmarks-gpu-benches GPU=.. VERSION=.. - run gpu-stream and gpu-latency, compare with the profile"
+	@echo "make microbenchmarks-gpu-benches GPU=.. VERSION=.. - DRAM bandwidth from gpu-stream, compare with the profiles"
 	@echo "make lint                       - lint Python code"
 	@echo "make format                      - format Python code"
 	@echo "make pre-commit                  - run all pre-commit hooks on all files"
