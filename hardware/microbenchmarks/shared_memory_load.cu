@@ -14,6 +14,14 @@
 
 #include <cuda_runtime.h>
 
+// References https://github.com/shen203/GPU_Microbenchmark/blob/master/shared_lat/shared_lat.cu
+// and https://github.com/HPMLL/NVIDIA-Hopper-Benchmark/blob/main/RegularUnits/shared_lat/shared_lat.cu
+// both these papers provided the striding technique to avoid bank conflicts.
+
+// This benchmark operates with a pointer-chase technique, where ld.shared.u32 must rely on the previous load
+// operation to access the next address. This strict dependency chain ensures the GPU has to wait for the memory
+// loads to wait before proceeding.
+
 #define CUDA_CHECK(call)                                                       \
     do {                                                                       \
         cudaError_t err__ = (call);                                            \
@@ -51,6 +59,7 @@ __device__ __forceinline__ uint64_t read_globaltimer() {
     return t;
 }
 
+// ld.shared.u32 must wait for the previous node's address.
 __device__ __forceinline__ uint32_t load_shared_address(uint32_t address) {
     uint32_t next;
     asm volatile(
@@ -97,6 +106,7 @@ __global__ void shared_chase_kernel(unsigned long long* out, unsigned long long*
 
     const uint64_t g0 = read_globaltimer();
     const uint64_t start = read_clock64();
+// runs 1024 dependent shared loads under timer
 #pragma unroll 1
     for (int i = 0; i < CHASE_LOADS; i += UNROLL) {
         CHASE_ONE;

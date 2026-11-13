@@ -14,6 +14,10 @@
 
 #include <cuda_runtime.h>
 
+// References https://github.com/sjfeng1999/gpu-arch-microbenchmark/blob/master/memory/memory_latency.cu
+// This benchmark measures the load operations from constant memory using a ring and pointer-chasing.
+// Since constant memory is read-only and hardware-broadcasted, every thread from our warp reads the same address simultaneously
+
 #define CUDA_CHECK(call)                                                       \
     do {                                                                       \
         cudaError_t err__ = (call);                                            \
@@ -83,6 +87,7 @@ __global__ void constant_chase_kernel(unsigned long long* out, unsigned long lon
 
     const uint64_t g0 = read_globaltimer();
     const uint64_t start = read_clock64();
+//runs 1024 times thru the constant memory ring
 #pragma unroll 1
     for (int i = 0; i < CHASE_LOADS; i += UNROLL) {
         CHASE_ONE;

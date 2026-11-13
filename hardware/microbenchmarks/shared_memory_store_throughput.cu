@@ -14,6 +14,10 @@
 
 #include <cuda_runtime.h>
 
+// References the store layout and shmembench fence used in https://github.com/HengWang/gpumembench
+// However, we only measure stores. the reference uses both loads and stores. We also only check cycles
+// across 1 warp. The reference measures across blocks.
+
 #define CUDA_CHECK(call)                                                       \
     do {                                                                       \
         cudaError_t err__ = (call);                                            \
@@ -51,6 +55,8 @@ __device__ __forceinline__ uint64_t read_globaltimer() {
     return t;
 }
 
+// writes 32 bit value to shared memory at a specific address
+// volatile so the compiler does not optimize it away
 __device__ __forceinline__ void store_shared_volatile(
     uint32_t address, uint32_t value) {
     asm volatile(
@@ -60,10 +66,14 @@ __device__ __forceinline__ void store_shared_volatile(
         : "memory");
 }
 
+// executes membar.cta, which ensures prior shared-memory operations are visible before
+// continuing to create a clean timing boundary around the store batch.
+// without it, memory reads/writes would probably be reordered inconsistently and create noise
 __device__ __forceinline__ void shared_memory_fence() {
     asm volatile("membar.cta;" ::: "memory");
 }
 
+//writes every store at a unique address to avoid lane-to-lane conflicts
 #define STORE_AT(slot)                                                         \
     store_shared_volatile(                                                     \
         shared_base +                                                          \
@@ -241,6 +251,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    //extract device properties, reads them into our properties
     int device = 0;
     CUDA_CHECK(cudaGetDevice(&device));
 
@@ -267,6 +278,7 @@ int main(int argc, char** argv) {
     raw_cycles.reserve(reps);
     fence_baseline_samples.reserve(reps);
 
+    //launch kernel, synchronize, read device_clock, copy output back from device
     for (int rep = 0; rep < reps; ++rep) {
         shared_store_kernel<<<1, WARP_THREADS>>>(device_output, device_clock);
         CUDA_CHECK(cudaGetLastError());
@@ -283,6 +295,7 @@ int main(int argc, char** argv) {
         CUDA_CHECK(cudaMemcpy(host_output.data(), device_output,
                               sizeof(host_output), cudaMemcpyDeviceToHost));
 
+        // collects per-lane raw cycles and fence baselines
         std::vector<double> lane_cycles(WARP_THREADS);
         std::vector<double> lane_baselines(WARP_THREADS);
         for (int lane = 0; lane < WARP_THREADS; ++lane) {
@@ -290,11 +303,14 @@ int main(int argc, char** argv) {
             lane_baselines[lane] =
                 static_cast<double>(host_output[WARP_THREADS + lane]);
         }
-
+        //save each rep's median samples
         raw_cycles.push_back(median(lane_cycles));
         fence_baseline_samples.push_back(median(lane_baselines));
     }
 
+    //we estimate cost by measuring total time for 1024 stores, plus cost of CTA fence
+    // then removes fence baseline to isolate true cost of the store instruction itself
+    // (to remove the cost of the synchronization boundary)
     const double fence_baseline = median(fence_baseline_samples);
     std::vector<double> per_store_instruction_cycles;
     per_store_instruction_cycles.reserve(reps);
