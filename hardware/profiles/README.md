@@ -14,6 +14,10 @@ Every profile, built-in or passed with `--profile`, needs:
 
 The required fields are the ones in `HardwareProfile` (`src/gasp/cli/utils.py`). GASP stops with an error that lists any missing, unknown, or non-numeric fields.
 
+## Checking a profile's spec
+
+`scripts/check_gpu_spec.sh <profile.json>` compiles a small CUDA query (`nvcc -arch=native`) and compares the profile's `arch`, `warp_size`, `sms_per_gpu`, `max_warps_per_sm`, `max_blocks_per_sm`, `max_registers_per_sm`, `max_shared_mem_per_sm_bytes` and `l2_cache_size_bytes` with what the GPU reports. It exits 1 on any mismatch. Without an argument it only prints the GPU's values. `simd_width`, `sfu_width`, `l1_shared_array_bytes` and `shared_mem_carveouts_bytes` can't be queried, so check those against the sources above. It prints the max SM clock for reference; `clock_rate_ghz` should be the base clock, which a microbenchmark run reports as "SM clock: median".
+
 ## Shared-memory load throughput
 
 `profiled.shared_mem_load_throughput_cycles` is SM cycles per warp shared load with the shared-memory pipe saturated. No model uses it yet. `rtx2080ti.json` has the measured 2.0001 from `hardware/microbenchmarks/shared_memory_load_throughput.cu`. The placeholders hold values from published bandwidth (bytes per clock per SM; a conflict-free 32-bit warp load is 128 bytes):

@@ -47,6 +47,12 @@ scripts/batch_experiment.sh [--dry-run] rtx2080ti [benchmark ...]
 make batch-experiment GPU=rtx2080ti [BMKS='mm vecadd'] [DRY_RUN=1]
 ```
 
+A batch goes in `experiments/results/e2e/<gpu>/batch_<timestamp>/`. `scripts/read_batch.py` reads it into one row per config, kernel and model: the launch, then predicted and measured T_GPU and speedup with their errors (blank after a dry run). It shows only GASPerf unless given `--model all` (or another model name).
+
+```sh
+make batch-results BATCH=experiments/results/e2e/rtx2080ti/batch_<timestamp> [ARGS='--csv']
+```
+
 ## Writing a program for `gasp --run`
 
 `--run` builds each program with `-DGASP_BLOCK_SIZE=<block> -DGASP_GRID_SIZE=<grid>` and runs it under `ncu`. It checks that every run launched that grid and block size, and stops if not.
