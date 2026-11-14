@@ -1,6 +1,23 @@
-"""Run every microbenchmark at base clock and assemble a hardware profile.
+"""Run every microbenchmark at base clock and assemble one hardware profile from
+three suites: HPMLL, gpu-benches and gasp-bm.
 
-Each benchmark is compiled with nvcc and run under
+Each value comes from the first of these that has a valid result for it:
+
+    1. gpu-benches' gpu-stream, for dram_bandwidth_bytes_per_cycle only, through
+       scripts/run/run_gpu_benches.py (run as published, without ncu): read GB/s /
+       the base profile's clock_rate_ghz.
+    2. HPMLL, through scripts/run/run_hpmll_bmks.py, for every field it measures
+       (fp32/fp64/int32, L1/L2/DRAM latency, shared load latency and throughput,
+       L1 and L2 bandwidth). Its mem_bw is not run: gpu-stream supplies that field.
+    3. gasp-bm (the .cu files next to this script), for everything else, and for an
+       HPMLL field whose HPMLL result was invalid or missing.
+
+The gasp-bm benchmarks HPMLL overrides still run: they are the fallback, and
+shared_memory_store_cycles needs gasp-bm's shared load latency. sync_cost takes the
+same DRAM latency and bandwidth the profile gets. sources.json records each field's
+source, the gasp-bm value it replaced, and why an HPMLL result was not used.
+
+Each gasp-bm benchmark is compiled with nvcc and run under
 `ncu --clock-control base --cache-control none`, so its cycle counts are taken at
 the same locked base clock as GASP's `--run` validation (see README "Base clock").
 Launch overhead runs through run_launch_overhead.py, which calls ncu itself.
@@ -10,13 +27,16 @@ Output, for `--gpu rtx2080ti --version 1.2`:
     hardware/runs/rtx2080ti/1_2/
         build/                          compiled benchmarks
         <parameter>/                    one directory per benchmark: run JSON, run.log, ncu.log
+        hpmll/                          the HPMLL run (hpmll.log: its output)
+        gpu-benches/                    the gpu-stream run
         rtx2080ti.1_2.json              the profile (load it with `gasp --profile <path>`)
         rtx2080ti.1_2.sources.json      where every profile value came from
 
-Benchmarks run in dependency order: shared_memory_store_cycles reads the shared
-load latency, and sync_cost needs DRAM latency and bandwidth. A dependency is
-taken from this run, or from an earlier run in the same version directory.
-Fields no benchmark measures (the spec section) are copied from a base profile.
+HPMLL runs first, then the gasp-bm benchmarks in dependency order:
+shared_memory_store_cycles reads the shared load latency, and sync_cost needs DRAM
+latency and bandwidth. A dependency is taken from this run, or from an earlier run
+in the same version directory. Fields no benchmark measures (the spec section) are
+copied from a base profile.
 """
 
 from __future__ import annotations
@@ -33,8 +53,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-REPO_ROOT = SCRIPT_DIR.parents[1]
+REPO_ROOT = SCRIPT_DIR.parents[2]
 PROFILES_DIR = REPO_ROOT / "hardware" / "profiles"
+GPU_BENCHES_RUNNER = REPO_ROOT / "scripts" / "run" / "run_gpu_benches.py"
+HPMLL_RUNNER = REPO_ROOT / "scripts" / "run" / "run_hpmll_bmks.py"
+HPMLL = "hpmll"  # its --only name and its directory in the version directory
+HPMLL_SKIP = ["mem_bw"]  # HPMLL benchmarks not run: gpu-stream supplies their field
+GPU_STREAM_FIELDS = {"dram_bandwidth_bytes_per_cycle"}  # never taken from HPMLL
 
 NCU_FLAGS = [
     "--clock-control",
@@ -59,13 +84,17 @@ class Benchmark:
     name: str
     source: str
     params: list[str]  # run parameters it writes (first one names its directory)
-    flags: bool = True  # takes --gpu / --out-dir; the fp32/fp64/int32/sfu ones do not
+    flags: bool = True  # takes --gpu / --out-dir; sfu_latency does not
     deps: list[str] = field(default_factory=list)
-    in_profile: bool = True  # shared_mem_store_throughput_cycles has no profile field
     aliases: list[str] = field(default_factory=list)  # other names its run JSON may use
     # profile key -> how to read it from the run JSON, for benchmarks whose
     # profile values aren't their "value" (empty: "value" under the param's key)
     derive: dict[str, Callable[[dict], float]] = field(default_factory=dict)
+    # measured by gpu-benches' gpu-stream through GPU_BENCHES_RUNNER (source is
+    # then gpu-stream's main.cu, only checked for existence)
+    gpu_benches: bool = False
+    # its value is in base-clock units whatever clock it ran at, so it records none
+    clock_free: bool = False
 
     @property
     def dir_name(self) -> str:
@@ -73,8 +102,6 @@ class Benchmark:
 
     @property
     def profile_keys(self) -> list[str]:
-        if not self.in_profile:
-            return []
         if self.derive:
             return list(self.derive)
         return [PROFILE_KEY.get(p, p) for p in self.params]
@@ -98,22 +125,15 @@ def l1_sectors_per_cycle(run: dict) -> float:
 
 BENCHMARKS = [
     Benchmark(
-        "fp32_latency", "fp32_latency.cu", ["fp32_inst_latency_cycles"], flags=False
-    ),
-    Benchmark(
-        "fp64_latency", "fp64_latency.cu", ["fp64_inst_latency_cycles"], flags=False
-    ),
-    Benchmark(
-        "int32_latency", "int32_latency.cu", ["int32_inst_latency_cycles"], flags=False
-    ),
-    Benchmark(
         "sfu_latency", "sfu_latency.cu", ["sfu_inst_latency_cycles"], flags=False
     ),
-    Benchmark("l1_latency", "l1_latency.cu", ["l1_cache_hit_latency_cycles"]),
-    Benchmark("l2_latency", "l2_latency.cu", ["l2_cache_hit_latency_cycles"]),
     Benchmark("dram_latency", "dram_latency.cu", ["dram_latency_cycles"]),
     Benchmark(
-        "dram_bandwidth", "dram_bandwidth.cu", ["dram_bandwidth_bytes_per_cycle"]
+        "dram_bandwidth",
+        "../gpu-benches/gpu-stream/main.cu",
+        ["dram_bandwidth_bytes_per_cycle"],
+        gpu_benches=True,
+        clock_free=True,
     ),
     Benchmark(
         "constant_memory_load", "constant_memory_load.cu", ["const_mem_latency_cycles"]
@@ -129,12 +149,6 @@ BENCHMARKS = [
         "shared_memory_store_cycles.cu",
         ["shared_mem_store_latency_cycles"],
         deps=["shared_memory_load"],
-    ),
-    Benchmark(
-        "shared_memory_store_throughput",
-        "shared_memory_store_throughput.cu",
-        ["shared_mem_store_throughput_cycles"],
-        in_profile=False,
     ),
     Benchmark(
         "shared_memory_load_throughput",
@@ -303,11 +317,91 @@ def dependency_value(root: Path, dep: str) -> tuple[float, Path]:
     return read_value(path), path
 
 
-def run_benchmark(bench: Benchmark, root: Path, gpu: str, arch: str) -> None:
+def hpmll_run_json(root: Path, field_name: str) -> Path | None:
+    """HPMLL's run JSON for a profile field, if it had a valid result."""
+    return run_json_path(root / HPMLL / field_name, field_name)
+
+
+def hpmll_results(root: Path) -> dict[str, Path]:
+    """Every field HPMLL has a valid result for, except gpu-stream's."""
+    results = {}
+    for path in sorted((root / HPMLL).glob("*/*.run.json")):
+        key = path.parent.name
+        if key not in GPU_STREAM_FIELDS and path.name.startswith(f"{key}."):
+            results[key] = path
+    return results
+
+
+def hpmll_not_used(root: Path) -> dict[str, str]:
+    """Why HPMLL has no value for some fields, from its sources.json when it wrote one."""
+    reasons = {}
+    for path in (root / HPMLL).glob("*.hpmll.sources.json"):
+        for key, entry in json.loads(path.read_text()).get("fields", {}).items():
+            if "hpmll_not_used" in entry:
+                reasons[key] = entry["hpmll_not_used"]
+    return reasons
+
+
+def profile_dram_latency(root: Path) -> tuple[float, Path]:
+    """The DRAM latency the profile gets: HPMLL's, else gasp-bm's dram_latency."""
+    path = hpmll_run_json(root, "dram_latency_cycles")
+    if path is not None:
+        return read_value(path), path
+    return dependency_value(root, "dram_latency")
+
+
+def run_hpmll(root: Path, gpu: str, arch: str, base_path: Path) -> None:
+    """HPMLL's runner, into <root>/hpmll/ (its output in <root>/hpmll.log)."""
+    log_path = root / f"{HPMLL}.log"
+    log_path.write_text("")
+    run_logged(
+        [
+            sys.executable,
+            str(HPMLL_RUNNER),
+            "--gpu",
+            gpu,
+            "--version",
+            root.name,
+            "--arch",
+            arch,
+            "--base-profile",
+            str(base_path),
+            "--skip",
+            ",".join(HPMLL_SKIP),
+            "--force",  # an earlier run may have made its hpmll/ directory
+        ],
+        log_path,
+    )
+
+
+def run_benchmark(
+    bench: Benchmark, root: Path, gpu: str, arch: str, base_path: Path
+) -> None:
     bench_dir = root / bench.dir_name
     bench_dir.mkdir(parents=True, exist_ok=True)
     log_path = bench_dir / "run.log"
     log_path.write_text("")
+
+    if bench.gpu_benches:
+        # Builds and runs gpu-stream (without ncu) and writes the run JSON into bench_dir.
+        run_logged(
+            [
+                sys.executable,
+                str(GPU_BENCHES_RUNNER),
+                "--gpu",
+                gpu,
+                "--version",
+                root.name,
+                "--arch",
+                arch,
+                "--base-profile",
+                str(base_path),
+                "--force",  # an earlier run may have made its gpu-benches/ directory
+            ],
+            log_path,
+        )
+        return
+
     binary = compile_benchmark(bench, root / "build", arch, log_path)
 
     if bench.name == "launch_overhead":
@@ -343,8 +437,13 @@ def run_benchmark(bench: Benchmark, root: Path, gpu: str, arch: str) -> None:
     if bench.name == "l1_throughput":
         args += ["--l1-bytes", str(l1_bytes_per_sm(gpu))]
     if bench.name == "sync_cost":
-        latency, _ = dependency_value(root, "dram_latency")
-        bandwidth, _ = dependency_value(root, "dram_bandwidth")
+        # The same DRAM values the profile gets (HPMLL latency if valid, gpu-stream bandwidth)
+        latency, latency_json = profile_dram_latency(root)
+        bandwidth, bandwidth_json = dependency_value(root, "dram_bandwidth")
+        log(f"  DRAM latency {latency:.4f} from {latency_json.relative_to(REPO_ROOT)}")
+        log(
+            f"  DRAM bandwidth {bandwidth:.4f} from {bandwidth_json.relative_to(REPO_ROOT)}"
+        )
         args += ["--dram-latency", repr(latency), "--dram-bandwidth", repr(bandwidth)]
 
     ncu = ["ncu", *NCU_FLAGS, "--log-file", str(bench_dir / "ncu.log")]
@@ -426,7 +525,9 @@ def main() -> int:
     )
     parser.add_argument(
         "--only",
-        help="comma-separated benchmarks to run: " + ", ".join(BY_NAME),
+        help="comma-separated benchmarks to run: "
+        + ", ".join([HPMLL, *BY_NAME])
+        + f" ({HPMLL}: the whole HPMLL suite)",
     )
     parser.add_argument(
         "--force", action="store_true", help="reuse an existing version directory"
@@ -437,13 +538,14 @@ def main() -> int:
         if shutil.which(tool) is None:
             raise SystemExit(f"{tool} not found on PATH")
 
-    names = list(BY_NAME)
+    names = [HPMLL, *BY_NAME]
     if args.only:
         names = [n.strip() for n in args.only.split(",") if n.strip()]
-        unknown = [n for n in names if n not in BY_NAME]
+        unknown = [n for n in names if n != HPMLL and n not in BY_NAME]
         if unknown:
             raise SystemExit(f"unknown benchmark(s): {', '.join(unknown)}")
-    names = dependency_order(names)
+    run_hpmll_first = HPMLL in names
+    names = dependency_order([n for n in names if n != HPMLL])
 
     version = args.version.replace(".", "_")
     root = REPO_ROOT / "hardware" / "runs" / args.gpu / version
@@ -458,12 +560,25 @@ def main() -> int:
         raise SystemExit(f"base profile {base_path} not found; pass --base-profile")
     arch = args.arch or detect_arch()
     log(f"GPU {args.gpu}, {arch}, version {version}, base profile {base_path}")
-    log(f"Order: {', '.join(names)}")
+    log(f"Order: {', '.join([HPMLL] * run_hpmll_first + names)}")
 
     failed: dict[str, str] = {}
+    if run_hpmll_first:
+        log(f"\n== {HPMLL} (skipping {', '.join(HPMLL_SKIP)})")
+        try:
+            run_hpmll(root, args.gpu, arch, base_path)
+        except BenchmarkError as exc:
+            failed[HPMLL] = str(exc)
+            log(f"  FAILED: {exc}")
     missing = [n for n in names if not (SCRIPT_DIR / BY_NAME[n].source).exists()]
     for name in missing:
-        log(f"\n== {name}: SKIPPED, {BY_NAME[name].source} is not in {SCRIPT_DIR}")
+        if BY_NAME[name].gpu_benches:
+            log(
+                f"\n== {name}: SKIPPED, the gpu-benches submodule is not checked out "
+                "(git submodule update --init hardware/microbenchmarks/gpu-benches)"
+            )
+        else:
+            log(f"\n== {name}: SKIPPED, {BY_NAME[name].source} is not in {SCRIPT_DIR}")
     for name in names:
         if name in missing:
             continue
@@ -475,7 +590,7 @@ def main() -> int:
             continue
         log(f"\n== {name}")
         try:
-            run_benchmark(bench, root, args.gpu, arch)
+            run_benchmark(bench, root, args.gpu, arch, base_path)
         except BenchmarkError as exc:
             failed[name] = str(exc)
             log(f"  FAILED: {exc}")
@@ -493,8 +608,6 @@ def main() -> int:
             clock = read_clock(path)
             if clock is not None:
                 clocks[param] = clock
-            if not bench.in_profile:
-                continue
             source = str(path.relative_to(REPO_ROOT))
             if bench.derive:
                 run = json.loads(path.read_text())
@@ -513,6 +626,28 @@ def main() -> int:
                     "source": source,
                     "sm_clock_ghz": clock,
                 }
+
+    # ---- HPMLL's valid results replace gasp-bm's (gpu-stream's field excepted)
+    from_hpmll = hpmll_results(root)
+    for key, path in from_hpmll.items():
+        clock = read_clock(path)
+        if clock is not None:
+            clocks[f"{key} (hpmll)"] = clock
+        entry = {
+            "value": read_value(path),
+            "source": f"{path.relative_to(REPO_ROOT)} (hpmll)",
+            "sm_clock_ghz": clock,
+        }
+        if key in measured:
+            entry["replaces"] = {
+                "value": measured[key]["value"],
+                "source": measured[key]["source"],
+            }
+        measured[key] = entry
+    for key, reason in hpmll_not_used(root).items():
+        if key in measured and key not in from_hpmll and key not in GPU_STREAM_FIELDS:
+            measured[key]["hpmll_not_used"] = reason
+            log(f"  {key}: HPMLL's result not used ({reason}); gasp-bm's kept")
 
     clock_ghz = statistics.median(clocks.values()) if clocks else None
     if clock_ghz is not None:
@@ -560,18 +695,18 @@ def main() -> int:
         + "\n"
     )
     log(f"\nProfile: {profile_path}\nSources: {sources_path}")
+    log(f"From HPMLL: {', '.join(sorted(from_hpmll)) or 'none'}")
+    log(
+        f"From gpu-stream: {', '.join(sorted(k for k in GPU_STREAM_FIELDS if k in measured)) or 'none'}"
+    )
     log(f"Copied from {base_path.name} (not measured): {', '.join(copied) or 'none'}")
     if missing:
         log(f"Not run (source missing): {', '.join(missing)}; their fields were copied")
     # Launch overhead records no clock, but run_launch_overhead.py locks base clock itself.
     launch_keys = {PROFILE_KEY[p] for p in BY_NAME["launch_overhead"].params}
-    clocked = {
-        key
-        for bench in BENCHMARKS
-        if any(p in clocks for p in bench.params)
-        for key in bench.profile_keys
-    }
-    no_clock = sorted(set(measured) - clocked - launch_keys)
+    clocked = {key for key, entry in measured.items() if entry.get("sm_clock_ghz")}
+    clock_free = {k for b in BENCHMARKS if b.clock_free for k in b.profile_keys}
+    no_clock = sorted(set(measured) - clocked - launch_keys - clock_free)
     if no_clock:
         log(f"No clock recorded (check these ran at base clock): {', '.join(no_clock)}")
     return 0

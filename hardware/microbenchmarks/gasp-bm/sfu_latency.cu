@@ -1,235 +1,181 @@
-// sfu_latency.cu
-// ---------------------------------------------------------------------------
-// Measures : sfu_inst_latency_cycles
-// Method   : One thread runs a chain of dependent rsqrt.approx.ftz.f32
-//            instructions, x = 1/sqrt(x), each needing the previous result.
-//            These run on the Special Function Unit (SFU) as MUFU.RSQ.
-//            The SM cycle counter (%clock64) is read inside the kernel
-//            before and after the chain, so launch overhead is not included.
-//            Clock-read overhead is measured in the same kernel and subtracted.
-//
-//            Why rsqrt: it is a single MUFU instruction with no extra setup.
-//            sin/cos add an FMUL for range reduction on Volta+ (that FMUL
-//            would land in the chain), and ex2/lg2 run off to inf/-inf when
-//            chained. Repeated rsqrt stays finite and converges toward 1.0.
-//            .ftz (flush denormals to zero) keeps ptxas from adding
-//            denormal-handling instructions around the MUFU.
-//
-// Build    : (from hardware/microbenchmarks/)
-//            nvcc -O3 -arch=sm_75 sfu_latency.cu -o sfu_latency   (RTX 2080 Ti)
-//            nvcc -O3 -arch=sm_80 sfu_latency.cu -o sfu_latency   (A100)
-//            nvcc -O3 -arch=sm_90 sfu_latency.cu -o sfu_latency   (H100)
-//
-// Run      : ./sfu_latency
-//            Writes sfu_inst_latency_cycles.<gpu>.run.json into the folder
-//            that holds the executable.
-//
-// Inspect  : nvcc -O3 -arch=sm_80 -cubin sfu_latency.cu -o sfu_latency.cubin
-//            cuobjdump -sass sfu_latency.cubin     (checklist at bottom)
-// ---------------------------------------------------------------------------
-#include <ctype.h>
-#include <math.h>
+/*
+ * Adapted from the Accel-Sim GPU microbenchmark suite:
+ *   https://github.com/accel-sim/accel-sim-framework
+ *   util/tuner/GPU_Microbenchmark/ubench/core/sfu_lat_fsqrt/sfu_lat_fsqrt.h
+ *   (release branch, commit aa95f49; BSD 2-Clause, notice below)
+ *
+ * M. Khairy, Z. Shen, T. M. Aamodt, T. G. Rogers, "Accel-Sim: An Extensible
+ * Simulation Framework for Validated GPU Modeling," ISCA 2020.
+ *
+ * BSD 2-Clause License
+ *
+ * Copyright (c) 2018-2021, Vijay Kandiah, Junrui Pan, Mahmoud Khairy, Scott
+ * Peverelle, Timothy Rogers, Tor M. Aamodt, Nikos Hardavellas
+ * Northwestern University, Purdue University, The University of British Columbia
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice, this
+ *    list of conditions and the following disclaimer;
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution;
+ * 3. Neither the names of Northwestern University, Purdue University,
+ *    The University of British Columbia nor the names of their contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ *
+ * EDIT [gasp-gpu]: the chained op is rsqrt.approx.ftz.f32 (one MUFU.RSQ), not
+ * sin.approx, which adds an FMUL to every step of the chain on Volta+.
+ * EDIT [gasp-gpu]: error checks, clock reads, metadata and output use common.h.
+ * Output is written to <exe dir>/sfu_inst_latency_cycles.<gpu>.run.json.
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <time.h>
 #include <cuda_runtime.h>
 #include "common.h"
 
-#define CHAIN_OPS 1024 // number of chained SFU operations in the timed region
-#define UNROLL 16 // number of SFU operations per loop iteration
-#define PASSES 2 // pass 0 warms the instruction cache; last pass is kept
-#define WARMUP_LAUNCHES 10 // untimed launches (module load, GPU clocks up)
-#define REPS 200 // timed launches (issue asks for >= 100)
+#define THREADS_PER_BLOCK 1
+#define THREADS_PER_SM 1
+#define BLOCKS_NUM 1
+#define TOTAL_THREADS (THREADS_PER_BLOCK*BLOCKS_NUM)
+#define WARP_SIZE 32
+#define REPEAT_TIMES 1024
 
-// ---- Device ----------------------------------------------------------------
+__global__ void sfu_latency(uint64_t *startClk, uint64_t *stopClk, float *data1, float *res) {
+	int gid = blockIdx.x*blockDim.x + threadIdx.x;
+	register float s1 = data1[gid];
+	register float result = s1;
 
-// One dependent SFU op: x = 1/sqrt(x). "+f"(x) makes x a float register that is both
-// input and output, so every MUFU.RSQ must wait for the previous one.
-#define SFU_ONE asm volatile("rsqrt.approx.ftz.f32 %0, %0;" : "+f"(x) :: "memory");
+	// synchronize all threads
+	asm volatile ("bar.sync 0;");
 
-// out[0] = cycles for CHAIN_OPS dependent SFU ops (clock overhead included)
-// out[1] = clock overhead (two back-to-back clock reads)
-// out[2] = globaltimer ns around the timed chain (read outside the clock64 pair)
-// sink[0] = final x, so the host can check the chain produced a sane value
-__global__ void sfu_latency_kernel(float start, long long *out, float *sink) {
-    float x = start;
-    unsigned long long t0 = 0;
-    unsigned long long t1 = 0;
-    unsigned long long g0 = 0;
-    unsigned long long g1 = 0;
+	// start timing
+	uint64_t start = read_clock64();
 
-#pragma unroll 1
-    for (int pass = 0; pass < PASSES; pass++) {
-        g0 = read_globaltimer();
-        t0 = read_clock64(); // start timer
-        // UNROLL=16 dependent SFU ops per iteration (if UNROLL changes, update this body too)
-#pragma unroll 1
-        for (int i = 0; i < CHAIN_OPS; i += UNROLL) {
-            SFU_ONE SFU_ONE SFU_ONE SFU_ONE
-            SFU_ONE SFU_ONE SFU_ONE SFU_ONE
-            SFU_ONE SFU_ONE SFU_ONE SFU_ONE
-            SFU_ONE SFU_ONE SFU_ONE SFU_ONE
-        }
-        t1 = read_clock64(); // end timer
-        g1 = read_globaltimer();
-    }
+	// EDIT: rsqrt instead of sin [gasp-gpu]. sin.approx compiles to FMUL + MUFU.SIN
+	// on Volta + arch.
+	for (int j=0 ; j<REPEAT_TIMES ; ++j) {
+		asm volatile ("{\t\n"
+				"rsqrt.approx.ftz.f32 %0, %0;\n\t"
+				"rsqrt.approx.ftz.f32 %0, %0;\n\t"
+				"rsqrt.approx.ftz.f32 %0, %0;\n\t"
+				"rsqrt.approx.ftz.f32 %0, %0;\n\t"
+				"}" : "+f"(result)
+		);
+	}
+	// synchronize all threads
+	asm volatile("bar.sync 0;");
 
-    unsigned long long b0 = read_clock64();
-    unsigned long long b1 = read_clock64();
+	// stop timing
+	uint64_t stop = read_clock64();
 
-    out[0] = (long long)(t1 - t0);
-    out[1] = (long long)(b1 - b0);
-    out[2] = (long long)(g1 - g0);
-    sink[0] = x;
+	// write time and data back to memory
+	startClk[gid] = start;
+	stopClk[gid] = stop;
+	res[gid] = result;
 }
 
-// ---- Main ------------------------------------------------------------------
+int main(int argc, char **argv){
+	(void)argc;
+	uint64_t *startClk = (uint64_t*) malloc(TOTAL_THREADS*sizeof(uint64_t));
+	uint64_t *stopClk = (uint64_t*) malloc(TOTAL_THREADS*sizeof(uint64_t));
+	float *data1 = (float*) malloc(TOTAL_THREADS*sizeof(float));
+	float *res = (float*) malloc(TOTAL_THREADS*sizeof(float));
 
-int main(int argc, char **argv) {
-    (void)argc;
-    cudaDeviceProp prop;
-    CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
+	uint64_t *startClk_g;
+	uint64_t *stopClk_g;
+	float *data1_g;
+	float *res_g;
 
-    long long *d_out;
-    float *d_sink;
-    CUDA_CHECK(cudaMalloc(&d_out, 3 * sizeof(long long)));
-    CUDA_CHECK(cudaMalloc(&d_sink, sizeof(float)));
+	for (uint32_t i=0; i<TOTAL_THREADS; i++) {
+		data1[i] = 10.124234521;
+	}
 
-    // start is passed in at run time so ptxas cannot treat it as a known constant.
-    // Repeated 1/sqrt(x) from 2.0 goes 2 -> 0.707 -> 1.19 -> 0.917 -> ... -> 1.0.
-    // rsqrt.approx is not exact, so the check is a range, not an exact value:
-    // a NaN, inf or 0 means the chain did not run as written.
-    const float start = 2.0f;
+	CUDA_CHECK( cudaMalloc(&startClk_g, TOTAL_THREADS*sizeof(uint64_t)) ); // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
+	CUDA_CHECK( cudaMalloc(&stopClk_g, TOTAL_THREADS*sizeof(uint64_t)) ); // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
+	CUDA_CHECK( cudaMalloc(&data1_g, TOTAL_THREADS*sizeof(int32_t)) );
+	CUDA_CHECK( cudaMalloc(&res_g, TOTAL_THREADS*sizeof(int32_t)) );
 
-    for (int i = 0; i < WARMUP_LAUNCHES; i++) {
-        sfu_latency_kernel<<<1, 1>>>(start, d_out, d_sink);
-    }
-    CUDA_CHECK(cudaGetLastError());
-    CUDA_CHECK(cudaDeviceSynchronize());
+	CUDA_CHECK( cudaMemcpy(data1_g, data1, TOTAL_THREADS*sizeof(int32_t), cudaMemcpyHostToDevice) );
 
-    double raw_cycles[REPS];
-    double sum_clock_cycles = 0.0, sum_clock_ns = 0.0;  // for the SM clock
-    double overhead_samples[REPS];
+	sfu_latency<<<BLOCKS_NUM,THREADS_PER_BLOCK>>>(startClk_g, stopClk_g, data1_g, res_g);
+	CUDA_CHECK( cudaPeekAtLastError() );
 
-    for (int r = 0; r < REPS; r++) {
-        sfu_latency_kernel<<<1, 1>>>(start, d_out, d_sink);
-        CUDA_CHECK(cudaGetLastError());
-        CUDA_CHECK(cudaDeviceSynchronize());
+	CUDA_CHECK( cudaMemcpy(startClk, startClk_g, TOTAL_THREADS*sizeof(uint64_t), cudaMemcpyDeviceToHost) ); // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
+	CUDA_CHECK( cudaMemcpy(stopClk, stopClk_g, TOTAL_THREADS*sizeof(uint64_t), cudaMemcpyDeviceToHost) ); // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
+	CUDA_CHECK( cudaMemcpy(res, res_g, TOTAL_THREADS*sizeof(float), cudaMemcpyDeviceToHost) );
 
-        long long h_out[3];
-        float h_x;
-        CUDA_CHECK(cudaMemcpy(h_out, d_out, sizeof(h_out), cudaMemcpyDeviceToHost));
-        CUDA_CHECK(cudaMemcpy(&h_x, d_sink, sizeof(float), cudaMemcpyDeviceToHost));
+	float latency;
+	latency = ((float)(stopClk[0]-startClk[0]))/((float)(REPEAT_TIMES*4));
 
-        if (!(h_x > 0.9f && h_x < 1.1f)) {
-            fprintf(stderr, "ERROR: final x = %g, expected about 1.0. The rsqrt chain did not run "
-                            "as written; check the SASS.\n", h_x);
-            return 1;
-        }
-        raw_cycles[r] = (double)h_out[0];
-        overhead_samples[r] = (double)h_out[1];
-        if (h_out[2] > 0) {
-            sum_clock_cycles += (double)h_out[0];
-            sum_clock_ns += (double)h_out[2];
-        }
-    }
+	// EDIT: SM clock from common.h clock_kernel so we can report the global speed
+	double sm_clock_ghz = 0.0;
+	{
+		unsigned long long *d_clock;
+		CUDA_CHECK( cudaMalloc(&d_clock, 2*sizeof(unsigned long long)) );
+		clock_kernel<<<1, 1>>>(d_clock);
+		CUDA_CHECK( cudaGetLastError() );
+		CUDA_CHECK( cudaDeviceSynchronize() );
+		unsigned long long c[2];
+		CUDA_CHECK( cudaMemcpy(c, d_clock, sizeof(c), cudaMemcpyDeviceToHost) );
+		CUDA_CHECK( cudaFree(d_clock) );
+		if (c[1] > 0) sm_clock_ghz = (double)c[0] / (double)c[1];
+	}
 
-    // Subtract the median clock overhead from every run, then divide by the
-    // number of ops to get cycles per SFU op.
-    if (sum_clock_ns <= 0.0) {
-        fprintf(stderr, "ERROR: globaltimer did not advance\n");
-        return 1;
-    }
-    // SM clock over all reps: total cycles / total ns (globaltimer updates every ~1 us,
-    // so one short chain alone would be too coarse).
-    const double sm_clock_ghz = sum_clock_cycles / sum_clock_ns;
+	//gasp-gpu output------------------------------------------------------------------------------
+	cudaDeviceProp prop;
+	CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
+	int runtime_version = 0;
+	CUDA_CHECK(cudaRuntimeGetVersion(&runtime_version));
+	const std::string gpu = short_gpu_name(prop.name);
 
-    double overhead = median_of(overhead_samples, REPS);
-    // Per-run breakdown: gross (clock overhead included) -> net (overhead removed) -> per op.
-    double net_cycles[REPS];
-    double per_op[REPS];
-    double gross_per_op[REPS];
-    for (int r = 0; r < REPS; r++) {
-        net_cycles[r] = raw_cycles[r] - overhead;
-        per_op[r] = net_cycles[r] / (double)CHAIN_OPS;
-        gross_per_op[r] = raw_cycles[r] / (double)CHAIN_OPS;
-    }
-    double uncorrected_value = median_of(gross_per_op, REPS);  // no subtraction
+	std::string json;
+	json += "{\n";
+	json += "  \"benchmark\": \"sfu_latency.cu\",\n";
+	json += "  \"parameter\": \"sfu_inst_latency_cycles\",\n";
+	json += strprintf("  \"value\": %.4f,\n", latency);
+	json += "  \"unit\": \"cycles\",\n";
+	json += strprintf("  \"gpu\": \"%s\",\n", gpu.c_str());
+	json += strprintf("  \"gpu_name\": \"%s\",\n", json_escape(prop.name).c_str());
+	json += strprintf("  \"arch\": \"sm_%d%d\",\n", prop.major, prop.minor);
+	json += strprintf("  \"num_sms\": %d,\n", prop.multiProcessorCount);
+	json += strprintf("  \"clock\": {\"sm_clock_ghz\": %.4f},\n", sm_clock_ghz);
+	json += strprintf("  \"cuda_version\": \"%s\",\n", cuda_version_string(runtime_version).c_str());
+	json += strprintf("  \"nvcc_version\": \"%d.%d\",\n", __CUDACC_VER_MAJOR__, __CUDACC_VER_MINOR__);
+	json += strprintf("  \"driver_version\": \"%s\",\n", json_escape(driver_version()).c_str());
+	json += strprintf("  \"git_commit\": \"%s\",\n", json_escape(git_commit()).c_str());
+	json += strprintf("  \"timestamp\": \"%s\"\n", utc_timestamp().c_str());
+	json += "}\n";
 
-    const Stats stats = compute_stats(per_op, REPS);
-    const double median = stats.median;
+	const std::string out_path = write_run_json(executable_dir(argv[0]), "sfu_inst_latency_cycles", gpu, json);
+	if (out_path.empty()) return 1;
 
-    if (median < 4.0) {
-        fprintf(stderr, "WARNING: median below 4 cycles; the SFU ops may not be dependent. "
-                        "Check the SASS.\n");
-    }
+	printf("%s", json.c_str());
+	fprintf(stderr, "Saved %s (%.3f cycles per SFU op)\n", out_path.c_str(), latency);
 
-    // ---- Collect run metadata ----------------------------------------------
-    const std::string gpu = short_gpu_name(prop.name);
-
-    int runtime_version = 0;  // e.g. 12080 for CUDA 12.8
-    CUDA_CHECK(cudaRuntimeGetVersion(&runtime_version));
-
-    const std::string driver = driver_version();
-
-    const std::string timestamp = utc_timestamp();
-
-    // ---- Write <exe dir>/sfu_inst_latency_cycles.<gpu>.run.json ------------
-    std::string json;
-    json += "{\n";
-    json += "  \"benchmark\": \"sfu_latency.cu\",\n";
-    json += "  \"parameter\": \"sfu_inst_latency_cycles\",\n";
-    json += strprintf("  \"value\": %.4f,\n", median);
-    json += "  \"unit\": \"cycles\",\n";
-    json += strprintf("  \"gpu\": \"%s\",\n", gpu.c_str());
-    json += strprintf("  \"gpu_name\": \"%s\",\n", prop.name);
-    json += strprintf("  \"arch\": \"sm_%d%d\",\n", prop.major, prop.minor);
-    json += strprintf("  \"num_sms\": %d,\n", prop.multiProcessorCount);
-    json += json_stats(stats);
-    // raw_cycles           : per run, clock64 delta around the chain, clock-read cost INCLUDED
-    // overhead_samples     : per run, clock64 delta of two back-to-back reads (cost of the clock)
-    // overhead_cycles      : median of overhead_samples; the value subtracted from every run
-    // net_cycles           : raw_cycles - overhead_cycles (per run)
-    // per_op_cycles        : net_cycles / CHAIN_OPS (per run); stats are computed over these
-    // uncorrected_value    : median of raw_cycles / CHAIN_OPS (no overhead subtracted)
-    json += strprintf("  \"raw_cycles\": %s,\n", json_array(raw_cycles, REPS, 0).c_str());
-    json += strprintf("  \"overhead_samples_cycles\": %s,\n", json_array(overhead_samples, REPS, 0).c_str());
-    json += strprintf("  \"overhead_cycles\": %.4f,\n", overhead);
-    json += "  \"overhead_subtracted\": true,\n";
-    json += strprintf("  \"net_cycles\": %s,\n", json_array(net_cycles, REPS).c_str());
-    json += strprintf("  \"per_op_cycles\": %s,\n", json_array(per_op, REPS).c_str());
-    json += strprintf("  \"uncorrected_value\": %.4f,\n", uncorrected_value);
-    // clock.sm_clock_ghz: total clock64 cycles / total globaltimer ns over all reps
-    json += strprintf("  \"clock\": {\"sm_clock_ghz\": %.4f},\n", sm_clock_ghz);
-    json += strprintf("  \"cuda_version\": \"%s\",\n", cuda_version_string(runtime_version).c_str());
-    json += strprintf("  \"nvcc_version\": \"%d.%d\",\n", __CUDACC_VER_MAJOR__, __CUDACC_VER_MINOR__);
-    json += strprintf("  \"driver_version\": \"%s\",\n", driver.c_str());
-    json += strprintf("  \"timestamp\": \"%s\"\n", timestamp.c_str());
-    json += "}\n";
-
-    const std::string out_dir = executable_dir(argv[0]);
-    const std::string out_path = write_run_json(out_dir, "sfu_inst_latency_cycles", gpu, json);
-    if (out_path.empty()) return 1;
-
-    fprintf(stderr, "Saved %s (median %.3f cycles per SFU op)\n", out_path.c_str(), median);
-
-    CUDA_CHECK(cudaFree(d_out));
-    CUDA_CHECK(cudaFree(d_sink));
-    return 0;
+	CUDA_CHECK(cudaFree(startClk_g));
+	CUDA_CHECK(cudaFree(stopClk_g));
+	CUDA_CHECK(cudaFree(data1_g));
+	CUDA_CHECK(cudaFree(res_g));
+	free(startClk);
+	free(stopClk);
+	free(data1);
+	free(res);
+	return 0;
 }
-
-// ---------------------------------------------------------------------------
-// SASS inspection checklist (required by issue #11):
-//   cuobjdump -sass sfu_latency.cubin
-// In sfu_latency_kernel you should see:
-//   * inside the inner loop, 16 consecutive MUFU.RSQ instructions, each reading
-//     and writing the same register (MUFU.RSQ R2, R2 ...)
-//   * nothing between the MUFUs: no FMUL/FSETP/FSEL denormal fix-ups
-//     (if they appear, the .ftz was lost and they are being timed too)
-//   * CS2R clock reads before and after the inner loop, plus a back-to-back
-//     pair after the pass loop
-//   * a globaltimer read (SR_GLOBALTIMER) just before the first CS2R and just after
-//     the second, in the pass loop
-//   * a branch after the 16 MUFU.RSQs (the loop was kept, not fully unrolled)
-// ---------------------------------------------------------------------------

@@ -148,7 +148,16 @@ class TestHardwareProfile:
 
 class TestGPUProfiles:
     def test_known_gpus(self):
-        for gpu in ("a100", "h100", "b200", "l4", "v100", "rtx2080ti"):
+        for gpu in (
+            "a100",
+            "h100",
+            "b200",
+            "l4",
+            "v100",
+            "rtx2080ti",
+            "titanv",
+            "rtx4070",
+        ):
             assert gpu in GPU_PROFILES, f"{gpu} missing from GPU_PROFILES"
 
     def test_paths_are_json(self):

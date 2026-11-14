@@ -10,7 +10,7 @@ GPU ?=
 VERSION ?=
 ARCH ?=
 
-.PHONY: all build install run test lint lint-fix format pre-commit clean docker-clean docker-run help microbenchmarks ablation
+.PHONY: all build install run test lint lint-fix format pre-commit clean docker-clean docker-run help microbenchmarks microbenchmarks-hpmll microbenchmarks-gpu-benches check_spec ablation
 
 $(VENV):
 	PYTHON=$(PYTHON) ./scripts/init_python.sh
@@ -42,10 +42,25 @@ run:
 ablation:
 	$(PY) experiments/ablation/run_ablation.py $(ARGS)
 
-# Every microbenchmark under ncu at base clock, plus a profile; needs a GPU, nvcc and ncu.
+# The complete profile: HPMLL (its valid fields), gpu-stream (DRAM bandwidth) and gasp-bm (the
+# rest, and HPMLL's fallback), all at base clock; needs a GPU, nvcc, ncu and both submodules.
 microbenchmarks:
-	@test -n "$(GPU)" -a -n "$(VERSION)" || { echo "usage: make microbenchmarks GPU=<gpu> VERSION=<label> [ARCH=sm_XX] [ARGS='--only ... --force']"; exit 1; }
-	$(PYTHON) hardware/microbenchmarks/run_all.py --gpu $(GPU) --version $(VERSION) $(if $(ARCH),--arch $(ARCH)) $(ARGS)
+	@test -n "$(GPU)" -a -n "$(VERSION)" || { echo "usage: make microbenchmarks GPU=<gpu> VERSION=<label> [ARCH=sm_XX] [ARGS='--only hpmll,... --force']"; exit 1; }
+	$(PYTHON) hardware/microbenchmarks/gasp-bm/run_all.py --gpu $(GPU) --version $(VERSION) $(if $(ARCH),--arch $(ARCH)) $(ARGS)
+
+microbenchmarks-hpmll:
+	@test -n "$(GPU)" -a -n "$(VERSION)" || { echo "usage: make microbenchmarks-hpmll GPU=<gpu> VERSION=<label> [ARCH=sm_XX] [ARGS='--only ... --reps N --force']"; exit 1; }
+	$(PYTHON) scripts/run/run_hpmll_bmks.py --gpu $(GPU) --version $(VERSION) $(if $(ARCH),--arch $(ARCH)) $(ARGS)
+
+# DRAM bandwidth from gpu-benches' gpu-stream, written as a run JSON for `make microbenchmarks`
+# (which also calls this), plus a comparison with the profiles.
+microbenchmarks-gpu-benches:
+	@test -n "$(GPU)" -a -n "$(VERSION)" || { echo "usage: make microbenchmarks-gpu-benches GPU=<gpu> VERSION=<label> [ARCH=sm_XX] [ARGS='--force']"; exit 1; }
+	$(PYTHON) scripts/run/run_gpu_benches.py --gpu $(GPU) --version $(VERSION) $(if $(ARCH),--arch $(ARCH)) $(ARGS)
+
+# Compare a profile's spec fields with this machine's GPU; needs nvcc.
+check_spec:
+	./scripts/check_gpu_spec.sh $(PROFILE)
 
 # FOR DOCKER
 build:
@@ -70,8 +85,11 @@ help:
 	@echo "make run ARGS='...'              - run locally"
 	@echo "make ablation ARGS='...'         - run the ablation from a saved metrics file"
 	@echo "make test                        - run tests"
-	@echo "make microbenchmarks GPU=.. VERSION=.. - run all microbenchmarks at base clock, build a profile"
-	@echo "make lint                        - lint Python code"
+	@echo "make microbenchmarks GPU=.. VERSION=.. - run HPMLL, gpu-stream and gasp-bm, merge into one profile"
+	@echo "make microbenchmarks-hpmll GPU=.. VERSION=.. - run the HPMLL benchmarks that match profile fields, build a profile"
+	@echo "make microbenchmarks-gpu-benches GPU=.. VERSION=.. - DRAM bandwidth from gpu-stream, compare with the profiles"
+	@echo "make check_spec PROFILE=..       - compare a profile's spec fields with this machine's GPU"
+	@echo "make lint                       - lint Python code"
 	@echo "make format                      - format Python code"
 	@echo "make pre-commit                  - run all pre-commit hooks on all files"
 	@echo "make build                       - build Docker image"

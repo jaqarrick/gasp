@@ -15,8 +15,9 @@ GPU_PROFILES = {
     "a100": PROFILES_DIR / "a100.placeholder.json",
     "l4": PROFILES_DIR / "l4.placeholder.json",
     "v100": PROFILES_DIR / "v100.placeholder.json",
-    # measured with hardware/microbenchmarks (runs in hardware/runs/rtx2080ti/)
     "rtx2080ti": PROFILES_DIR / "rtx2080ti.json",
+    "titanv": PROFILES_DIR / "titanv.placeholder.json",
+    "rtx4070": PROFILES_DIR / "rtx4070.placeholder.json",
 }
 
 

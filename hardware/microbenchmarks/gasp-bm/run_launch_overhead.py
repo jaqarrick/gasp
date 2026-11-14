@@ -4,8 +4,12 @@
 # more; ncu profiles every launch, so each run yields a cold measurement (the
 # first launch) and a warm measurement (the last launch).
 # For every repetition it fits launch_overhead = base + per_thread * (grid*block)
-# by least squares. The warm fits give the reported value (median over
-# repetitions); the cold fits are kept alongside for comparison.
+# by least squares. The cold fits give the reported value (median over
+# repetitions): `gasp --run` measures the first launch of a kernel in a fresh
+# process, which is a cold launch, and on Ada the warm launch's elapsed window
+# carries a fixed ~1000 extra cycles that makes its fit slope negative. The warm
+# fits are kept alongside for comparison. A negative cold per-thread slope is
+# an error: nothing is written.
 # One JSON file per fitted parameter is written to hardware/runs/, named after
 # the GPU so results from different GPUs never overwrite each other.
 # Every run must report the same GPU (UUID, name, compute capability, SM count),
@@ -435,11 +439,11 @@ def run_experiment(args: argparse.Namespace) -> int:
         "method": (
             "ncu: launch overhead = sm__cycles_elapsed.max - sm__cycles_active.max "
             "per kernel launch; least-squares fit against grid*block per repetition; "
-            "value = median over repetitions of the warm-launch fit"
+            "value = median over repetitions of the cold-launch (first launch) fit"
         ),
         "metric_elapsed": METRICS[0],
         "metric_active": METRICS[1],
-        "launch_used_for_value": "warm",
+        "launch_used_for_value": "cold",
         "profiler": run_text([ncu, "--version"]),
         "ncu_cache_control": args.cache_control,
         "ncu_clock_control": args.clock_control,
@@ -453,6 +457,19 @@ def run_experiment(args: argparse.Namespace) -> int:
         "gpu_uuid": reference_gpu["uuid"],
         "visible_gpu_count": visible_gpus or None,
     }
+
+    per_thread_index = {p: i for p, _, i in PARAMETERS}["launch_per_thread_cycles"]
+    cold_slope = statistics.median(fit[per_thread_index] for fit in cold_fits)
+    if cold_slope < 0:
+        raise RuntimeError(
+            f"cold-launch per-thread slope is negative ({cold_slope:.6g} cycles/thread); "
+            "not writing results. Per-config cold medians: "
+            + ", ".join(
+                f"{e['grid']}x{e['block']}={e['cold_median_cycles']:.0f}"
+                for e in warmup_effect
+            )
+            + f". Raw output saved under {raw_dir}/"
+        )
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -468,7 +485,7 @@ def run_experiment(args: argparse.Namespace) -> int:
             "benchmark": BENCHMARK,
             "benchmark_version": str(reference_gpu["bench_version"]),
             "parameter": parameter,
-            "value": warm_stats["median"],
+            "value": cold_stats["median"],
             "unit": unit,
             "gpu": gpu_key,
             "architecture": architecture,
@@ -477,17 +494,19 @@ def run_experiment(args: argparse.Namespace) -> int:
             "gpu_name": gpu_name,
             "num_sms": reference_gpu["num_sms"],
             "l2_cache_bytes": reference_gpu["l2_cache_bytes"],
-            # per_rep_values : this parameter from each repetition's warm fit; stats are computed over these
+            # per_rep_values : this parameter from each repetition's cold fit; stats are computed over these
             # r_squared_per_rep : R-squared of each of those fits
-            # cold_start     : same quantities from the first (cold) launch of each process
+            # warm_launch    : same quantities from the last (warm) launch of each process, for comparison
             # warmup_effect  : per-config median launch overhead, cold vs warm
             # runs           : every ncu measurement (launch_overhead_cycles = elapsed - active)
-            "per_rep_values": warm_values,
-            "r_squared_per_rep": [fit[2] for fit in warm_fits],
-            "cold_start": {
-                "value": cold_stats["median"],
-                "stats": cold_stats,
-                "per_rep_values": cold_values,
+            "stats": cold_stats,
+            "per_rep_values": cold_values,
+            "r_squared_per_rep": [fit[2] for fit in cold_fits],
+            "warm_launch": {
+                "value": warm_stats["median"],
+                "stats": warm_stats,
+                "per_rep_values": warm_values,
+                "r_squared_per_rep": [fit[2] for fit in warm_fits],
             },
             "warmup_effect": warmup_effect,
             "runs": runs,
@@ -516,8 +535,8 @@ def run_experiment(args: argparse.Namespace) -> int:
         )
     for parameter, unit, warm_stats, cold_stats, output in written:
         print(
-            f"{parameter} = {warm_stats['median']:.12g} {unit} "
-            f"(cold: {cold_stats['median']:.12g}) -> {output}"
+            f"{parameter} = {cold_stats['median']:.12g} {unit} "
+            f"(warm: {warm_stats['median']:.12g}) -> {output}"
         )
     return 0
 
