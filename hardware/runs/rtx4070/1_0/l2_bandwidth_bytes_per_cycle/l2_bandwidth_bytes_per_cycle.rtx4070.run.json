@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.1.0",
+  "benchmark": "l2_bandwidth.cu",
+  "benchmark_version": "1.0.0",
+  "parameter": "l2_bandwidth_bytes_per_cycle",
+  "value": 613.9454,
+  "unit": "bytes/cycle",
+  "working_sets_agree": true,
+  "saturated": true,
+  "gpu": "rtx4070",
+  "gpu_name": "NVIDIA GeForce RTX 4070",
+  "arch": "sm_89",
+  "num_sms": 46,
+  "l2_cache_bytes": 37748736,
+  "configs": [
+    {"working_set_pct_of_l2": 20, "working_set_bytes": 7536640, "blocks": 184, "passes_per_block": 4, "bytes_per_cycle": 608.6782, "bytes_per_cycle_per_block": 3.3080, "gb_per_s": 1168.6683, "sm_clock_ghz": 1.9200, "rep_spread": 0.0145},
+    {"working_set_pct_of_l2": 30, "working_set_bytes": 11321344, "blocks": 184, "passes_per_block": 4, "bytes_per_cycle": 609.3072, "bytes_per_cycle_per_block": 3.3115, "gb_per_s": 1169.8730, "sm_clock_ghz": 1.9200, "rep_spread": 0.0097},
+    {"working_set_pct_of_l2": 40, "working_set_bytes": 15089664, "blocks": 184, "passes_per_block": 4, "bytes_per_cycle": 613.9454, "bytes_per_cycle_per_block": 3.3367, "gb_per_s": 1178.7779, "sm_clock_ghz": 1.9200, "rep_spread": 0.0108},
+    {"working_set_pct_of_l2": 50, "working_set_bytes": 18874368, "blocks": 184, "passes_per_block": 4, "bytes_per_cycle": 609.4037, "bytes_per_cycle_per_block": 3.3120, "gb_per_s": 1170.0570, "sm_clock_ghz": 1.9200, "rep_spread": 0.0073},
+    {"working_set_pct_of_l2": 40, "working_set_bytes": 15089664, "blocks": 11, "passes_per_block": 10, "bytes_per_cycle": 342.5613, "bytes_per_cycle_per_block": 31.1419, "gb_per_s": 657.7237, "sm_clock_ghz": 1.9200, "rep_spread": 0.0035},
+    {"working_set_pct_of_l2": 40, "working_set_bytes": 15089664, "blocks": 23, "passes_per_block": 5, "bytes_per_cycle": 595.0197, "bytes_per_cycle_per_block": 25.8704, "gb_per_s": 1142.4579, "sm_clock_ghz": 1.9200, "rep_spread": 0.0068},
+    {"working_set_pct_of_l2": 40, "working_set_bytes": 15089664, "blocks": 46, "passes_per_block": 4, "bytes_per_cycle": 641.9540, "bytes_per_cycle_per_block": 13.9555, "gb_per_s": 1232.5617, "sm_clock_ghz": 1.9200, "rep_spread": 0.0017},
+    {"working_set_pct_of_l2": 40, "working_set_bytes": 15089664, "blocks": 92, "passes_per_block": 4, "bytes_per_cycle": 642.5634, "bytes_per_cycle_per_block": 6.9844, "gb_per_s": 1233.7272, "sm_clock_ghz": 1.9200, "rep_spread": 0.0007}
+  ],
+  "clock": {"sm_clock_ghz": 1.9200},
+  "measurement": {
+    "method": "L2-resident working set, every block sweeps all of it from its own row, loads bypass L1",
+    "load_instruction": "ld.global.cg.v4.u32",
+    "timer": "globaltimer (kernel span) and clock64 (SM clock)",
+    "value_formula": "bytes_read / (kernel_span_ns x sm_clock_ghz) at 40% of L2 and the most blocks",
+    "l2_cache_bytes_assumed": 37748736,
+    "l2_cache_size_source": "device",
+    "data_pattern": "splitmix64 pseudo-random 64-bit words (fixed seed)",
+    "bytes_per_load": 16,
+    "loads_in_flight_per_thread": 4,
+    "threads_per_block": 256,
+    "max_blocks_per_sm": 6,
+    "warmup_launches": 99,
+    "reps": 100
+  },
+  "cuda_version": "12.4",
+  "timestamp": "2026-11-14T01:29:29Z"
+}

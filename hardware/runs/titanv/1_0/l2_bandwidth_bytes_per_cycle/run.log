@@ -1,0 +1,59 @@
+$ nvcc -O3 -std=c++17 -arch=sm_70 /home/jpc465/gpu/gasp-gpu/hardware/microbenchmarks/gasp-bm/l2_bandwidth.cu -o /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/build/l2_bandwidth
+$ ncu --clock-control base --cache-control none --metrics gpc__cycles_elapsed.max --log-file /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/l2_bandwidth_bytes_per_cycle/ncu.log /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/build/l2_bandwidth --gpu titanv --out-dir /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/l2_bandwidth_bytes_per_cycle
+GPU: NVIDIA TITAN V (sm_70), SMs: 80, L2: 4.5 MB (device-reported), blocks up to 640 x 256 threads
+working set 20% of L2,  640 blocks: 1383.38 bytes/cycle (1669.7 GB/s)
+working set 30% of L2,  640 blocks: 1393.62 bytes/cycle (1682.1 GB/s)
+working set 40% of L2,  640 blocks: 1388.59 bytes/cycle (1676.3 GB/s)
+working set 50% of L2,  640 blocks: 1398.30 bytes/cycle (1688.0 GB/s)
+working set 40% of L2,   20 blocks: 620.68 bytes/cycle (749.4 GB/s)
+working set 40% of L2,   40 blocks: 1146.05 bytes/cycle (1381.5 GB/s)
+working set 40% of L2,   80 blocks: 1370.88 bytes/cycle (1653.3 GB/s)
+working set 40% of L2,  160 blocks: 1383.55 bytes/cycle (1669.4 GB/s)
+working set 40% of L2,  320 blocks: 1394.56 bytes/cycle (1683.1 GB/s)
+
+L2 bandwidth: 1388.59 bytes/cycle (1676.3 GB/s at 1.207 GHz)
+Saved: /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/l2_bandwidth_bytes_per_cycle/l2_bandwidth_bytes_per_cycle.titanv.run.json
+{
+  "schema_version": "1.1.0",
+  "benchmark": "l2_bandwidth.cu",
+  "benchmark_version": "1.0.0",
+  "parameter": "l2_bandwidth_bytes_per_cycle",
+  "value": 1388.5882,
+  "unit": "bytes/cycle",
+  "working_sets_agree": true,
+  "saturated": true,
+  "gpu": "titanv",
+  "gpu_name": "NVIDIA TITAN V",
+  "arch": "sm_70",
+  "num_sms": 80,
+  "l2_cache_bytes": 4718592,
+  "configs": [
+    {"working_set_pct_of_l2": 20, "working_set_bytes": 933888, "blocks": 640, "passes_per_block": 4, "bytes_per_cycle": 1383.3798, "bytes_per_cycle_per_block": 2.1615, "gb_per_s": 1669.7443, "sm_clock_ghz": 1.2070, "rep_spread": 0.0190},
+    {"working_set_pct_of_l2": 30, "working_set_bytes": 1409024, "blocks": 640, "passes_per_block": 4, "bytes_per_cycle": 1393.6174, "bytes_per_cycle_per_block": 2.1775, "gb_per_s": 1682.1405, "sm_clock_ghz": 1.2070, "rep_spread": 0.0220},
+    {"working_set_pct_of_l2": 40, "working_set_bytes": 1884160, "blocks": 640, "passes_per_block": 4, "bytes_per_cycle": 1388.5882, "bytes_per_cycle_per_block": 2.1697, "gb_per_s": 1676.3083, "sm_clock_ghz": 1.2072, "rep_spread": 0.0204},
+    {"working_set_pct_of_l2": 50, "working_set_bytes": 2359296, "blocks": 640, "passes_per_block": 4, "bytes_per_cycle": 1398.3009, "bytes_per_cycle_per_block": 2.1848, "gb_per_s": 1688.0223, "sm_clock_ghz": 1.2072, "rep_spread": 0.0193},
+    {"working_set_pct_of_l2": 40, "working_set_bytes": 1884160, "blocks": 20, "passes_per_block": 5, "bytes_per_cycle": 620.6772, "bytes_per_cycle_per_block": 31.0339, "gb_per_s": 749.3954, "sm_clock_ghz": 1.2074, "rep_spread": 0.0155},
+    {"working_set_pct_of_l2": 40, "working_set_bytes": 1884160, "blocks": 40, "passes_per_block": 4, "bytes_per_cycle": 1146.0468, "bytes_per_cycle_per_block": 28.6512, "gb_per_s": 1381.4503, "sm_clock_ghz": 1.2054, "rep_spread": 0.0310},
+    {"working_set_pct_of_l2": 40, "working_set_bytes": 1884160, "blocks": 80, "passes_per_block": 4, "bytes_per_cycle": 1370.8769, "bytes_per_cycle_per_block": 17.1360, "gb_per_s": 1653.2795, "sm_clock_ghz": 1.2060, "rep_spread": 0.0118},
+    {"working_set_pct_of_l2": 40, "working_set_bytes": 1884160, "blocks": 160, "passes_per_block": 4, "bytes_per_cycle": 1383.5488, "bytes_per_cycle_per_block": 8.6472, "gb_per_s": 1669.3926, "sm_clock_ghz": 1.2066, "rep_spread": 0.0100},
+    {"working_set_pct_of_l2": 40, "working_set_bytes": 1884160, "blocks": 320, "passes_per_block": 4, "bytes_per_cycle": 1394.5618, "bytes_per_cycle_per_block": 4.3580, "gb_per_s": 1683.1122, "sm_clock_ghz": 1.2069, "rep_spread": 0.0085}
+  ],
+  "clock": {"sm_clock_ghz": 1.2072},
+  "measurement": {
+    "method": "L2-resident working set, every block sweeps all of it from its own row, loads bypass L1",
+    "load_instruction": "ld.global.cg.v4.u32",
+    "timer": "globaltimer (kernel span) and clock64 (SM clock)",
+    "value_formula": "bytes_read / (kernel_span_ns x sm_clock_ghz) at 40% of L2 and the most blocks",
+    "l2_cache_bytes_assumed": 4718592,
+    "l2_cache_size_source": "device",
+    "data_pattern": "splitmix64 pseudo-random 64-bit words (fixed seed)",
+    "bytes_per_load": 16,
+    "loads_in_flight_per_thread": 4,
+    "threads_per_block": 256,
+    "max_blocks_per_sm": 8,
+    "warmup_launches": 320,
+    "reps": 100
+  },
+  "cuda_version": "12.4",
+  "timestamp": "2026-11-14T01:25:00Z"
+}

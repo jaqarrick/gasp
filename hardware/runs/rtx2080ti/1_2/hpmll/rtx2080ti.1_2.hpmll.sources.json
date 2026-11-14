@@ -1,0 +1,106 @@
+{
+    "version": "1_2",
+    "gpu": "rtx2080ti",
+    "arch": "sm_75",
+    "suite": "hpmll",
+    "hpmll_commit": "ded6f57",
+    "base_profile": "hardware/profiles/rtx2080ti.json",
+    "git_commit": "9b76f4f",
+    "timestamp": "2026-11-13T23:47:36Z",
+    "fields": {
+        "launch_overhead_base_cycles": {
+            "value": 1409.6080620787568,
+            "source": "copied from base profile"
+        },
+        "launch_overhead_per_thread_cycles": {
+            "value": 0.0027383894813643147,
+            "source": "copied from base profile"
+        },
+        "departure_delay_cycles": {
+            "value": 4,
+            "source": "copied from base profile"
+        },
+        "sync_factor": {
+            "value": 0.179,
+            "source": "copied from base profile"
+        },
+        "dram_latency_cycles": {
+            "value": 406.3643,
+            "source": "copied from base profile",
+            "hpmll_not_used": "mem_lat: lts__t_sector_hit_rate.pct = 158.2% > 10% (the chase must miss L2; an L2 of 8 MB or more keeps it)"
+        },
+        "dram_bandwidth_bytes_per_cycle": {
+            "value": 428.7303,
+            "source": "copied from base profile"
+        },
+        "l1_cache_hit_latency_cycles": {
+            "value": 32.1193,
+            "source": "hardware/runs/rtx2080ti/1_2/hpmll/l1_cache_hit_latency_cycles/l1_cache_hit_latency_cycles.rtx2080ti.run.json (hpmll l1_lat)",
+            "sm_clock_ghz": 1.3218
+        },
+        "l2_cache_hit_latency_cycles": {
+            "value": 219.0104,
+            "source": "hardware/runs/rtx2080ti/1_2/hpmll/l2_cache_hit_latency_cycles/l2_cache_hit_latency_cycles.rtx2080ti.run.json (hpmll l2_lat)",
+            "sm_clock_ghz": 1.322
+        },
+        "shared_mem_load_latency_cycles": {
+            "value": 29.9966,
+            "source": "hardware/runs/rtx2080ti/1_2/hpmll/shared_mem_load_latency_cycles/shared_mem_load_latency_cycles.rtx2080ti.run.json (hpmll shared_lat)",
+            "sm_clock_ghz": 1.3208
+        },
+        "shared_mem_store_latency_cycles": {
+            "value": 5,
+            "source": "copied from base profile"
+        },
+        "shared_mem_load_throughput_cycles": {
+            "value": 2.0021,
+            "source": "hardware/runs/rtx2080ti/1_2/hpmll/shared_mem_load_throughput_cycles/shared_mem_load_throughput_cycles.rtx2080ti.run.json (hpmll shared_bw)",
+            "sm_clock_ghz": 1.3211
+        },
+        "l1_cycles_per_request": {
+            "value": 2.4796,
+            "source": "copied from base profile"
+        },
+        "l1_sectors_per_cycle_per_sm": {
+            "value": 2.6998,
+            "source": "hardware/runs/rtx2080ti/1_2/hpmll/l1_sectors_per_cycle_per_sm/l1_sectors_per_cycle_per_sm.rtx2080ti.run.json (hpmll l1_bw_128)",
+            "sm_clock_ghz": 1.3215
+        },
+        "l2_bandwidth_bytes_per_cycle": {
+            "value": 1286.9829,
+            "source": "hardware/runs/rtx2080ti/1_2/hpmll/l2_bandwidth_bytes_per_cycle/l2_bandwidth_bytes_per_cycle.rtx2080ti.run.json (hpmll l2_bw_128)",
+            "sm_clock_ghz": 1.3575
+        },
+        "const_mem_latency_cycles": {
+            "value": 26,
+            "source": "copied from base profile"
+        },
+        "bank_penalty_cycles": {
+            "value": 2,
+            "source": "copied from base profile"
+        },
+        "sfu_inst_latency_cycles": {
+            "value": 15,
+            "source": "copied from base profile"
+        },
+        "fp32_inst_latency_cycles": {
+            "value": 4.0972,
+            "source": "hardware/runs/rtx2080ti/1_2/hpmll/fp32_inst_latency_cycles/fp32_inst_latency_cycles.rtx2080ti.run.json (hpmll alu_lat_float)",
+            "sm_clock_ghz": 1.3213
+        },
+        "int32_inst_latency_cycles": {
+            "value": 4.2463,
+            "source": "hardware/runs/rtx2080ti/1_2/hpmll/int32_inst_latency_cycles/int32_inst_latency_cycles.rtx2080ti.run.json (hpmll alu_lat_int32)",
+            "sm_clock_ghz": 1.318
+        },
+        "fp64_inst_latency_cycles": {
+            "value": 54.0485,
+            "source": "hardware/runs/rtx2080ti/1_2/hpmll/fp64_inst_latency_cycles/fp64_inst_latency_cycles.rtx2080ti.run.json (hpmll alu_lat_double)",
+            "sm_clock_ghz": 1.3226
+        },
+        "clock_rate_ghz": {
+            "value": 1.3216,
+            "source": "median SM clock of the runs"
+        }
+    }
+}

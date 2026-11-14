@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.1.0",
+  "benchmark": "l2_bandwidth.cu",
+  "benchmark_version": "1.0.0",
+  "parameter": "l2_bandwidth_bytes_per_cycle",
+  "value": 1172.5470,
+  "unit": "bytes/cycle",
+  "working_sets_agree": true,
+  "saturated": true,
+  "gpu": "rtx2080ti",
+  "gpu_name": "NVIDIA GeForce RTX 2080 Ti",
+  "arch": "sm_75",
+  "num_sms": 68,
+  "l2_cache_bytes": 5767168,
+  "configs": [
+    {"working_set_pct_of_l2": 20, "working_set_bytes": 1146880, "blocks": 272, "passes_per_block": 4, "bytes_per_cycle": 1158.7302, "bytes_per_cycle_per_block": 4.2600, "gb_per_s": 1578.4136, "sm_clock_ghz": 1.3622, "rep_spread": 0.0116},
+    {"working_set_pct_of_l2": 30, "working_set_bytes": 1720320, "blocks": 272, "passes_per_block": 4, "bytes_per_cycle": 1170.1758, "bytes_per_cycle_per_block": 4.3021, "gb_per_s": 1595.0608, "sm_clock_ghz": 1.3631, "rep_spread": 0.0065},
+    {"working_set_pct_of_l2": 40, "working_set_bytes": 2293760, "blocks": 272, "passes_per_block": 4, "bytes_per_cycle": 1172.5470, "bytes_per_cycle_per_block": 4.3108, "gb_per_s": 1598.7503, "sm_clock_ghz": 1.3635, "rep_spread": 0.0067},
+    {"working_set_pct_of_l2": 50, "working_set_bytes": 2883584, "blocks": 272, "passes_per_block": 4, "bytes_per_cycle": 1172.2779, "bytes_per_cycle_per_block": 4.3098, "gb_per_s": 1598.7518, "sm_clock_ghz": 1.3638, "rep_spread": 0.0082},
+    {"working_set_pct_of_l2": 40, "working_set_bytes": 2293760, "blocks": 17, "passes_per_block": 6, "bytes_per_cycle": 484.6748, "bytes_per_cycle_per_block": 28.5103, "gb_per_s": 661.5418, "sm_clock_ghz": 1.3648, "rep_spread": 0.0237},
+    {"working_set_pct_of_l2": 40, "working_set_bytes": 2293760, "blocks": 34, "passes_per_block": 4, "bytes_per_cycle": 830.0311, "bytes_per_cycle_per_block": 24.4127, "gb_per_s": 1130.9798, "sm_clock_ghz": 1.3625, "rep_spread": 0.0215},
+    {"working_set_pct_of_l2": 40, "working_set_bytes": 2293760, "blocks": 68, "passes_per_block": 4, "bytes_per_cycle": 1078.3734, "bytes_per_cycle_per_block": 15.8584, "gb_per_s": 1468.6422, "sm_clock_ghz": 1.3620, "rep_spread": 0.0131},
+    {"working_set_pct_of_l2": 40, "working_set_bytes": 2293760, "blocks": 136, "passes_per_block": 4, "bytes_per_cycle": 1159.8301, "bytes_per_cycle_per_block": 8.5282, "gb_per_s": 1580.3968, "sm_clock_ghz": 1.3627, "rep_spread": 0.0096}
+  ],
+  "clock": {"sm_clock_ghz": 1.3635},
+  "measurement": {
+    "method": "L2-resident working set, every block sweeps all of it from its own row, loads bypass L1",
+    "load_instruction": "ld.global.cg.v4.u32",
+    "timer": "globaltimer (kernel span) and clock64 (SM clock)",
+    "value_formula": "bytes_read / (kernel_span_ns x sm_clock_ghz) at 40% of L2 and the most blocks",
+    "l2_cache_bytes_assumed": 5767168,
+    "l2_cache_size_source": "device",
+    "data_pattern": "splitmix64 pseudo-random 64-bit words (fixed seed)",
+    "bytes_per_load": 16,
+    "loads_in_flight_per_thread": 4,
+    "threads_per_block": 256,
+    "max_blocks_per_sm": 4,
+    "warmup_launches": 153,
+    "reps": 100
+  },
+  "cuda_version": "12.4",
+  "timestamp": "2026-11-13T23:53:17Z"
+}

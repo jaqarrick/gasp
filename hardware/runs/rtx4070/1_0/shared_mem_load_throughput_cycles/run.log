@@ -1,0 +1,66 @@
+$ nvcc -O3 -std=c++17 -arch=sm_89 /home/jpc465/gpu/gasp-gpu/hardware/microbenchmarks/gasp-bm/shared_memory_load_throughput.cu -o /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx4070/1_0/build/shared_memory_load_throughput
+$ ncu --clock-control base --cache-control none --metrics gpc__cycles_elapsed.max --log-file /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx4070/1_0/shared_mem_load_throughput_cycles/ncu.log /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx4070/1_0/build/shared_memory_load_throughput --gpu rtx4070 --out-dir /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx4070/1_0/shared_mem_load_throughput_cycles
+loads_only       warps/SM  1: 6.0662 cycles/load, 6.0662 cycles/access
+loads_only       warps/SM  2: 3.0339 cycles/load, 3.0339 cycles/access
+loads_only       warps/SM  4: 2.4420 cycles/load, 2.4420 cycles/access
+loads_only       warps/SM  8: 2.0029 cycles/load, 2.0029 cycles/access
+loads_only       warps/SM 16: 2.0011 cycles/load, 2.0011 cycles/access
+loads_only       warps/SM 32: 2.0003 cycles/load, 2.0003 cycles/access
+10loads_1store   warps/SM  1: 7.6059 cycles/load, 6.9144 cycles/access
+10loads_1store   warps/SM  2: 3.8043 cycles/load, 3.4585 cycles/access
+10loads_1store   warps/SM  4: 2.8072 cycles/load, 2.5520 cycles/access
+10loads_1store   warps/SM  8: 2.2049 cycles/load, 2.0044 cycles/access
+10loads_1store   warps/SM 16: 2.2023 cycles/load, 2.0021 cycles/access
+10loads_1store   warps/SM 32: 2.2007 cycles/load, 2.0007 cycles/access
+Saved results to /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx4070/1_0/shared_mem_load_throughput_cycles/shared_mem_load_throughput_cycles.rtx4070.run.json
+{
+  "schema_version": "1.1.0",
+  "benchmark": "shared_memory_load_throughput.cu",
+  "benchmark_version": "1.0.0",
+  "parameter": "shared_mem_load_throughput_cycles",
+  "value": 2.0003,
+  "unit": "SM cycles per warp shared load instruction, at the plateau",
+  "plateau_ok": true,
+  "gpu": "rtx4070",
+  "architecture": "ada",
+  "arch": "sm_89",
+  "device": {
+    "name": "NVIDIA GeForce RTX 4070",
+    "sms": 46,
+    "max_warps_per_sm": 48
+  },
+  "plateaus": {
+    "loads_only": {"cycles_per_load": 2.0003, "cycles_per_access": 2.0003, "plateau_ok": true},
+    "10loads_1store": {"cycles_per_load": 2.2007, "cycles_per_access": 2.0007, "plateau_ok": true}
+  },
+  "configs": [
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 1, "span_cycles": 25162.0000, "overhead_cycles": 315.0000, "cycles_per_load": 6.0662, "cycles_per_access": 6.0662, "rep_spread": 0.0004, "sms_measured": 46},
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 2, "span_cycles": 25169.0000, "overhead_cycles": 315.0000, "cycles_per_load": 3.0339, "cycles_per_access": 3.0339, "rep_spread": 0.0004, "sms_measured": 46},
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 4, "span_cycles": 40312.0000, "overhead_cycles": 302.5000, "cycles_per_load": 2.4420, "cycles_per_access": 2.4420, "rep_spread": 0.0002, "sms_measured": 46},
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 8, "span_cycles": 65949.0000, "overhead_cycles": 318.5000, "cycles_per_load": 2.0029, "cycles_per_access": 2.0029, "rep_spread": 0.0002, "sms_measured": 46},
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 16, "span_cycles": 131505.0000, "overhead_cycles": 358.5000, "cycles_per_load": 2.0011, "cycles_per_access": 2.0011, "rep_spread": 0.0001, "sms_measured": 46},
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 32, "span_cycles": 262627.0000, "overhead_cycles": 450.0000, "cycles_per_load": 2.0003, "cycles_per_access": 2.0003, "rep_spread": 0.0000, "sms_measured": 46},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 1, "span_cycles": 19786.0000, "overhead_cycles": 315.0000, "cycles_per_load": 7.6059, "cycles_per_access": 6.9144, "rep_spread": 0.0005, "sms_measured": 46},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 2, "span_cycles": 19793.0000, "overhead_cycles": 315.0000, "cycles_per_load": 3.8043, "cycles_per_access": 3.4585, "rep_spread": 0.0005, "sms_measured": 46},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 4, "span_cycles": 29048.0000, "overhead_cycles": 302.5000, "cycles_per_load": 2.8072, "cycles_per_access": 2.5520, "rep_spread": 0.0002, "sms_measured": 46},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 8, "span_cycles": 45474.0000, "overhead_cycles": 318.5000, "cycles_per_load": 2.2049, "cycles_per_access": 2.0044, "rep_spread": 0.0002, "sms_measured": 46},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 16, "span_cycles": 90565.0000, "overhead_cycles": 358.5000, "cycles_per_load": 2.2023, "cycles_per_access": 2.0021, "rep_spread": 0.0001, "sms_measured": 46},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 32, "span_cycles": 180733.0000, "overhead_cycles": 450.0000, "cycles_per_load": 2.2007, "cycles_per_access": 2.0007, "rep_spread": 0.0001, "sms_measured": 46}
+  ],
+  "clock": {"sm_clock_ghz": 1.9199},
+  "measurement": {
+    "method": "independent conflict-free warp shared loads, one block per SM; per-SM clock64 span minus the empty loop's",
+    "load_instruction": "ld.volatile.shared.u32",
+    "store_instruction": "st.volatile.shared.u32",
+    "value_formula": "(span - overhead) / (warps on the SM x groups x loads per group), lowest over warps per SM, loads_only shape",
+    "groups_per_warp": 256,
+    "loads_per_group": 16,
+    "mixed_loads_per_group": 10,
+    "mixed_stores_per_group": 1,
+    "blocks": 46,
+    "reps": 200
+  },
+  "cuda_version": "12.4",
+  "driver_api_version": "13.2",
+  "timestamp": "2026-11-14T01:28:13Z"
+}

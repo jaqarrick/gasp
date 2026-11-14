@@ -1,0 +1,19 @@
+$ nvcc -O3 -std=c++17 -arch=sm_89 /home/jpc465/gpu/gasp-gpu/hardware/microbenchmarks/gasp-bm/sfu_latency.cu -o /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx4070/1_0/build/sfu_latency
+$ ncu --clock-control base --cache-control none --metrics gpc__cycles_elapsed.max --log-file /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx4070/1_0/sfu_inst_latency_cycles/ncu.log /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx4070/1_0/build/sfu_latency
+Saved /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx4070/1_0/build/sfu_inst_latency_cycles.nvidia_geforce_rtx_4070.run.json (17.242 cycles per SFU op)
+{
+  "benchmark": "sfu_latency.cu",
+  "parameter": "sfu_inst_latency_cycles",
+  "value": 17.2422,
+  "unit": "cycles",
+  "gpu": "nvidia_geforce_rtx_4070",
+  "gpu_name": "NVIDIA GeForce RTX 4070",
+  "arch": "sm_89",
+  "num_sms": 46,
+  "clock": {"sm_clock_ghz": 1.9199},
+  "cuda_version": "12.4",
+  "nvcc_version": "12.4",
+  "driver_version": "595.104.02",
+  "git_commit": "e88b0c1",
+  "timestamp": "2026-11-14T01:23:59Z"
+}

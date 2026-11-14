@@ -1,0 +1,11 @@
+$ /home/jpc465/gpu/gasp-gpu/.venv/bin/python3 /home/jpc465/gpu/gasp-gpu/scripts/run/run_gpu_benches.py --gpu rtx2080ti --version 1_2 --arch sm_75 --base-profile /home/jpc465/gpu/gasp-gpu/hardware/profiles/rtx2080ti.json --force
+GPU rtx2080ti, sm_75, version 1_2, base clock 1.350 GHz, base profile /home/jpc465/gpu/gasp-gpu/hardware/profiles/rtx2080ti.json
+
+== gpu-stream
+  $ nvcc -std=c++20 -O3 -arch=sm_75 /home/jpc465/gpu/gasp-gpu/hardware/microbenchmarks/gpu-benches/gpu-stream/main.cu -o /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx2080ti/1_2/gpu-benches/build/gpu-stream
+  $ /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx2080ti/1_2/gpu-benches/build/gpu-stream
+  read peak 587 GB/s at 52224 threads (75.0% occupancy) = 434.81 bytes/cycle at base
+  wrote hardware/runs/rtx2080ti/1_2/dram_bandwidth_bytes_per_cycle/dram_bandwidth_bytes_per_cycle.rtx2080ti.run.json
+
+Comparison: dram_bandwidth_bytes_per_cycle 434.8   base 428.7 (+1.4%)  hpmll 428.7 (+1.4%)
+Results: /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx2080ti/1_2/gpu-benches/rtx2080ti.1_2.gpu-benches.json

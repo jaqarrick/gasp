@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.0.0",
+  "benchmark": "hpmll/RegularUnits/shared_lat/shared_lat.cu",
+  "parameter": "shared_mem_load_latency_cycles",
+  "value": 29.9966,
+  "unit": "cycles",
+  "gpu": "rtx2080ti",
+  "gpu_name": "NVIDIA GeForce RTX 2080 Ti",
+  "arch": "sm_75",
+  "stats": {
+    "median": 29.9966,
+    "mean": 29.9966,
+    "std": 0.0,
+    "min": 29.9966,
+    "max": 29.9966
+  },
+  "clock": {
+    "sm_clock_ghz": 1.3208,
+    "max_sm_clock_ghz": 2.16
+  },
+  "candidates": {
+    "shared_lat": {
+      "benchmark": "hpmll/RegularUnits/shared_lat/shared_lat.cu",
+      "stats": {
+        "median": 29.9966,
+        "mean": 29.9966,
+        "std": 0.0,
+        "min": 29.9966,
+        "max": 29.9966
+      },
+      "values": [
+        29.9966,
+        29.9966,
+        29.9966,
+        29.9966,
+        29.9966
+      ],
+      "printed_values": [
+        29.996582,
+        29.996582,
+        29.996582,
+        29.996582,
+        29.996582
+      ],
+      "printed_lines": [
+        "Shared Memory Latency  = 29.996582",
+        "Shared Memory Latency  = 29.996582",
+        "Shared Memory Latency  = 29.996582",
+        "Shared Memory Latency  = 29.996582",
+        "Shared Memory Latency  = 29.996582"
+      ],
+      "sm_clock_ghz_samples": [
+        1.3214,
+        1.322,
+        1.3208,
+        1.3195,
+        1.3203
+      ],
+      "conversion": "printed value (ld.shared pointer chase)",
+      "hit_rates_pct": {},
+      "valid": true,
+      "invalid_reason": null,
+      "source_changes": {},
+      "notes": [
+        "each load in the chain waits on a shift that computes its address, so this is shared load latency plus about 4-5 cycles"
+      ]
+    }
+  },
+  "reps": 5,
+  "hpmll_commit": "ded6f57",
+  "nvcc_version": "12.4",
+  "driver_version": "595.104.02",
+  "git_commit": "9b76f4f",
+  "timestamp": "2026-11-13T23:47:36Z"
+}

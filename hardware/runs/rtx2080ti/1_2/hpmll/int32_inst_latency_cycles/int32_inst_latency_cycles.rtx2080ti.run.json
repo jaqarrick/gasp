@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.0.0",
+  "benchmark": "hpmll/RegularUnits/alu_lat_int32/alu_lat_int32.cu",
+  "parameter": "int32_inst_latency_cycles",
+  "value": 4.2463,
+  "unit": "cycles",
+  "gpu": "rtx2080ti",
+  "gpu_name": "NVIDIA GeForce RTX 2080 Ti",
+  "arch": "sm_75",
+  "stats": {
+    "median": 4.2463,
+    "mean": 4.2466,
+    "std": 0.0022,
+    "min": 4.2434,
+    "max": 4.2493
+  },
+  "clock": {
+    "sm_clock_ghz": 1.318,
+    "max_sm_clock_ghz": 2.16
+  },
+  "candidates": {
+    "alu_lat_int32": {
+      "benchmark": "hpmll/RegularUnits/alu_lat_int32/alu_lat_int32.cu",
+      "stats": {
+        "median": 4.2463,
+        "mean": 4.2466,
+        "std": 0.0022,
+        "min": 4.2434,
+        "max": 4.2493
+      },
+      "values": [
+        4.2461,
+        4.2463,
+        4.2434,
+        4.2478,
+        4.2493
+      ],
+      "printed_values": [
+        4.246094,
+        4.246338,
+        4.243408,
+        4.247803,
+        4.249268
+      ],
+      "printed_lines": [
+        "int32 latency = 4.246094",
+        "int32 latency = 4.246338",
+        "int32 latency = 4.243408",
+        "int32 latency = 4.247803",
+        "int32 latency = 4.249268"
+      ],
+      "sm_clock_ghz_samples": [
+        1.3164,
+        1.3166,
+        1.318,
+        1.3189,
+        1.318
+      ],
+      "conversion": "printed value (dependent mad.lo.s32 chain)",
+      "hit_rates_pct": {},
+      "valid": true,
+      "invalid_reason": null,
+      "source_changes": {},
+      "notes": [
+        "measures IMAD (mad.lo.s32), not IADD3"
+      ]
+    }
+  },
+  "reps": 5,
+  "hpmll_commit": "ded6f57",
+  "nvcc_version": "12.4",
+  "driver_version": "595.104.02",
+  "git_commit": "9b76f4f",
+  "timestamp": "2026-11-13T23:47:36Z"
+}

@@ -1,0 +1,37 @@
+{
+  "schema_version": "3.0.0",
+  "benchmark": "gpu-benches/gpu-stream/main.cu",
+  "parameter": "dram_bandwidth_bytes_per_cycle",
+  "value": 543.3333,
+  "unit": "bytes/cycle",
+  "gpu": "titanv",
+  "arch": "sm_70",
+  "method": "read kernel (one 8-byte load per thread over a 2 GiB buffer), median of 31 launches per occupancy; the highest occupancy's GB/s",
+  "read_gb_per_s": 652.0,
+  "peak": {
+    "block_size": 576,
+    "threads": 92160,
+    "blocks_per_sm": 2,
+    "occupancy_pct": 56.2,
+    "gb_per_s": {
+      "init": 652.0,
+      "read": 652.0,
+      "scale": 585.0,
+      "triad": 606.0,
+      "3pt": 581.0,
+      "5pt": 580.0
+    }
+  },
+  "clock": {
+    "sm_clock_ghz": null,
+    "conversion": "read GB/s / base profile clock_rate_ghz (1.2 GHz)",
+    "sampled_mhz": [
+      135.0,
+      667.5,
+      1335.0
+    ]
+  },
+  "gpu_benches_commit": "23e586d",
+  "git_commit": "e88b0c1",
+  "timestamp": "2026-11-14T01:21:35Z"
+}

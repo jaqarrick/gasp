@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.0.0",
+  "benchmark": "hpmll/RegularUnits/shared_lat/shared_lat.cu",
+  "parameter": "shared_mem_load_latency_cycles",
+  "value": 27.0132,
+  "unit": "cycles",
+  "gpu": "titanv",
+  "gpu_name": "NVIDIA TITAN V",
+  "arch": "sm_70",
+  "stats": {
+    "median": 27.0132,
+    "mean": 27.0483,
+    "std": 0.0485,
+    "min": 27.0132,
+    "max": 27.1094
+  },
+  "clock": {
+    "sm_clock_ghz": 1.1951,
+    "max_sm_clock_ghz": 1.912
+  },
+  "candidates": {
+    "shared_lat": {
+      "benchmark": "hpmll/RegularUnits/shared_lat/shared_lat.cu",
+      "stats": {
+        "median": 27.0132,
+        "mean": 27.0483,
+        "std": 0.0485,
+        "min": 27.0132,
+        "max": 27.1094
+      },
+      "values": [
+        27.0132,
+        27.1094,
+        27.0132,
+        27.0928,
+        27.0132
+      ],
+      "printed_values": [
+        27.013184,
+        27.109375,
+        27.013184,
+        27.092773,
+        27.013184
+      ],
+      "printed_lines": [
+        "Shared Memory Latency  = 27.013184",
+        "Shared Memory Latency  = 27.109375",
+        "Shared Memory Latency  = 27.013184",
+        "Shared Memory Latency  = 27.092773",
+        "Shared Memory Latency  = 27.013184"
+      ],
+      "sm_clock_ghz_samples": [
+        1.1991,
+        1.1939,
+        1.2021,
+        1.1951,
+        1.195
+      ],
+      "conversion": "printed value (ld.shared pointer chase)",
+      "hit_rates_pct": {},
+      "valid": true,
+      "invalid_reason": null,
+      "source_changes": {},
+      "notes": [
+        "each load in the chain waits on a shift that computes its address, so this is shared load latency plus about 4-5 cycles"
+      ]
+    }
+  },
+  "reps": 5,
+  "hpmll_commit": "ded6f57",
+  "nvcc_version": "12.4",
+  "driver_version": "580.196.07",
+  "git_commit": "e88b0c1",
+  "timestamp": "2026-11-14T01:21:21Z"
+}

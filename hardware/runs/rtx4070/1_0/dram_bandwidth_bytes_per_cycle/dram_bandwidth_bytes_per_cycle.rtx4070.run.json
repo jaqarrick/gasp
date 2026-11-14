@@ -1,0 +1,37 @@
+{
+  "schema_version": "3.0.0",
+  "benchmark": "gpu-benches/gpu-stream/main.cu",
+  "parameter": "dram_bandwidth_bytes_per_cycle",
+  "value": 250.0,
+  "unit": "bytes/cycle",
+  "gpu": "rtx4070",
+  "arch": "sm_89",
+  "method": "read kernel (one 8-byte load per thread over a 2 GiB buffer), median of 31 launches per occupancy; the highest occupancy's GB/s",
+  "read_gb_per_s": 480.0,
+  "peak": {
+    "block_size": 480,
+    "threads": 44160,
+    "blocks_per_sm": 2,
+    "occupancy_pct": 62.5,
+    "gb_per_s": {
+      "init": 480.0,
+      "read": 480.0,
+      "scale": 462.0,
+      "triad": 469.0,
+      "3pt": 462.0,
+      "5pt": 451.0
+    }
+  },
+  "clock": {
+    "sm_clock_ghz": null,
+    "conversion": "read GB/s / base profile clock_rate_ghz (1.92 GHz)",
+    "sampled_mhz": [
+      210.0,
+      2745.0,
+      2760.0
+    ]
+  },
+  "gpu_benches_commit": "23e586d",
+  "git_commit": "e88b0c1",
+  "timestamp": "2026-11-14T01:24:11Z"
+}
