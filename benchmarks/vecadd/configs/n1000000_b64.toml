@@ -1,0 +1,18 @@
+# gasp --gpu rtx2080ti --run --config benchmarks/vecadd/configs/n1000000_b64.toml
+#
+# vecadd pair at N = 1000000, block = 64, grid = ceil(N / block) = 15625.
+# footprint: A, B and C, 1000000 floats each = 12 x N bytes. No loops.
+
+[defaults]
+problem_size = 1000000
+footprint = 12000000
+block_size = 64
+program_args = ["1000000"]
+
+[[kernel]]
+name = "good"
+file = "benchmarks/vecadd/vecadd_good.cu"
+
+[[kernel]]
+name = "poor"
+file = "benchmarks/vecadd/vecadd_poor.cu"
