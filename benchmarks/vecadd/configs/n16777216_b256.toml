@@ -1,0 +1,15 @@
+# N = 16777216, block 256
+
+[defaults]
+problem_size = 16777216
+footprint = 201326592
+block_size = 256
+program_args = ["16777216"]
+
+[[kernel]]
+name = "good"
+file = "benchmarks/vecadd/vecadd_good.cu"
+
+[[kernel]]
+name = "poor"
+file = "benchmarks/vecadd/vecadd_poor.cu"

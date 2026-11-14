@@ -1,26 +1,56 @@
 #!/bin/bash
 # Run one benchmark config end to end (predict, then measure under ncu) and save the JSON results.
 # --dry-run only predicts: no --run, so no GPU or ncu is needed.
+# --config <path> runs that config instead of benchmarks/<benchmark>/<benchmark>.toml,
+# such as one from benchmarks/<benchmark>/configs/.
+# --out-dir <dir> saves the results in <dir> instead of a new
+# experiments/results/e2e/<gpu>/<benchmark>_<timestamp>/ (scripts/batch_experiment.sh uses it).
+# --profile <path> uses that hardware profile (such as one from make microbenchmarks)
+# instead of the built-in one for <gpu>; <gpu> then only names the results folder.
 #
 # Example usage:
-#   scripts/run_e2e_accuracy_experiment.sh [--dry-run] <benchmark> <gpu>
+#   scripts/run_e2e_accuracy_experiment.sh [--dry-run] [--config <path>] [--out-dir <dir>] [--profile <path>] <benchmark> <gpu>
 #   scripts/run_e2e_accuracy_experiment.sh mm rtx2080ti
 #   scripts/run_e2e_accuracy_experiment.sh --dry-run mm rtx2080ti
+#   scripts/run_e2e_accuracy_experiment.sh --config benchmarks/mm/configs/n1024_b8x8.toml mm rtx2080ti
+#   scripts/run_e2e_accuracy_experiment.sh --profile hardware/runs/rtx2080ti/1_2/rtx2080ti.1_2.json mm rtx2080ti
 set -euo pipefail
 
 usage() {
-    echo "usage: $0 [--dry-run] <benchmark> <gpu>   (e.g. $0 mm rtx2080ti)" >&2
+    echo "usage: $0 [--dry-run] [--config <path>] [--out-dir <dir>] [--profile <path>] <benchmark> <gpu>   (e.g. $0 mm rtx2080ti)" >&2
     exit 1
 }
 
 DRY_RUN=0
+CONFIG=""
+OUT_DIR=""
+PROFILE=""
 POSITIONAL=()
-for arg in "$@"; do
-    case "$arg" in
+while [ "$#" -gt 0 ]; do
+    case "$1" in
         --dry-run) DRY_RUN=1 ;;
-        -*) echo "error: unknown option $arg" >&2; usage ;;
-        *) POSITIONAL+=("$arg") ;;
+        --config)
+            [ "$#" -ge 2 ] || { echo "error: --config needs a path" >&2; usage; }
+            CONFIG="$2"
+            shift
+            ;;
+        --config=*) CONFIG="${1#--config=}" ;;
+        --out-dir)
+            [ "$#" -ge 2 ] || { echo "error: --out-dir needs a path" >&2; usage; }
+            OUT_DIR="$2"
+            shift
+            ;;
+        --out-dir=*) OUT_DIR="${1#--out-dir=}" ;;
+        --profile)
+            [ "$#" -ge 2 ] || { echo "error: --profile needs a path" >&2; usage; }
+            PROFILE="$2"
+            shift
+            ;;
+        --profile=*) PROFILE="${1#--profile=}" ;;
+        -*) echo "error: unknown option $1" >&2; usage ;;
+        *) POSITIONAL+=("$1") ;;
     esac
+    shift
 done
 
 if [ "${#POSITIONAL[@]}" -ne 2 ]; then
@@ -30,12 +60,22 @@ fi
 BMK="${POSITIONAL[0]}"
 GPU="${POSITIONAL[1]}"
 
+# a relative --config, --out-dir or --profile is relative to where the script was called from
+if [ -n "$CONFIG" ] && [[ "$CONFIG" != /* ]]; then
+    CONFIG="$PWD/$CONFIG"
+fi
+if [ -n "$OUT_DIR" ] && [[ "$OUT_DIR" != /* ]]; then
+    OUT_DIR="$PWD/$OUT_DIR"
+fi
+if [ -n "$PROFILE" ] && [[ "$PROFILE" != /* ]]; then
+    PROFILE="$PWD/$PROFILE"
+fi
+
 cd "$(dirname "$0")/.."
 
-echo "Running $BMK on $GPU"
 BMK_DIR="./benchmarks/$BMK"
-BMK_CONFIG="$BMK_DIR/$BMK.toml"
-GPU_PROFILE="./hardware/profiles/$GPU.json"
+BMK_CONFIG="${CONFIG:-$BMK_DIR/$BMK.toml}"
+echo "Running $BMK on $GPU with $BMK_CONFIG${PROFILE:+ and profile $PROFILE}"
 
 # First check if the benchmark config and path exists in ./benchmarks
 # e.g. argument is "mm" we look for mm.toml in ./benchmarks/mm/
@@ -47,9 +87,20 @@ if [ ! -f "$BMK_CONFIG" ]; then
     echo "error: benchmark config $BMK_CONFIG not found" >&2
     exit 1
 fi
-if [ ! -f "$GPU_PROFILE" ]; then
-    echo "error: GPU profile $GPU_PROFILE not found" >&2
-    exit 1
+if [ -n "$PROFILE" ]; then
+    if [ ! -f "$PROFILE" ]; then
+        echo "error: profile $PROFILE not found" >&2
+        exit 1
+    fi
+    PROFILE_ARG="--profile $PROFILE"
+else
+    # the built-in profile for --gpu is <gpu>.json or <gpu>.placeholder.json
+    # (GPU_PROFILES in src/gasp/cli/utils.py)
+    if [ ! -f "./hardware/profiles/$GPU.json" ] && [ ! -f "./hardware/profiles/$GPU.placeholder.json" ]; then
+        echo "error: no hardware/profiles/$GPU.json or $GPU.placeholder.json; pass --profile" >&2
+        exit 1
+    fi
+    PROFILE_ARG="--gpu $GPU"
 fi
 
 # init the repo and python
@@ -60,11 +111,18 @@ fi
 
 # create the output / target directory if not there
 STAMP="$(date +%Y%m%d_%H%M%S)"
-EXP_OUT_DIR="./experiments/results/e2e/${GPU}/${BMK}_${STAMP}"
+# a --config run is named after its config too, so runs of one benchmark don't collide
+if [ -n "$OUT_DIR" ]; then
+    EXP_OUT_DIR="$OUT_DIR"
+elif [ -n "$CONFIG" ]; then
+    EXP_OUT_DIR="./experiments/results/e2e/${GPU}/${BMK}_$(basename "$BMK_CONFIG" .toml)_${STAMP}"
+else
+    EXP_OUT_DIR="./experiments/results/e2e/${GPU}/${BMK}_${STAMP}"
+fi
 mkdir -p "$EXP_OUT_DIR"
 EXP_OUT_FNAME="result.json"
 
-GASP_ARGS="--gpu $GPU --json --verbose --config $BMK_CONFIG --trace-file $EXP_OUT_DIR/traces.log"
+GASP_ARGS="$PROFILE_ARG --json --verbose --config $BMK_CONFIG --trace-file $EXP_OUT_DIR/traces.log"
 if [ "$DRY_RUN" -eq 0 ]; then
     GASP_ARGS="$GASP_ARGS --run --save-metrics $EXP_OUT_DIR/metrics.json"
 fi
@@ -74,4 +132,4 @@ make --no-print-directory run ARGS="$GASP_ARGS" \
     > "$EXP_OUT_DIR/$EXP_OUT_FNAME"              \
     2> >(tee "$EXP_OUT_DIR/run.log" >&2)
 
-echo "Experiment for $BMK completed: $EXP_OUT_DIR/$EXP_OUT_FNAME"
+echo "Experiment for $BMK ($BMK_CONFIG) completed: $EXP_OUT_DIR/$EXP_OUT_FNAME"

@@ -118,6 +118,7 @@ def run_sampling_clock(command: list[str], log_path: Path, clock_path: Path, cwd
         sampler = subprocess.Popen(
             [
                 "nvidia-smi",
+                *mb.nvidia_smi_gpu(),
                 "--query-gpu=clocks.sm",
                 "--format=csv,noheader,nounits",
                 f"-lms={SM_CLOCK_SAMPLE_MS}",
@@ -141,7 +142,7 @@ def run_sampling_clock(command: list[str], log_path: Path, clock_path: Path, cwd
 
 def free_memory_bytes() -> int:
     result = subprocess.run(
-        ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+        ["nvidia-smi", *mb.nvidia_smi_gpu(), "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
         check=False,
         capture_output=True,
         text=True,

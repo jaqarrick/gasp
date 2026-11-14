@@ -32,6 +32,27 @@ gasp --gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml
 gasp --gpu rtx2080ti --run --config benchmarks/divergence/divergence.toml
 ```
 
+## Sweep configs
+
+`vecadd/configs/` and `mm/configs/` hold one config per problem size and block size, named `n<problem_size>_b<block>.toml`. Each config keeps the benchmark's pair together, so speedups still compare the two kernels. Each file's header comment says how footprint, grid, `params`, `program_args`, `loop_counts` and `reuse` follow from its size and block.
+
+- `vecadd` uses blocks of 64, 128, 256 and 1024 at N = 65536, 1000000 and 16777216 (footprint 12 x N bytes).
+- `mm_basic` uses 8x8, 16x16, 32x8 and 32x32 blocks at M = N = K = 512, 1024 and 2048. `mm_tiled` always runs 16x16, because `TILE_WIDTH` is fixed. `reuse` for `mm_basic` is the L1 hit share counted by sectors, so it is 0.875 at 16x16, where `mm.toml` uses 0.9375.
+
+`scripts/batch_experiment.sh` runs all of them through `scripts/run_e2e_accuracy_experiment.sh --config`:
+
+```sh
+gasp --gpu rtx2080ti --run --config benchmarks/vecadd/configs/n1000000_b128.toml
+scripts/batch_experiment.sh [--dry-run] rtx2080ti [benchmark ...]
+make batch-experiment GPU=rtx2080ti [BMKS='mm vecadd'] [DRY_RUN=1]
+```
+
+A batch goes in `experiments/results/e2e/<gpu>/batch_<timestamp>/`. `scripts/read_batch.py` reads it into one row per config, kernel and model: the launch, then predicted and measured T_GPU and speedup with their errors (blank after a dry run). It shows only GASPerf unless given `--model all` (or another model name).
+
+```sh
+make batch-results BATCH=experiments/results/e2e/rtx2080ti/batch_<timestamp> [ARGS='--csv']
+```
+
 ## Writing a program for `gasp --run`
 
 `--run` builds each program with `-DGASP_BLOCK_SIZE=<block> -DGASP_GRID_SIZE=<grid>` and runs it under `ncu`. It checks that every run launched that grid and block size, and stops if not.

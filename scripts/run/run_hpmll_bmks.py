@@ -349,7 +349,7 @@ class Device:
 def query_device() -> Device:
     fields = "name,driver_version,memory.free,clocks.max.sm"
     result = subprocess.run(
-        ["nvidia-smi", f"--query-gpu={fields}", "--format=csv,noheader,nounits"],
+        ["nvidia-smi", *mb.nvidia_smi_gpu(), f"--query-gpu={fields}", "--format=csv,noheader,nounits"],
         check=False,
         capture_output=True,
         text=True,
