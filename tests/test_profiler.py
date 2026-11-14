@@ -24,7 +24,9 @@ from gasp.profiler import (
     run_ncu_report,
 )
 
-PROFILE_CSV = Path("benchmarks/vecadd/vecadd.turing.N1000000.profile.csv")
+PROFILE_CSV = (
+    Path(__file__).parent / "fixtures" / "ncu" / "vecadd.turing.N1000000.profile.csv"
+)
 
 NCU_PREAMBLE = (
     "==PROF== Connected to process 461639 (/tmp/gasp-profile-x/kernel)\n"
