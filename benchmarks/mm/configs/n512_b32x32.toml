@@ -1,19 +1,5 @@
-# gasp --gpu rtx2080ti --config benchmarks/mm/configs/n512_b32x32.toml
-#
-# M = N = K = 512. basic runs 32x32 blocks over a 16x16 grid; tiled
-# always runs 16x16 blocks (TILE_WIDTH is fixed at 16), so it overrides the
-# block, grid and program_args.
-#
-# footprint: A, B and C, 512 x 512 floats each = 12 x N^2 bytes.
-# loop_counts for K = 512: basic's k loop is a 16-step main loop (512 / 16 = 32)
-# and 4-step and 1-step remainders with nothing left; tiled has one loop over
-# (K + 15) / 16 = 32 tiles.
-#
-# basic's reuse is the L1 hit share by sectors: A, 32 / bx sectors per warp
-# per k reused over 8 k (7/8); B, bx / 8 sectors per warp per k shared by the
-# block's 32 warps (31/32), weighted by sectors: 0.95. The same rule
-# gives 0.875 at 16x16, against ncu's 87.35%. tiled loads new sectors every
-# tile, so 0.
+# M = N = K = 512; basic 32x32, tiled 16x16 (fixed tile)
+# reuse: L1 hit share by sectors
 
 [defaults]
 problem_size = 512
@@ -26,7 +12,7 @@ program_args = ["512", "512", "512", "32", "32"]
 [[kernel]]
 name = "basic"
 file = "benchmarks/mm/mm_basic.cu"
-loop_counts = [32, 0, 0]  # 16-step main loop, 4-step and 1-step remainders
+loop_counts = [32, 0, 0]
 reuse = 0.95
 
 [[kernel]]
@@ -35,5 +21,5 @@ file = "benchmarks/mm/mm_tiled.cu"
 block_size = [16, 16]
 grid_size = [32, 32]
 program_args = ["512", "512", "512", "16", "16"]
-loop_counts = [32]  # tiles of 16
+loop_counts = [32]
 reuse = 0
