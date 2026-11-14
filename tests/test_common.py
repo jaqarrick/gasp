@@ -8,6 +8,8 @@ def test_known_gpus():
     assert GPU_TO_ARCH["l4"] == "sm_89"
     assert GPU_TO_ARCH["v100"] == "sm_70"
     assert GPU_TO_ARCH["rtx2080ti"] == "sm_75"
+    assert GPU_TO_ARCH["titanv"] == "sm_70"
+    assert GPU_TO_ARCH["rtx4070"] == "sm_89"
 
 
 def test_unknown_gpu():

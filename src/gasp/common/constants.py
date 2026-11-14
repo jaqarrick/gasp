@@ -10,6 +10,8 @@ GPU_TO_ARCH: dict[str, str] = {
     "v100": "sm_70",
     "t4": "sm_75",
     "rtx2080ti": "sm_75",
+    "titanv": "sm_70",
+    "rtx4070": "sm_89",
 }
 
 # 32-byte sectors in one 128-byte cache line: Pico and ncu count sectors,

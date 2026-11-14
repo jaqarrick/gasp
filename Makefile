@@ -10,7 +10,7 @@ GPU ?=
 VERSION ?=
 ARCH ?=
 
-.PHONY: all build install run test lint lint-fix format pre-commit clean docker-clean docker-run help microbenchmarks microbenchmarks-hpmll microbenchmarks-gpu-benches ablation
+.PHONY: all build install run test lint lint-fix format pre-commit clean docker-clean docker-run help microbenchmarks microbenchmarks-hpmll microbenchmarks-gpu-benches check_spec ablation
 
 $(VENV):
 	PYTHON=$(PYTHON) ./scripts/init_python.sh
@@ -58,6 +58,10 @@ microbenchmarks-gpu-benches:
 	@test -n "$(GPU)" -a -n "$(VERSION)" || { echo "usage: make microbenchmarks-gpu-benches GPU=<gpu> VERSION=<label> [ARCH=sm_XX] [ARGS='--force']"; exit 1; }
 	$(PYTHON) scripts/run/run_gpu_benches.py --gpu $(GPU) --version $(VERSION) $(if $(ARCH),--arch $(ARCH)) $(ARGS)
 
+# Compare a profile's spec fields with this machine's GPU; needs nvcc.
+check_spec:
+	./scripts/check_gpu_spec.sh $(PROFILE)
+
 # FOR DOCKER
 build:
 	docker build --platform $(PLATFORM) -t $(IMAGE) .
@@ -84,6 +88,7 @@ help:
 	@echo "make microbenchmarks GPU=.. VERSION=.. - run HPMLL, gpu-stream and gasp-bm, merge into one profile"
 	@echo "make microbenchmarks-hpmll GPU=.. VERSION=.. - run the HPMLL benchmarks that match profile fields, build a profile"
 	@echo "make microbenchmarks-gpu-benches GPU=.. VERSION=.. - DRAM bandwidth from gpu-stream, compare with the profiles"
+	@echo "make check_spec PROFILE=..       - compare a profile's spec fields with this machine's GPU"
 	@echo "make lint                       - lint Python code"
 	@echo "make format                      - format Python code"
 	@echo "make pre-commit                  - run all pre-commit hooks on all files"
