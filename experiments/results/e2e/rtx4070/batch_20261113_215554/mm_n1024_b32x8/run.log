@@ -1,0 +1,319 @@
+[34mℹnfo[0m Verbose mode enabled
+[34mℹnfo[0m loading hardware profile from hardware/profiles/rtx4070.placeholder.json
+[33mwarn[0m Kernels may not do the same work, program arguments differ: [33mbasic[0m=[32m'1024 1024 1024 32 8'[0m, [33mtiled[0m=[32m'1024 1024 1024 16 16'[0m
+[1;36m              CONFIGURATION: BASIC               [0m
+┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃[1m [0m[1mParameter        [0m[1m [0m┃[1m [0m[1mValue                    [0m[1m [0m┃
+┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ Input             │ benchmarks/mm/mm_basic.cu │
+│ Kernel            │ Not provided              │
+│ Block Size        │ 32x8                      │
+│ Grid Size         │ 32x128                    │
+│ Problem Size      │ 1024                      │
+│ Footprint (bytes) │ 12582912                  │
+│ Reuse             │ 0.875                     │
+│ Loop Iterations   │ Not provided              │
+│ Loop Counts       │ [64, 0, 0]                │
+│ Kernel Params     │ M=1024, N=1024, K=1024    │
+└───────────────────┴───────────────────────────┘
+[34mℹnfo[0m Extracting SASS and resource usage from benchmarks/mm/mm_basic.cu
+[34mℹnfo[0m Checking CUDA toolkit
+[34mℹnfo[0m Compiling CUDA to cubin
+[34mℹnfo[0m Compiling: nvcc -cubin -[33march[0m=[35msm_89[0m -lineinfo benchmarks/mm/mm_basic.cu -o benchmarks/mm/mm_basic.cubin
+[34mℹnfo[0m Extracting raw SASS
+[34mℹnfo[0m Extracting raw CFG
+[34mℹnfo[0m Extracting kernel resource usage
+[34mℹnfo[0m Extracting source lines
+[34mℹnfo[0m Occupancy calculations completed
+[1;36m     OCCUPANCY: BASIC      [0m
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━┓
+┃[1m [0m[1mParameter      [0m[1m [0m┃[1m [0m[1mValue[0m[1m [0m┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━┩
+│ Active Warps/SM │ 48    │
+│ Total Warps     │ 32768 │
+│ Active SMs      │ 46    │
+│ Num Reps        │ 15    │
+│ MWP             │ 48.00 │
+└─────────────────┴───────┘
+[1;36m      PICO RESULTS: BASIC      [0m
+┏━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
+┃[1m [0m[1mResult             [0m[1m [0m┃[1m [0m[1mValue[0m[1m [0m┃
+┡━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
+│ Bank Conflicts      │ 0     │
+│ Uncoalesced Count   │ 5124  │
+│ Active Threads      │ 65568 │
+│ Memory Access Count │ 2049  │
+└─────────────────────┴───────┘
+[34mℹnfo[0m SASS has been parsed
+[34mℹnfo[0m Dependency analysis: [1;36m3[0m [1;35mloop[0m[1m([0ms[1m)[0m detected
+[33mwarn[0m divergence: branch at BB2: sides share [1m[[0m[32m'.L_x_2'[0m[1m][0m
+[1;36m        LOOPS: BASIC (3 IN THE COMPILED CODE, IN LOOP_COUNTS ORDER)        [0m
+┏━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━┓
+┃[1m [0m[1m#[0m[1m [0m┃[1m [0m[1mSource line                  [0m[1m [0m┃[1m [0m[1mInside[0m[1m [0m┃[1m [0m[1mInsts[0m[1m [0m┃[1m [0m[1mLoads/trip[0m[1m [0m┃[1m [0m[1mCount[0m[1m [0m┃
+┡━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━┩
+│ 1 │ mm_basic.cu:13  sum += a * b; │ -      │ 74    │ 32 global  │ 64    │
+│ 2 │ mm_basic.cu:13  sum += a * b; │ -      │ 26    │ 8 global   │ 0     │
+│ 3 │ mm_basic.cu:13  sum += a * b; │ -      │ 10    │ 2 global   │ 0     │
+└───┴───────────────────────────────┴────────┴───────┴────────────┴───────┘
+[1;36mDEPENDENCY ANALYSIS: BASIC [0m
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━┓
+┃[1m [0m[1mParameter      [0m[1m [0m┃[1m [0m[1mValue[0m[1m [0m┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━┩
+│ ILP             │ 3.66  │
+│ MLP             │ 31.86 │
+│ Total Insts     │ 4827  │
+│ Mem Insts       │ 2065  │
+│ SFU Insts       │ 0     │
+│ Sync Insts      │ 0     │
+│ Divergent Insts │ 0     │
+└─────────────────┴───────┘
+[1;36m              CONFIGURATION: TILED               [0m
+┏━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃[1m [0m[1mParameter        [0m[1m [0m┃[1m [0m[1mValue                    [0m[1m [0m┃
+┡━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ Input             │ benchmarks/mm/mm_tiled.cu │
+│ Kernel            │ Not provided              │
+│ Block Size        │ 16x16                     │
+│ Grid Size         │ 64x64                     │
+│ Problem Size      │ 1024                      │
+│ Footprint (bytes) │ 12582912                  │
+│ Reuse             │ 0                         │
+│ Loop Iterations   │ Not provided              │
+│ Loop Counts       │ [64]                      │
+│ Kernel Params     │ M=1024, N=1024, K=1024    │
+└───────────────────┴───────────────────────────┘
+[34mℹnfo[0m Extracting SASS and resource usage from benchmarks/mm/mm_tiled.cu
+[34mℹnfo[0m Checking CUDA toolkit
+[34mℹnfo[0m Compiling CUDA to cubin
+[34mℹnfo[0m Compiling: nvcc -cubin -[33march[0m=[35msm_89[0m -lineinfo benchmarks/mm/mm_tiled.cu -o benchmarks/mm/mm_tiled.cubin
+[34mℹnfo[0m Extracting raw SASS
+[34mℹnfo[0m Extracting raw CFG
+[34mℹnfo[0m Extracting kernel resource usage
+[34mℹnfo[0m Extracting source lines
+[34mℹnfo[0m Occupancy calculations completed
+[1;36m     OCCUPANCY: TILED      [0m
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━┓
+┃[1m [0m[1mParameter      [0m[1m [0m┃[1m [0m[1mValue[0m[1m [0m┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━┩
+│ Active Warps/SM │ 48    │
+│ Total Warps     │ 32768 │
+│ Active SMs      │ 46    │
+│ Num Reps        │ 15    │
+│ MWP             │ 48.00 │
+└─────────────────┴───────┘
+[1;36m      PICO RESULTS: TILED      [0m
+┏━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
+┃[1m [0m[1mResult             [0m[1m [0m┃[1m [0m[1mValue[0m[1m [0m┃
+┡━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
+│ Bank Conflicts      │ 0     │
+│ Uncoalesced Count   │ 516   │
+│ Active Threads      │ 73760 │
+│ Memory Access Count │ 2305  │
+└─────────────────────┴───────┘
+[34mℹnfo[0m SASS has been parsed
+[34mℹnfo[0m Dependency analysis: [1;36m1[0m [1;35mloop[0m[1m([0ms[1m)[0m detected
+[1;36m                       LOOPS: TILED (1 IN THE COMPILED CODE, IN LOOP_COUNTS ORDER)                       [0m
+┏━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
+┃[1m [0m[1m#[0m[1m [0m┃[1m [0m[1mSource line                                       [0m[1m [0m┃[1m [0m[1mInside[0m[1m [0m┃[1m [0m[1mInsts[0m[1m [0m┃[1m [0m[1mLoads/trip         [0m[1m [0m┃[1m [0m[1mCount[0m[1m [0m┃
+┡━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
+│ 1 │ mm_tiled.cu:26  b_tile = (b_row < K && col < N) ?  │ -      │ 61    │ 2 global, 20 shared │ 64    │
+└───┴────────────────────────────────────────────────────┴────────┴───────┴─────────────────────┴───────┘
+[1;36mDEPENDENCY ANALYSIS: TILED [0m
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━┓
+┃[1m [0m[1mParameter      [0m[1m [0m┃[1m [0m[1mValue[0m[1m [0m┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━┩
+│ ILP             │ 7.04  │
+│ MLP             │ 22.00 │
+│ Total Insts     │ 3940  │
+│ Mem Insts       │ 129   │
+│ SFU Insts       │ 0     │
+│ Sync Insts      │ 128   │
+│ Divergent Insts │ 0     │
+└─────────────────┴───────┘
+[34mℹnfo[0m Prediction completed
+[1;36mPREDICTION: BASIC [GPUPERF] (OVERRIDES: [0m
+[1;36m                 NONE)                  [0m
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┓
+┃[1m [0m[1mParameter                [0m[1m [0m┃[1m [0m[1mValue   [0m[1m [0m┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━┩
+│ ITILP                     │ 14.91    │
+│ CWP                       │ 48.00    │
+│ MWP_cp                    │ 47.00    │
+│ MWP_peak_bw               │ 29.59    │
+│ ITMLP                     │ 29.59    │
+│ Avg Trans/Warp            │ 1.00     │
+│ Working set/SM (bytes)    │ 12687360 │
+│ Working set total (bytes) │ 12582912 │
+│ L1 size (bytes)           │ 131072   │
+│ Shared carveout (bytes)   │ 0        │
+│ Reuse fraction            │ 0.999    │
+│ L1 hit ratio              │ 0.875    │
+│ L2 hit ratio              │ 0.988    │
+│ AMAT (cycles)             │ 55.6     │
+│ O_CFdiv (cycles)          │ 0        │
+│ Shared pipe time (cycles) │ 0        │
+│ O_shmem (cycles)          │ 0        │
+│ T_comp (cycles)           │ 859626   │
+│ L1 time (cycles)          │ 0        │
+│ T_mem (cycles)            │ 2766455  │
+│ T_overlap (cycles)        │ 841717   │
+│ T_exec (cycles)           │ 2784363  │
+│ Launch overhead (cycles)  │ 4281     │
+│ T_GPU (cycles)            │ 2788645  │
+└───────────────────────────┴──────────┘
+[34mℹnfo[0m Prediction completed
+[1;36mPREDICTION: BASIC [GASPERF] (OVERRIDES: [0m
+[1;36m                 NONE)                  [0m
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┓
+┃[1m [0m[1mParameter                [0m[1m [0m┃[1m [0m[1mValue   [0m[1m [0m┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━┩
+│ ITILP                     │ 14.91    │
+│ CWP                       │ 48.00    │
+│ MWP_cp                    │ 47.00    │
+│ MWP_peak_bw               │ 29.59    │
+│ ITMLP                     │ 29.59    │
+│ Avg Trans/Warp            │ 1.00     │
+│ Working set/SM (bytes)    │ 12687360 │
+│ Working set total (bytes) │ 12582912 │
+│ L1 size (bytes)           │ 131072   │
+│ Shared carveout (bytes)   │ 0        │
+│ Reuse fraction            │ 0.999    │
+│ L1 hit ratio              │ 0.875    │
+│ L2 hit ratio              │ 0.988    │
+│ AMAT (cycles)             │ 55.6     │
+│ O_CFdiv (cycles)          │ 0        │
+│ Shared pipe time (cycles) │ 0        │
+│ O_shmem (cycles)          │ 0        │
+│ T_comp (cycles)           │ 859626   │
+│ L1 time (cycles)          │ 3647487  │
+│ T_mem (cycles)            │ 3647487  │
+│ T_overlap (cycles)        │ 841717   │
+│ T_exec (cycles)           │ 3665396  │
+│ Launch overhead (cycles)  │ 4281     │
+│ T_GPU (cycles)            │ 3669677  │
+└───────────────────────────┴──────────┘
+[34mℹnfo[0m Prediction completed
+[1;36mPREDICTION: TILED [GPUPERF] (OVERRIDES: [0m
+[1;36m                 NONE)                  [0m
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┓
+┃[1m [0m[1mParameter                [0m[1m [0m┃[1m [0m[1mValue   [0m[1m [0m┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━┩
+│ ITILP                     │ 39.95    │
+│ CWP                       │ 9.37     │
+│ MWP_cp                    │ 8.37     │
+│ MWP_peak_bw               │ 29.59    │
+│ ITMLP                     │ 29.59    │
+│ Avg Trans/Warp            │ 1.00     │
+│ Working set/SM (bytes)    │ 792576   │
+│ Working set total (bytes) │ 12582912 │
+│ L1 size (bytes)           │ 114688   │
+│ Shared carveout (bytes)   │ 16384    │
+│ Reuse fraction            │ 0.977    │
+│ L1 hit ratio              │ 0.000    │
+│ L2 hit ratio              │ 0.977    │
+│ AMAT (cycles)             │ 223.4    │
+│ O_CFdiv (cycles)          │ 0        │
+│ Shared pipe time (cycles) │ 0        │
+│ O_shmem (cycles)          │ 0        │
+│ T_comp (cycles)           │ 918815   │
+│ L1 time (cycles)          │ 0        │
+│ T_mem (cycles)            │ 693665   │
+│ T_overlap (cycles)        │ 693665   │
+│ T_exec (cycles)           │ 918815   │
+│ Launch overhead (cycles)  │ 4281     │
+│ T_GPU (cycles)            │ 923096   │
+└───────────────────────────┴──────────┘
+[34mℹnfo[0m Prediction completed
+[1;36mPREDICTION: TILED [GASPERF] (OVERRIDES: [0m
+[1;36m                 NONE)                  [0m
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┓
+┃[1m [0m[1mParameter                [0m[1m [0m┃[1m [0m[1mValue   [0m[1m [0m┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━┩
+│ ITILP                     │ 39.95    │
+│ CWP                       │ 9.37     │
+│ MWP_cp                    │ 8.37     │
+│ MWP_peak_bw               │ 29.59    │
+│ ITMLP                     │ 29.59    │
+│ Avg Trans/Warp            │ 1.00     │
+│ Working set/SM (bytes)    │ 792576   │
+│ Working set total (bytes) │ 12582912 │
+│ L1 size (bytes)           │ 114688   │
+│ Shared carveout (bytes)   │ 16384    │
+│ Reuse fraction            │ 0.977    │
+│ L1 hit ratio              │ 0.000    │
+│ L2 hit ratio              │ 0.977    │
+│ AMAT (cycles)             │ 223.4    │
+│ O_CFdiv (cycles)          │ 0        │
+│ Shared pipe time (cycles) │ 2006072  │
+│ O_shmem (cycles)          │ 1304409  │
+│ T_comp (cycles)           │ 2223224  │
+│ L1 time (cycles)          │ 227858   │
+│ T_mem (cycles)            │ 693665   │
+│ T_overlap (cycles)        │ 693665   │
+│ T_exec (cycles)           │ 2223224  │
+│ Launch overhead (cycles)  │ 4281     │
+│ T_GPU (cycles)            │ 2227505  │
+└───────────────────────────┴──────────┘
+[1;36m                       PREDICTED COMPARISON (REFERENCE: BASIC, WITHIN EACH MODEL), CYCLES                       [0m
+┏━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━┳━━━━━━┳━━━━━━━━━━━┓
+┃[1m [0m[1mKernel[0m[1m [0m┃[1m [0m[1mModel  [0m[1m [0m┃[1m [0m[1mLaunch            [0m[1m [0m┃[1m [0m[1mT_comp [0m[1m [0m┃[1m [0m[1mT_mem  [0m[1m [0m┃[1m [0m[1mT_overlap[0m[1m [0m┃[1m [0m[1mT_GPU  [0m[1m [0m┃[1m [0m[1mSpeedup[0m[1m [0m┃[1m [0m[1mPico[0m[1m [0m┃[1m [0m[1mOverrides[0m[1m [0m┃
+┡━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━╇━━━━━━╇━━━━━━━━━━━┩
+│ basic  │ GPUPerf │ <<<32x128, 32x8>>> │ 859626  │ 2766455 │ 841717    │ 2788645 │ 1.00    │ ok   │ none      │
+│ basic  │ GASPerf │ <<<32x128, 32x8>>> │ 859626  │ 3647487 │ 841717    │ 3669677 │ 1.00    │ ok   │ none      │
+│ tiled  │ GPUPerf │ <<<64x64, 16x16>>> │ 918815  │ 693665  │ 693665    │ 923096  │ 3.02    │ ok   │ none      │
+│ tiled  │ GASPerf │ <<<64x64, 16x16>>> │ 2223224 │ 693665  │ 693665    │ 2227505 │ 1.65    │ ok   │ none      │
+└────────┴─────────┴────────────────────┴─────────┴─────────┴───────────┴─────────┴─────────┴──────┴───────────┘
+[34mℹnfo[0m Compiling: nvcc -[33march[0m=[35msm_89[0m -[33mDGASP_BLOCK_SIZE[0m=[1;36m256[0m -[33mDGASP_GRID_SIZE[0m=[1;36m4096[0m -[33mDGASP_BLOCK_DIM_X[0m=[1;36m32[0m -[33mDGASP_BLOCK_DIM_Y[0m=[1;36m8[0m -[33mDGASP_BLOCK_DIM_Z[0m=[1;36m1[0m -[33mDGASP_GRID_DIM_X[0m=[1;36m32[0m -[33mDGASP_GRID_DIM_Y[0m=[1;36m128[0m 
+-[33mDGASP_GRID_DIM_Z[0m=[1;36m1[0m benchmarks/mm/mm_basic.cu -o [35m/tmp/gasp-profile-pw6ps68r/[0m[95mkernel[0m
+[34mℹnfo[0m Profiling basic [1m<[0m[39m<<32x128, 32x8>>[0m[1m>[0m, run [1;36m1[0m/[1;36m3[0m
+[34mℹnfo[0m Profiling: ncu --csv --print-units base --kernel-name-base mangled --kernel-name _Z8mm_basicPfS_S_iii --launch-count [1;36m1[0m --metrics 
+gpu__time_duration.sum,gpc__cycles_elapsed.max,launch__grid_size,launch__block_size,launch__shared_mem_config_size,l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate.pct,lts__t_sectors_srcun
+it_tex_op_read_lookup_hit.sum,lts__t_sectors_srcunit_tex_op_read_lookup_miss.sum,l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum,l1tex__t_requests_pipe_lsu_mem_global_op_ld.sum,l1tex__data_ba
+nk_conflicts_pipe_lsu_mem_shared_op_ld.sum,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum,smsp__inst_executed.sum,smsp__inst_executed_op_global_ld.sum,smsp__inst_executed_op_global
+_st.sum,smsp__inst_executed_pipe_xu.sum,sm__warps_active.avg.pct_of_peak_sustained_active [35m/tmp/gasp-profile-pw6ps68r/[0m[95mkernel[0m [1;36m1024[0m [1;36m1024[0m [1;36m1024[0m [1;36m32[0m [1;36m8[0m
+[34mℹnfo[0m Running ncu --set full on the basic [1m<[0m[39m<<32x128, 32x8>>[0m[1m>[0m run for the trace
+[34mℹnfo[0m Profiling basic [1m<[0m[39m<<32x128, 32x8>>[0m[1m>[0m, run [1;36m2[0m/[1;36m3[0m
+[34mℹnfo[0m Profiling: ncu --csv --print-units base --kernel-name-base mangled --kernel-name _Z8mm_basicPfS_S_iii --launch-count [1;36m1[0m --metrics 
+gpu__time_duration.sum,gpc__cycles_elapsed.max,launch__grid_size,launch__block_size,launch__shared_mem_config_size,l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate.pct,lts__t_sectors_srcun
+it_tex_op_read_lookup_hit.sum,lts__t_sectors_srcunit_tex_op_read_lookup_miss.sum,l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum,l1tex__t_requests_pipe_lsu_mem_global_op_ld.sum,l1tex__data_ba
+nk_conflicts_pipe_lsu_mem_shared_op_ld.sum,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum,smsp__inst_executed.sum,smsp__inst_executed_op_global_ld.sum,smsp__inst_executed_op_global
+_st.sum,smsp__inst_executed_pipe_xu.sum,sm__warps_active.avg.pct_of_peak_sustained_active [35m/tmp/gasp-profile-pw6ps68r/[0m[95mkernel[0m [1;36m1024[0m [1;36m1024[0m [1;36m1024[0m [1;36m32[0m [1;36m8[0m
+[34mℹnfo[0m Profiling basic [1m<[0m[39m<<32x128, 32x8>>[0m[1m>[0m, run [1;36m3[0m/[1;36m3[0m
+[34mℹnfo[0m Profiling: ncu --csv --print-units base --kernel-name-base mangled --kernel-name _Z8mm_basicPfS_S_iii --launch-count [1;36m1[0m --metrics 
+gpu__time_duration.sum,gpc__cycles_elapsed.max,launch__grid_size,launch__block_size,launch__shared_mem_config_size,l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate.pct,lts__t_sectors_srcun
+it_tex_op_read_lookup_hit.sum,lts__t_sectors_srcunit_tex_op_read_lookup_miss.sum,l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum,l1tex__t_requests_pipe_lsu_mem_global_op_ld.sum,l1tex__data_ba
+nk_conflicts_pipe_lsu_mem_shared_op_ld.sum,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum,smsp__inst_executed.sum,smsp__inst_executed_op_global_ld.sum,smsp__inst_executed_op_global
+_st.sum,smsp__inst_executed_pipe_xu.sum,sm__warps_active.avg.pct_of_peak_sustained_active [35m/tmp/gasp-profile-pw6ps68r/[0m[95mkernel[0m [1;36m1024[0m [1;36m1024[0m [1;36m1024[0m [1;36m32[0m [1;36m8[0m
+[34mℹnfo[0m Compiling: nvcc -[33march[0m=[35msm_89[0m -[33mDGASP_BLOCK_SIZE[0m=[1;36m256[0m -[33mDGASP_GRID_SIZE[0m=[1;36m4096[0m -[33mDGASP_BLOCK_DIM_X[0m=[1;36m16[0m -[33mDGASP_BLOCK_DIM_Y[0m=[1;36m16[0m -[33mDGASP_BLOCK_DIM_Z[0m=[1;36m1[0m -[33mDGASP_GRID_DIM_X[0m=[1;36m64[0m -[33mDGASP_GRID_DIM_Y[0m=[1;36m64[0m 
+-[33mDGASP_GRID_DIM_Z[0m=[1;36m1[0m benchmarks/mm/mm_tiled.cu -o [35m/tmp/gasp-profile-r3mfeqqi/[0m[95mkernel[0m
+[34mℹnfo[0m Profiling tiled [1m<[0m[39m<<64x64, 16x16>>[0m[1m>[0m, run [1;36m1[0m/[1;36m3[0m
+[34mℹnfo[0m Profiling: ncu --csv --print-units base --kernel-name-base mangled --kernel-name _Z8mm_tiledPfS_S_iii --launch-count [1;36m1[0m --metrics 
+gpu__time_duration.sum,gpc__cycles_elapsed.max,launch__grid_size,launch__block_size,launch__shared_mem_config_size,l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate.pct,lts__t_sectors_srcun
+it_tex_op_read_lookup_hit.sum,lts__t_sectors_srcunit_tex_op_read_lookup_miss.sum,l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum,l1tex__t_requests_pipe_lsu_mem_global_op_ld.sum,l1tex__data_ba
+nk_conflicts_pipe_lsu_mem_shared_op_ld.sum,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum,smsp__inst_executed.sum,smsp__inst_executed_op_global_ld.sum,smsp__inst_executed_op_global
+_st.sum,smsp__inst_executed_pipe_xu.sum,sm__warps_active.avg.pct_of_peak_sustained_active [35m/tmp/gasp-profile-r3mfeqqi/[0m[95mkernel[0m [1;36m1024[0m [1;36m1024[0m [1;36m1024[0m [1;36m16[0m [1;36m16[0m
+[34mℹnfo[0m Running ncu --set full on the tiled [1m<[0m[39m<<64x64, 16x16>>[0m[1m>[0m run for the trace
+[34mℹnfo[0m Profiling tiled [1m<[0m[39m<<64x64, 16x16>>[0m[1m>[0m, run [1;36m2[0m/[1;36m3[0m
+[34mℹnfo[0m Profiling: ncu --csv --print-units base --kernel-name-base mangled --kernel-name _Z8mm_tiledPfS_S_iii --launch-count [1;36m1[0m --metrics 
+gpu__time_duration.sum,gpc__cycles_elapsed.max,launch__grid_size,launch__block_size,launch__shared_mem_config_size,l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate.pct,lts__t_sectors_srcun
+it_tex_op_read_lookup_hit.sum,lts__t_sectors_srcunit_tex_op_read_lookup_miss.sum,l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum,l1tex__t_requests_pipe_lsu_mem_global_op_ld.sum,l1tex__data_ba
+nk_conflicts_pipe_lsu_mem_shared_op_ld.sum,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum,smsp__inst_executed.sum,smsp__inst_executed_op_global_ld.sum,smsp__inst_executed_op_global
+_st.sum,smsp__inst_executed_pipe_xu.sum,sm__warps_active.avg.pct_of_peak_sustained_active [35m/tmp/gasp-profile-r3mfeqqi/[0m[95mkernel[0m [1;36m1024[0m [1;36m1024[0m [1;36m1024[0m [1;36m16[0m [1;36m16[0m
+[34mℹnfo[0m Profiling tiled [1m<[0m[39m<<64x64, 16x16>>[0m[1m>[0m, run [1;36m3[0m/[1;36m3[0m
+[34mℹnfo[0m Profiling: ncu --csv --print-units base --kernel-name-base mangled --kernel-name _Z8mm_tiledPfS_S_iii --launch-count [1;36m1[0m --metrics 
+gpu__time_duration.sum,gpc__cycles_elapsed.max,launch__grid_size,launch__block_size,launch__shared_mem_config_size,l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate.pct,lts__t_sectors_srcun
+it_tex_op_read_lookup_hit.sum,lts__t_sectors_srcunit_tex_op_read_lookup_miss.sum,l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum,l1tex__t_requests_pipe_lsu_mem_global_op_ld.sum,l1tex__data_ba
+nk_conflicts_pipe_lsu_mem_shared_op_ld.sum,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum,smsp__inst_executed.sum,smsp__inst_executed_op_global_ld.sum,smsp__inst_executed_op_global
+_st.sum,smsp__inst_executed_pipe_xu.sum,sm__warps_active.avg.pct_of_peak_sustained_active [35m/tmp/gasp-profile-r3mfeqqi/[0m[95mkernel[0m [1;36m1024[0m [1;36m1024[0m [1;36m1024[0m [1;36m16[0m [1;36m16[0m
+[1;36m                           PREDICTED VS MEASURED (REFERENCE: BASIC WITHIN EACH MODEL, 3 RUNS PER KERNEL)                            [0m
+┏━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┓
+┃[1m [0m[1mKernel[0m[1m [0m┃[1m [0m[1mModel  [0m[1m [0m┃[1m [0m[1mPred T_GPU[0m[1m [0m┃[1m [0m[1mMeas cycles (median)[0m[1m [0m┃[1m [0m[1mSpread (min-max)[0m[1m [0m┃[1m [0m[1mError [0m[1m [0m┃[1m [0m[1mPred speedup[0m[1m [0m┃[1m [0m[1mMeas speedup (range)[0m[1m [0m┃[1m [0m[1mError  [0m[1m [0m┃
+┡━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━┩
+│ basic  │ GPUPerf │ 2788645    │ 2982955              │ 2981566-2983438  │ -6.5%  │ 1.00         │ 1.00 (reference)     │         │
+│ basic  │ GASPerf │ 3669677    │ 2982955              │ 2981566-2983438  │ +23.0% │ 1.00         │ 1.00 (reference)     │         │
+│ tiled  │ GPUPerf │ 923096     │ 2298539              │ 2298357-2298999  │ -59.8% │ 3.02         │ 1.30 (1.30-1.30)     │ +132.8% │
+│ tiled  │ GASPerf │ 2227505    │ 2298539              │ 2298357-2298999  │ -3.1%  │ 1.65         │ 1.30 (1.30-1.30)     │ +26.9%  │
+└────────┴─────────┴────────────┴──────────────────────┴──────────────────┴────────┴──────────────┴──────────────────────┴─────────┘
+[33mwarn[0m basic: the driver picked a [1;36m16[0m,[1;36m384[0m B shared-memory carveout, the model assumed [1;36m0[0m B, so its L1 size [1m([0m[1;36m131[0m,[1;36m072[0m B[1m)[0m is off
+[33mwarn[0m tiled: the driver picked a [1;36m65[0m,[1;36m536[0m B shared-memory carveout, the model assumed [1;36m16[0m,[1;36m384[0m B, so its L1 size [1m([0m[1;36m114[0m,[1;36m688[0m B[1m)[0m is off
+[32msuccess[0m Saved ncu metrics to [35m/home/jpc465/gpu/gasp-gpu/./experiments/results/e2e/rtx4070/batch_20261113_215554/mm_n1024_b32x8/[0m[95mmetrics.json[0m
