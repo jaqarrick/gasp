@@ -84,14 +84,9 @@ def test_dependency_order_leaves_out_unselected_dependencies():
     assert run_all.dependency_order(["sync_cost"]) == ["sync_cost"]
 
 
-def test_every_profile_parameter_maps_to_a_profile_key():
+def test_every_combined_runner_parameter_maps_to_a_profile_key():
     profile_keys = {
-        "fp32_inst_latency_cycles",
-        "fp64_inst_latency_cycles",
-        "int32_inst_latency_cycles",
         "sfu_inst_latency_cycles",
-        "l1_cache_hit_latency_cycles",
-        "l2_cache_hit_latency_cycles",
         "dram_latency_cycles",
         "dram_bandwidth_bytes_per_cycle",
         "const_mem_latency_cycles",
