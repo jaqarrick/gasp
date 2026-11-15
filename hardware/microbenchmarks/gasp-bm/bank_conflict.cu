@@ -1,338 +1,170 @@
-// bank_conflict.cu
-// ---------------------------------------------------------------------------
-// Measures : bank_penalty_cycles
-// Method   : Shared memory access with forced conflicts.
-//
-// Definition: the extra cycles a warp-wide shared-memory load takes for each
-// additional serialized bank access. A load where N lanes hit the same bank
-// (with different addresses) needs N passes through the shared-memory pipeline,
-// so its latency grows linearly with the conflict degree N:
-//
-//     latency(N) = base_latency + bank_penalty * (N - 1)
-//
-// One warp runs a dependent pointer chase through shared memory. All 32 lanes
-// chase at once, and lane L starts at word L*stride, so on a 32-bank memory
-// the conflict degree is N = gcd(stride, 32): strides 1, 2, 4, 8, 16, 32 give
-// N = 1 (no conflict), 2, 4, 8, 16, 32. Every step advances all lanes by 32
-// words, which keeps each lane in the same bank, so the conflict pattern is
-// identical at every load. Because each load needs the previous result, the
-// time per load is the full load latency for that conflict degree. The penalty
-// is the slope of a straight-line fit of latency against (N - 1).
-//
-// The result `value` is that slope. The fit is done for every repetition, so
-// `stats` describes the spread of the slope itself; the intercept is saved as
-// `base_latency_cycles` (the conflict-free shared load latency).
-//
-// Build    : nvcc -O3 -std=c++17 -arch=sm_80  bank_conflict.cu -o bank_conflict   (A100)
-//            nvcc -O3 -std=c++17 -arch=sm_90  bank_conflict.cu -o bank_conflict   (H100)
-//            nvcc -O3 -std=c++17 -arch=sm_100 bank_conflict.cu -o bank_conflict   (B200)
-//            (-arch must match the GPU you run on, e.g. sm_75 for an RTX 2080 Ti)
-//
-// Run      : ./bank_conflict [--gpu NAME] [--out-dir DIR] [--reps N]
-//            Writes  <out-dir>/bank_penalty_cycles.<gpu>.run.json
-//            Default out-dir = ./hardware/runs   (created if missing)
-//
-// Inspect  : nvcc -O3 -arch=sm_80 -cubin bank_conflict.cu -o bank_conflict.cubin
-//            cuobjdump -sass bank_conflict.cubin     (checklist at bottom)
-// ---------------------------------------------------------------------------
-#include <algorithm>
-#include <cctype>
-#include <cmath>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <filesystem>
-#include <numeric>
-#include <sstream>
-#include <string>
-#include <vector>
+// Authored by Josh Reynolds
 
 #include <cuda_runtime.h>
+#include <stdio.h>
 #include "common.h"
 
-static const char* PARAMETER = "bank_penalty_cycles";
+#define THREADS_PER_BLOCK 32
+#define THREADS_PER_SM 32
+#define REPEAT_TIMES 1024
+#define THREADS_PER_WARP 32
+#define NUM_WARPS 1
+#define BLOCKS_NUM 1
+#define TOTAL_THREADS (THREADS_PER_BLOCK*BLOCKS_NUM)
 
-// ---- Experiment parameters -------------------------------------------------
-constexpr int SMEM_WORDS   = 8192;    // 32 KB of 32-bit words (a multiple of 32)
-constexpr int CHASE_LOADS  = 1024;    // dependent loads in the timed region
-constexpr int UNROLL       = 16;      // loads per loop iteration
-constexpr int WARMUP_LOADS = 512;     // dependent loads before timing
-constexpr int DEFAULT_REPS = 200;     // launches per conflict degree (>=100)
-// Strides in words; with 32 banks the conflict degree is gcd(stride, 32).
-constexpr int STRIDES[]    = {1, 2, 4, 8, 16, 32};
-constexpr int NUM_STRIDES  = sizeof(STRIDES) / sizeof(STRIDES[0]);
+__global__ void bank_conflict_latency(uint64_t *start_clock_penalty, uint64_t *stop_clock_penalty, uint64_t *start_clock_no_penalty, uint64_t *stop_clock_no_penalty, uint32_t *res) {
+  int tid = threadIdx.x; // only using 1 block
 
-static_assert(CHASE_LOADS % UNROLL == 0, "CHASE_LOADS must be a multiple of UNROLL");
-static_assert(SMEM_WORDS % 32 == 0, "SMEM_WORDS must be a multiple of 32");
+  // shared memory
+  __shared__ uint32_t shared_mem[32][32]; // 2D shared memory
+  // there are 32 banks in shared memory that are 4 bytes wide
+  // so shared_mem[0][0], shared_mem[1][0], ... , shared_mem[31][0] all map to bank 0
+  // => our conflict will occur by making each thread access shared_mem[theadIdx.x][0]
 
-// ---- Device ----------------------------------------------------------------
+  uint32_t ptr_penalty = (uint32_t)__cvta_generic_to_shared(&shared_mem[tid][0]); // built-in cuda command: https://docs.nvidia.com/cuda/archive/11.4.1/cuda-c-programming-guide/index.html#__cvta_generic_to_shared
+  uint32_t ptr_no_penalty = (uint32_t)__cvta_generic_to_shared(&shared_mem[0][tid]);
+  // initialize shared_mem[tid][0] = ptr so that when we run 'ld.shared.u32 %0 [%0]', the address stored in shared_mem[tid][0] is accessed at bank 0
+  // same for ptr_no_penalty, except this will measure the accesses with no bank conflicts
+  shared_mem[tid][0] = ptr_penalty;
 
-// Dependent shared-memory load: the register holds a shared-memory address and
-// receives the address of the next word, so there is no arithmetic between loads.
-#define CHASE_ONE asm volatile("ld.shared.u32 %0, [%0];" : "+r"(p)::"memory");
+  // synchronize all threads
+	asm volatile ("bar.sync 0;");
 
-// out[0] = gross cycles of the timed chain (clock overhead included)
-// out[1] = clock overhead (two back-to-back clock reads, nothing between)
-// out[2] = globaltimer ns around the timed chain (for the SM clock)
-__global__ void bank_kernel(int stride_words, long long* out, unsigned* sink) {
-    __shared__ unsigned smem[SMEM_WORDS];
-    const int lane = threadIdx.x;   // launched with exactly one warp
+  uint64_t start_penalty = read_clock64(); // test 1 with penalty
 
-    // Shared-window address of smem[0]. Every word holds the address of the word
-    // 32 positions later (wrapping), so each lane stays in the same bank.
-    const unsigned base = static_cast<unsigned>(__cvta_generic_to_shared(smem));
-    for (int i = lane; i < SMEM_WORDS; i += 32) smem[i] = base + 4u * ((i + 32) % SMEM_WORDS);
-    __syncwarp();
+  // run a lot of operations that create bank conflicts for threads
+  for (int i = 0; i < REPEAT_TIMES; i++) {
+    asm volatile ("{\t\n"
+      "ld.shared.u32 %0, [%0];\n\t"
+      "ld.shared.u32 %0, [%0];\n\t"
+      "ld.shared.u32 %0, [%0];\n\t"
+      "ld.shared.u32 %0, [%0];\n\t"
+      "}" : "+r"(ptr_penalty)::"memory"
+    );
+  }
 
-    // Lane L starts at word L*stride: bank (L*stride) mod 32, so the conflict
-    // degree is gcd(stride, 32).
-    unsigned p = base + 4u * static_cast<unsigned>(lane * stride_words);
+  // synchronize all threads
+	asm volatile ("bar.sync 0;");
 
-#pragma unroll 1
-    for (int i = 0; i < WARMUP_LOADS; ++i) {
-        CHASE_ONE
-    }
+  uint64_t stop_penalty = read_clock64();
 
-    // Depends on p, so the clock reads below cannot issue before the last
-    // warm-up load has returned. p is always a multiple of 4, never 1.
-    if (p == 1u) {
-        *sink = 0;
-        return;
-    }
-    __syncwarp();
+  shared_mem[0][tid] = ptr_no_penalty; // getting ready for test 2
 
-    // Baseline: cost of reading the clock itself.
-    uint64_t b0 = read_clock64();
-    uint64_t b1 = read_clock64();
+  // synchronize all threads
+	asm volatile ("bar.sync 0;");
 
-    // Timed region: CHASE_LOADS strictly dependent shared loads.
-    uint64_t g0 = read_globaltimer();
-    uint64_t t0 = read_clock64();
-#pragma unroll 1
-    for (int i = 0; i < CHASE_LOADS; i += UNROLL) {
-        CHASE_ONE CHASE_ONE CHASE_ONE CHASE_ONE
-        CHASE_ONE CHASE_ONE CHASE_ONE CHASE_ONE
-        CHASE_ONE CHASE_ONE CHASE_ONE CHASE_ONE
-        CHASE_ONE CHASE_ONE CHASE_ONE CHASE_ONE
-    }
-    uint64_t t1 = read_clock64();
-    uint64_t g1 = read_globaltimer();
+  uint64_t start_no_penalty = read_clock64(); // test 2 no penalty
 
-    if (lane == 0) {
-        out[0] = static_cast<long long>(t1 - t0);
-        out[1] = static_cast<long long>(b1 - b0);
-        out[2] = static_cast<long long>(g1 - g0);
-    }
-    sink[lane] = p;   // keep the chain observable
+  for (int i = 0; i < REPEAT_TIMES; i++) {
+    asm volatile ("{\t\n"
+      "ld.shared.u32 %0, [%0];\n\t"
+      "ld.shared.u32 %0, [%0];\n\t"
+      "ld.shared.u32 %0, [%0];\n\t"
+      "ld.shared.u32 %0, [%0];\n\t"
+      "}" : "+r"(ptr_no_penalty)::"memory"
+    );
+  }
+
+  // synchronize all threads
+	asm volatile ("bar.sync 0;");
+
+  uint64_t stop_no_penalty = read_clock64();
+
+  start_clock_penalty[tid] = start_penalty;
+  stop_clock_penalty[tid] = stop_penalty;
+  start_clock_no_penalty[tid] = start_no_penalty;
+  stop_clock_no_penalty[tid] = stop_no_penalty;
+  res[tid] = ptr_penalty + ptr_no_penalty; // need to use these values so that PTX does not throw them out in optimization
 }
 
-// ---- Host helpers ----------------------------------------------------------
+int main(int argc, char **argv) {
+  (void)argc;
+  uint64_t *start_clock_penalty = (uint64_t*) malloc(TOTAL_THREADS*sizeof(uint64_t));
+	uint64_t *stop_clock_penalty = (uint64_t*) malloc(TOTAL_THREADS*sizeof(uint64_t));
+  uint64_t *start_clock_no_penalty = (uint64_t*) malloc(TOTAL_THREADS*sizeof(uint64_t));
+  uint64_t *stop_clock_no_penalty = (uint64_t*) malloc(TOTAL_THREADS*sizeof(uint64_t));
+  uint32_t *res = (uint32_t*) malloc(TOTAL_THREADS*sizeof(int32_t));
 
-static int gcd_int(int a, int b) { return b == 0 ? a : gcd_int(b, a % b); }
+  uint64_t *start_clock_penalty_g;
+  uint64_t *stop_clock_penalty_g;
+  uint64_t *start_clock_no_penalty_g;
+  uint64_t *stop_clock_no_penalty_g;
+  uint32_t *res_g;
 
-// Least-squares line y = intercept + slope * x.
-struct Fit { double slope, intercept, r2; };
-static Fit fit_line(const std::vector<double>& x, const std::vector<double>& y) {
-    const double n = static_cast<double>(x.size());
-    double sx = 0, sy = 0, sxx = 0, sxy = 0;
-    for (size_t i = 0; i < x.size(); ++i) { sx += x[i]; sy += y[i]; sxx += x[i] * x[i]; sxy += x[i] * y[i]; }
-    Fit f;
-    f.slope = (n * sxy - sx * sy) / (n * sxx - sx * sx);
-    f.intercept = (sy - f.slope * sx) / n;
-    double ss_res = 0, ss_tot = 0;
-    const double ybar = sy / n;
-    for (size_t i = 0; i < x.size(); ++i) {
-        const double e = y[i] - (f.intercept + f.slope * x[i]);
-        ss_res += e * e;
-        ss_tot += (y[i] - ybar) * (y[i] - ybar);
-    }
-    f.r2 = ss_tot > 0 ? 1.0 - ss_res / ss_tot : 1.0;
-    return f;
+  CUDA_CHECK( cudaMalloc(&start_clock_penalty_g, TOTAL_THREADS*sizeof(uint64_t)) );
+  CUDA_CHECK( cudaMalloc(&stop_clock_penalty_g, TOTAL_THREADS*sizeof(uint64_t)) );
+  CUDA_CHECK( cudaMalloc(&start_clock_no_penalty_g, TOTAL_THREADS*sizeof(uint64_t)) );
+  CUDA_CHECK( cudaMalloc(&stop_clock_no_penalty_g, TOTAL_THREADS*sizeof(uint64_t)) );
+  CUDA_CHECK( cudaMalloc(&res_g, TOTAL_THREADS*sizeof(uint32_t)) );
+
+  bank_conflict_latency<<<BLOCKS_NUM, THREADS_PER_BLOCK>>>(start_clock_penalty_g, stop_clock_penalty_g, start_clock_no_penalty_g, stop_clock_no_penalty_g, res_g);
+  CUDA_CHECK( cudaPeekAtLastError() );
+
+  CUDA_CHECK( cudaMemcpy(start_clock_penalty, start_clock_penalty_g, TOTAL_THREADS*sizeof(uint64_t), cudaMemcpyDeviceToHost) );
+	CUDA_CHECK( cudaMemcpy(stop_clock_penalty, stop_clock_penalty_g, TOTAL_THREADS*sizeof(uint64_t), cudaMemcpyDeviceToHost) );
+  CUDA_CHECK( cudaMemcpy(start_clock_no_penalty, start_clock_no_penalty_g, TOTAL_THREADS*sizeof(uint64_t), cudaMemcpyDeviceToHost) );
+	CUDA_CHECK( cudaMemcpy(stop_clock_no_penalty, stop_clock_no_penalty_g, TOTAL_THREADS*sizeof(uint64_t), cudaMemcpyDeviceToHost) );
+  CUDA_CHECK( cudaMemcpy(res, res_g, TOTAL_THREADS*sizeof(uint32_t), cudaMemcpyDeviceToHost) );
+
+
+  float latency_penalty = ((float)(stop_clock_penalty[0]-start_clock_penalty[0]))/((float)(REPEAT_TIMES*4));
+  float latency_no_penalty = ((float)(stop_clock_no_penalty[0]-start_clock_no_penalty[0])/((float)(REPEAT_TIMES*4)));
+  float latency = (latency_penalty - latency_no_penalty) / (float)(TOTAL_THREADS-1); // there will be a conflict for each thread except the first one, so we must divide by the number of threads - 1
+
+  // EDIT: SM clock from common.h clock_kernel so we can report the global speed
+	double sm_clock_ghz = 0.0;
+	{
+		unsigned long long *d_clock;
+		CUDA_CHECK( cudaMalloc(&d_clock, 2*sizeof(unsigned long long)) );
+		clock_kernel<<<1, 1>>>(d_clock);
+		CUDA_CHECK( cudaGetLastError() );
+		CUDA_CHECK( cudaDeviceSynchronize() );
+		unsigned long long c[2];
+		CUDA_CHECK( cudaMemcpy(c, d_clock, sizeof(c), cudaMemcpyDeviceToHost) );
+		CUDA_CHECK( cudaFree(d_clock) );
+		if (c[1] > 0) sm_clock_ghz = (double)c[0] / (double)c[1];
+	}
+
+  //gasp-gpu output------------------------------------------------------------------------------
+	cudaDeviceProp prop;
+	CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
+	int runtime_version = 0;
+	CUDA_CHECK(cudaRuntimeGetVersion(&runtime_version));
+	const std::string gpu = short_gpu_name(prop.name);
+
+	std::string json;
+	json += "{\n";
+	json += "  \"benchmark\": \"bank_conflict.cu\",\n";
+	json += "  \"parameter\": \"bank_penalty_cycles\",\n";
+	json += strprintf("  \"value\": %.4f,\n", latency);
+	json += "  \"unit\": \"cycles\",\n";
+	json += strprintf("  \"gpu\": \"%s\",\n", gpu.c_str());
+	json += strprintf("  \"gpu_name\": \"%s\",\n", json_escape(prop.name).c_str());
+	json += strprintf("  \"arch\": \"sm_%d%d\",\n", prop.major, prop.minor);
+	json += strprintf("  \"num_sms\": %d,\n", prop.multiProcessorCount);
+	json += strprintf("  \"clock\": {\"sm_clock_ghz\": %.4f},\n", sm_clock_ghz);
+	json += strprintf("  \"cuda_version\": \"%s\",\n", cuda_version_string(runtime_version).c_str());
+	json += strprintf("  \"nvcc_version\": \"%d.%d\",\n", __CUDACC_VER_MAJOR__, __CUDACC_VER_MINOR__);
+	json += strprintf("  \"driver_version\": \"%s\",\n", json_escape(driver_version()).c_str());
+	json += strprintf("  \"git_commit\": \"%s\",\n", json_escape(git_commit()).c_str());
+	json += strprintf("  \"timestamp\": \"%s\"\n", utc_timestamp().c_str());
+	json += "}\n";
+
+	const std::string out_path = write_run_json(executable_dir(argv[0]), "sfu_inst_latency_cycles", gpu, json);
+	if (out_path.empty()) return 1;
+
+	printf("%s", json.c_str());
+	fprintf(stderr, "Saved %s (%.3f cycles per SFU op)\n", out_path.c_str(), latency);
+
+	CUDA_CHECK(cudaFree(start_clock_penalty_g));
+  CUDA_CHECK(cudaFree(stop_clock_penalty_g));
+  CUDA_CHECK(cudaFree(start_clock_no_penalty_g));
+  CUDA_CHECK(cudaFree(stop_clock_no_penalty_g));
+
+	free(start_clock_penalty);
+	free(stop_clock_penalty);
+  free(start_clock_no_penalty);
+  free(stop_clock_no_penalty);
+
+	return 0;
 }
-
-// ---- Main ------------------------------------------------------------------
-int main(int argc, char** argv) {
-    std::string out_dir = "./hardware/runs";
-    std::string gpu_override;
-    int reps = DEFAULT_REPS;
-    for (int i = 1; i < argc; ++i) {
-        if (!strcmp(argv[i], "--out-dir") && i + 1 < argc) out_dir = argv[++i];
-        else if (!strcmp(argv[i], "--gpu") && i + 1 < argc) gpu_override = argv[++i];
-        else if (!strcmp(argv[i], "--reps") && i + 1 < argc) reps = atoi(argv[++i]);
-        else { fprintf(stderr, "Usage: %s [--gpu NAME] [--out-dir DIR] [--reps N]\n", argv[0]); return 1; }
-    }
-    if (reps < 100) { fprintf(stderr, "reps must be >= 100 (issue #3)\n"); return 1; }
-
-    cudaDeviceProp prop;
-    CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
-    const std::string gpu_name = prop.name;
-    const std::string gpu = gpu_override.empty() ? short_gpu_name(gpu_name) : gpu_override;
-    const std::string arch = "sm_" + std::to_string(prop.major * 10 + prop.minor);
-    fprintf(stderr, "GPU: %s (%s), SMs: %d, one warp, %d conflict degrees\n",
-            gpu_name.c_str(), arch.c_str(), prop.multiProcessorCount, NUM_STRIDES);
-
-    int rt_ver = 0;
-    CUDA_CHECK(cudaRuntimeGetVersion(&rt_ver));
-
-    long long* d_out = nullptr;
-    unsigned* d_sink = nullptr;
-    CUDA_CHECK(cudaMalloc(&d_out, 3 * sizeof(long long)));
-    CUDA_CHECK(cudaMalloc(&d_sink, 32 * sizeof(unsigned)));
-
-    // raw[s][r] = gross cycles, ovh[s][r] = clock overhead, for stride s, repetition r.
-    std::vector<std::vector<long long>> raw(NUM_STRIDES), ovh(NUM_STRIDES);
-    // Totals over every timed run, for the SM clock (cycles / ns).
-    double sum_clock_cycles = 0.0, sum_clock_ns = 0.0;
-    for (int s = 0; s < NUM_STRIDES; ++s) {
-        for (int w = 0; w < 3; ++w) {                 // untimed warm-up launches
-            bank_kernel<<<1, 32>>>(STRIDES[s], d_out, d_sink);
-            CUDA_CHECK(cudaGetLastError());
-        }
-        CUDA_CHECK(cudaDeviceSynchronize());
-        for (int r = 0; r < reps; ++r) {
-            CUDA_CHECK(cudaMemset(d_out, 0, 3 * sizeof(long long)));
-            bank_kernel<<<1, 32>>>(STRIDES[s], d_out, d_sink);
-            CUDA_CHECK(cudaGetLastError());
-            CUDA_CHECK(cudaDeviceSynchronize());
-            long long h[3];
-            CUDA_CHECK(cudaMemcpy(h, d_out, sizeof(h), cudaMemcpyDeviceToHost));
-            raw[s].push_back(h[0]);
-            ovh[s].push_back(h[1]);
-            if (h[2] > 0) {
-                sum_clock_cycles += static_cast<double>(h[0]);
-                sum_clock_ns += static_cast<double>(h[2]);
-            }
-        }
-    }
-
-    // Overhead = median of ALL baseline measurements; subtract from every run.
-    std::vector<double> all_ovh;
-    for (int s = 0; s < NUM_STRIDES; ++s) for (long long v : ovh[s]) all_ovh.push_back(static_cast<double>(v));
-    const double overhead = median_of(all_ovh);
-
-    // per_load[s][r] = latency of one warp-wide shared load, in cycles.
-    std::vector<std::vector<double>> per_load(NUM_STRIDES);
-    std::vector<double> conflict_degree(NUM_STRIDES), x(NUM_STRIDES);
-    for (int s = 0; s < NUM_STRIDES; ++s) {
-        conflict_degree[s] = gcd_int(STRIDES[s], 32);
-        x[s] = conflict_degree[s] - 1.0;
-        for (long long c : raw[s]) per_load[s].push_back((static_cast<double>(c) - overhead) / CHASE_LOADS);
-    }
-
-    // One straight-line fit per repetition: latency(N) = base + penalty * (N - 1).
-    std::vector<double> penalty, base;
-    for (int r = 0; r < reps; ++r) {
-        std::vector<double> y(NUM_STRIDES);
-        for (int s = 0; s < NUM_STRIDES; ++s) y[s] = per_load[s][r];
-        const Fit f = fit_line(x, y);
-        penalty.push_back(f.slope);
-        base.push_back(f.intercept);
-    }
-
-    // Fit through the median latency at each conflict degree (for the summary and R^2).
-    std::vector<double> med_lat(NUM_STRIDES);
-    for (int s = 0; s < NUM_STRIDES; ++s) med_lat[s] = median_of(per_load[s]);
-    const Fit mfit = fit_line(x, med_lat);
-
-    const Stats stats = compute_stats(penalty);
-    const double median = stats.median;
-    const double base_median = median_of(base);
-
-    fprintf(stderr, "\nMedian shared-load latency per conflict degree (cycles):\n");
-    for (int s = 0; s < NUM_STRIDES; ++s)
-        fprintf(stderr, "  stride %2d  (%2d-way): %8.3f\n", STRIDES[s], static_cast<int>(conflict_degree[s]), med_lat[s]);
-    fprintf(stderr, "Fit through the medians: latency = %.3f + %.4f * (N - 1)   (R^2 = %.5f)\n",
-            mfit.intercept, mfit.slope, mfit.r2);
-
-    if (mfit.r2 < 0.99)
-        fprintf(stderr, "WARNING: latency is not a straight line in the conflict degree (R^2 %.4f); "
-                        "the slope may not mean 'cycles per extra conflict'. Check the SASS.\n", mfit.r2);
-    if (median <= 0.0)
-        fprintf(stderr, "WARNING: non-positive penalty; the conflicts were not forced. Check the SASS "
-                        "(loads removed or bank mapping differs).\n");
-    if (median > 8.0)
-        fprintf(stderr, "WARNING: penalty %.2f cycles per extra conflict is unusually high; the GPU may "
-                        "be shared. Check nvidia-smi and rerun.\n", median);
-    if (base_median < 8.0 || base_median > 60.0)
-        fprintf(stderr, "WARNING: conflict-free latency %.1f cycles is outside the usual 8 to 60 range for "
-                        "a shared load.\n", base_median);
-    if (stats.std > 0.05 * std::fabs(median) && stats.std > 0.01)
-        fprintf(stderr, "WARNING: the penalty varies between runs (std %.4f); another process may be "
-                        "sharing the GPU. Check nvidia-smi and rerun.\n", stats.std);
-
-    // ---- Build JSON --------------------------------------------------------
-    std::string driver = driver_version();
-
-    std::ostringstream j;
-    j.setf(std::ios::fixed);
-    j.precision(4);
-    j << "{\n";
-    j << "  \"benchmark\": \"bank_conflict.cu\",\n";
-    j << "  \"parameter\": \"" << PARAMETER << "\",\n";
-    j << "  \"value\": " << median << ",\n";
-    j << "  \"unit\": \"cycles\",\n";
-    j << "  \"gpu\": \"" << json_escape(gpu) << "\",\n";
-    j << "  \"gpu_name\": \"" << json_escape(gpu_name) << "\",\n";
-    j << "  \"arch\": \"" << arch << "\",\n";
-    j << "  \"num_sms\": " << prop.multiProcessorCount << ",\n";
-    j << json_stats(stats);
-    // stats/value are over per_run_penalty_cycles: the slope of latency vs (conflict degree - 1),
-    // fitted separately for each repetition. Per-stride arrays below hold one entry per repetition:
-    //   raw_cycles_by_conflict_degree : clock64 delta around the chain, clock-read cost INCLUDED
-    //   overhead_cycles               : median clock-read cost (all runs); subtracted from every run
-    //   per_load_cycles_by_conflict_degree : (raw - overhead) / loads_per_rep
-    j << "  \"base_latency_cycles\": " << base_median << ",\n";
-    j << "  \"loads_per_rep\": " << CHASE_LOADS << ",\n";
-    j << "  \"per_run_penalty_cycles\": " << json_array(penalty) << ",\n";
-    j << "  \"overhead_cycles\": " << overhead << ",\n";
-    j << "  \"overhead_subtracted\": true,\n";
-    j << "  \"sweep\": [\n";
-    for (int s = 0; s < NUM_STRIDES; ++s) {
-        j << "    {\"conflict_degree\": " << static_cast<int>(conflict_degree[s])
-          << ", \"stride_words\": " << STRIDES[s]
-          << ", \"median_cycles_per_load\": " << med_lat[s]
-          << ", \"raw_cycles\": " << json_array(raw[s]);
-        j << ", \"per_load_cycles\": " << json_array(per_load[s]);
-        j << "}" << (s + 1 < NUM_STRIDES ? "," : "") << "\n";
-    }
-    j << "  ],\n";
-    j << "  \"fit_through_medians\": {\"slope\": " << mfit.slope << ", \"intercept\": " << mfit.intercept
-      << ", \"r_squared\": " << mfit.r2 << "},\n";
-    // clock.sm_clock_ghz: total clock64 cycles / total globaltimer ns over all timed runs
-    j << "  \"clock\": {\"sm_clock_ghz\": "
-      << (sum_clock_ns > 0.0 ? sum_clock_cycles / sum_clock_ns : 0.0) << "},\n";
-    j << "  \"cuda_version\": \"" << cuda_version_string(rt_ver) << "\",\n";
-    j << "  \"nvcc_version\": \"" << __CUDACC_VER_MAJOR__ << "." << __CUDACC_VER_MINOR__ << "\",\n";
-    j << "  \"driver_version\": \"" << json_escape(driver) << "\",\n";
-    j << "  \"timestamp\": \"" << utc_timestamp() << "\"\n";
-    j << "}\n";
-
-    // ---- Save to <out_dir>/{parameter}.{gpu}.run.json -----------------------
-    const std::string out_path = write_run_json(out_dir, PARAMETER, gpu, j.str());
-    if (out_path.empty()) return 1;
-
-    printf("%s", j.str().c_str());
-    fprintf(stderr, "\nBank penalty: %.4f cycles per extra conflict (std %.4f), conflict-free latency %.2f cycles\nSaved: %s\n",
-            median, stats.std, base_median, out_path.c_str());
-
-    CUDA_CHECK(cudaFree(d_out));
-    CUDA_CHECK(cudaFree(d_sink));
-    return 0;
-}
-
-// ---------------------------------------------------------------------------
-// SASS inspection checklist (required by issue #11):
-//   cuobjdump -sass bank_conflict.cubin
-// In bank_kernel you should see:
-//   * a clock read (CS2R) pair for the baseline, then one clock read before and
-//     one after the timed loop, with a globaltimer read just outside each of
-//     those two (the SM clock record; not inside the timed region)
-//   * inside the timed loop, 16 consecutive shared-memory loads (LDS or LDS.U)
-//     where each address register is the previous instruction's destination
-//   * no IADD/IMAD/LEA between those loads
-//   * a single kernel for all strides: the stride only appears in the starting
-//     address, so the conflict degree must NOT be baked into the loop
-// If loads were removed, merged or reordered, the result is invalid.
-// ---------------------------------------------------------------------------
