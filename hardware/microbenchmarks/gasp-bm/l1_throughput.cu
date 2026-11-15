@@ -1,15 +1,16 @@
 // l1_throughput.cu: how many global-load sectors per cycle one SM's L1 serves.
 //
-// Each block reads its own slice of a global array, at most half of L1, so
+// Each SM reads its own slice of a global array, at most half of L1, so
 // after a warm pass every timed load is an L1 hit. Warps issue UNROLL
 // independent loads per group (addresses come from the loop counter, never
 // from loaded data). The span per SM is taken with clock64 around the timed
 // loop; rate = load requests issued on the SM / span.
 //
-// Sweep: warps per SM (1..32, one block per SM), load shape (32-bit with 4 or
-// 2 sectors per request, 64-bit, 128-bit), and, for the 32-bit 4-sector shape,
-// a variant with STORES global stores per group mixed in, to see whether
-// stores share the queue. Design: .local/l1_throughput.md (handoff I44).
+// Sweep: warps per SM (1..max_warps_per_sm, splitting into multiple blocks per
+// SM above 32 warps), load shape (32-bit with 4 or 2 sectors per request,
+// 64-bit, 128-bit), and, for the 32-bit 4-sector shape, a variant with STORES
+// global stores per group mixed in, to see whether stores share the queue.
+// Design: .local/l1_throughput.md (handoff I44).
 //
 // The profile value is the plateau sector rate of 32-bit, 4-sector loads with
 // no stores. Every configuration's request and sector rates are in the JSON.
@@ -36,14 +37,15 @@
 #include "common.h"
 
 constexpr int WARP_THREADS = 32;
-constexpr int UNROLL = 8;         // independent loads in flight per warp
-constexpr int ITERATIONS = 512;   // timed groups per warp: 4096 loads
-constexpr int STORES = 2;         // stores per group in the mixed variant
+constexpr int MAX_BLOCK_WARPS = 32; //hardware limit of 1024 threads per block
+constexpr int UNROLL = 8; //independent loads in flight per warp
+constexpr int ITERATIONS = 512; //timed groups per warp: 4096 loads
+constexpr int STORES = 2; //stores per group in the mixed variant
 constexpr int WARMUP_LAUNCHES = 3;
 constexpr int DEFAULT_REPS = 100;
 constexpr int DEFAULT_L1_BYTES = 64 * 1024;
 constexpr double PLATEAU_TOLERANCE = 0.02;
-constexpr int TIMING_FIELDS = 4;  // start, end, smid, warps
+constexpr int TIMING_FIELDS = 4;    // start, end, smid, warps
 
 static const char* PARAMETER = "l1_throughput_sectors_per_cycle_per_sm";
 static const char* SCHEMA_VERSION = "1.1.0";
@@ -81,8 +83,9 @@ __device__ __forceinline__ void store_global(uint32_t* p, uint32_t v) {
     asm volatile("st.global.u32 [%0], %1;" :: "l"(p), "r"(v) : "memory");
 }
 
-// One block per SM. Lane l reads (l % distinct_lanes) * WIDTH bytes into a
-// row, so a request touches distinct_lanes * WIDTH / 32 sectors. Rows are
+// up to two blocks per SM. slice is indexed by smid so blocks on the same SM
+// share the cached slice. Lane l reads (l % distinct_lanes) * WIDTH bytes into
+// a row, so a request touches distinct_lanes * WIDTH / 32 sectors. Rows are
 // visited round-robin across warps; rows is a power of two.
 template <int WIDTH, int N_STORES>
 __global__ void l1_kernel(const char* __restrict__ data, uint32_t slice_bytes,
@@ -91,13 +94,13 @@ __global__ void l1_kernel(const char* __restrict__ data, uint32_t slice_bytes,
     const uint32_t lane = threadIdx.x % WARP_THREADS;
     const uint32_t warp = threadIdx.x / WARP_THREADS;
     const uint32_t warps = blockDim.x / WARP_THREADS;
-    const char* slice = data + static_cast<size_t>(blockIdx.x) * slice_bytes;
+    const uint32_t smid = read_smid();
+    // index slice by smid so multiple blocks on the same SM warm and hit the same L1 lines
+    const char* slice = data + static_cast<size_t>(smid) * slice_bytes;
     const uint32_t row_bytes = distinct_lanes * WIDTH;
     const uint32_t mask = slice_bytes / row_bytes - 1;
     const uint32_t lane_offset = (lane % distinct_lanes) * WIDTH;
-    uint32_t* store_row =
-        scratch + ((blockIdx.x * 32 + warp) * (N_STORES > 0 ? N_STORES : 1)) *
-                      WARP_THREADS + lane;
+    uint32_t* store_row = scratch + ((blockIdx.x * MAX_BLOCK_WARPS + warp) * (N_STORES > 0 ? N_STORES : 1)) * WARP_THREADS + lane;
 
     uint32_t acc = 0;
     // warm pass: the whole slice into L1, untimed
@@ -135,7 +138,7 @@ __global__ void l1_kernel(const char* __restrict__ data, uint32_t slice_bytes,
         unsigned long long* t = timing + blockIdx.x * TIMING_FIELDS;
         t[0] = start;
         t[1] = end;
-        t[2] = read_smid();
+        t[2] = smid;
         t[3] = warps;
     }
     if (acc == 0x9e3779b9u) sink[0] = acc;  // keeps acc live
@@ -228,8 +231,10 @@ int main(int argc, char** argv) {
     cudaDeviceProp prop{};
     CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
     const int sms = prop.multiProcessorCount;
-    const int max_warps = std::min(prop.maxThreadsPerBlock,
-                                   prop.maxThreadsPerMultiProcessor) / WARP_THREADS;
+    // sweep up to the SM's full warp capacity; above 32 warps we launch multiple blocks per SM
+    const int max_warps = prop.maxThreadsPerMultiProcessor / WARP_THREADS;
+    const int max_blocks_per_sm = (max_warps + MAX_BLOCK_WARPS - 1) / MAX_BLOCK_WARPS;
+    const int max_grid = sms * max_blocks_per_sm;
 
     // slice per SM: the largest power of two up to half of L1
     uint32_t slice = 1;
@@ -244,6 +249,7 @@ int main(int argc, char** argv) {
         {4, 32, 0}, {4, 16, 0}, {8, 32, 0}, {16, 32, 0}, {4, 32, STORES}};
     std::vector<int> warp_counts;
     for (int w = 1; w <= max_warps; w *= 2) warp_counts.push_back(w);
+    if (warp_counts.back() < max_warps) warp_counts.push_back(max_warps);
 
     char* d_data = nullptr;
     uint32_t* d_scratch = nullptr;
@@ -252,11 +258,11 @@ int main(int argc, char** argv) {
     unsigned long long* d_clock = nullptr;
     const size_t data_bytes = static_cast<size_t>(sms) * slice;
     const size_t scratch_words =
-        static_cast<size_t>(sms) * 32 * STORES * WARP_THREADS;
+        static_cast<size_t>(max_grid) * MAX_BLOCK_WARPS * STORES * WARP_THREADS;
     CUDA_CHECK(cudaMalloc(&d_data, data_bytes));
     CUDA_CHECK(cudaMalloc(&d_scratch, scratch_words * sizeof(uint32_t)));
     CUDA_CHECK(cudaMalloc(&d_sink, sizeof(uint32_t)));
-    CUDA_CHECK(cudaMalloc(&d_timing, sms * TIMING_FIELDS * sizeof(unsigned long long)));
+    CUDA_CHECK(cudaMalloc(&d_timing, max_grid * TIMING_FIELDS * sizeof(unsigned long long)));
     CUDA_CHECK(cudaMalloc(&d_clock, 2 * sizeof(unsigned long long)));
     {
         std::vector<uint32_t> fill(data_bytes / sizeof(uint32_t));
@@ -269,26 +275,30 @@ int main(int argc, char** argv) {
     }
 
     std::vector<Result> results;
-    std::vector<unsigned long long> timing(sms * TIMING_FIELDS);
+    std::vector<unsigned long long> timing(max_grid * TIMING_FIELDS);
     for (const Shape& shape : shapes) {
         for (int warps : warp_counts) {
-            const int threads = warps * WARP_THREADS;
+            // split into multiple blocks per SM when warps exceeds the 32-warp block limit
+            const int blocks_per_sm = (warps + MAX_BLOCK_WARPS - 1) / MAX_BLOCK_WARPS;
+            const int warps_per_block = warps / blocks_per_sm;
+            const int grid = sms * blocks_per_sm;
+            const int threads = warps_per_block * WARP_THREADS;
             for (int i = 0; i < WARMUP_LAUNCHES; ++i) {
-                launch_shape(shape, sms, threads, d_data, slice, d_scratch, d_sink, d_timing);
+                launch_shape(shape, grid, threads, d_data, slice, d_scratch, d_sink, d_timing);
             }
             CUDA_CHECK(cudaDeviceSynchronize());
 
             std::vector<double> rates;
             int sms_measured = 0;
             for (int rep = 0; rep < reps; ++rep) {
-                launch_shape(shape, sms, threads, d_data, slice, d_scratch, d_sink, d_timing);
+                launch_shape(shape, grid, threads, d_data, slice, d_scratch, d_sink, d_timing);
                 CUDA_CHECK(cudaDeviceSynchronize());
                 CUDA_CHECK(cudaMemcpy(timing.data(), d_timing,
-                                      timing.size() * sizeof(unsigned long long),
+                                      grid * TIMING_FIELDS * sizeof(unsigned long long),
                                       cudaMemcpyDeviceToHost));
                 // per SM: requests issued by its blocks / (latest end - earliest start)
                 std::map<unsigned long long, std::vector<unsigned long long>> per_sm;
-                for (int b = 0; b < sms; ++b) {
+                for (int b = 0; b < grid; ++b) {
                     const unsigned long long* t = &timing[b * TIMING_FIELDS];
                     auto& e = per_sm[t[2]];
                     if (e.empty()) e = {t[0], t[1], 0};
@@ -414,14 +424,14 @@ int main(int argc, char** argv) {
     json << "\n  ],\n"
          << "  \"clock\": {\"sm_clock_ghz\": " << sm_clock_ghz << "},\n"
          << "  \"measurement\": {\n"
-         << "    \"method\": \"per-block slice in L1, warm pass, independent coalesced loads; per-SM clock64 span\",\n"
+         << "    \"method\": \"per-SM slice in L1, warm pass, independent coalesced loads; per-SM clock64 span\",\n"
          << "    \"load_instruction\": \"ld.global.u32 / .v2.u32 / .v4.u32 (default cache policy)\",\n"
          << "    \"slice_bytes_per_sm\": " << slice << ",\n"
          << "    \"l1_bytes\": " << l1_bytes << ",\n"
          << "    \"loads_per_warp\": " << ITERATIONS * UNROLL << ",\n"
          << "    \"unroll\": " << UNROLL << ",\n"
          << "    \"stores_per_group_mixed\": " << STORES << ",\n"
-         << "    \"blocks\": " << sms << ",\n"
+         << "    \"blocks\": " << max_grid << ",\n"
          << "    \"reps\": " << reps << "\n"
          << "  },\n"
          << "  \"cuda_version\": \"" << cuda_version_string(runtime_version) << "\",\n"

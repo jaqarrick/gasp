@@ -1,268 +1,185 @@
-#include <algorithm>
-#include <array>
-#include <cctype>
-#include <cmath>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <ctime>
-#include <filesystem>
-#include <numeric>
-#include <sstream>
-#include <string>
-#include <vector>
+/*
+ * Adapted from the Accel-Sim GPU microbenchmark suite:
+ *   https://github.com/accel-sim/accel-sim-framework
+ *   util/tuner/GPU_Microbenchmark/ubench/shd/shared_lat/shared_lat.cu
+ *   (release branch, commit aa95f49; BSD 2-Clause, notice below)
+ *
+ * M. Khairy, Z. Shen, T. M. Aamodt, T. G. Rogers, "Accel-Sim: An Extensible
+ * Simulation Framework for Validated GPU Modeling," ISCA 2020.
+ *
+ * BSD 2-Clause License
+ *
+ * Copyright (c) 2018-2021, Vijay Kandiah, Junrui Pan, Mahmoud Khairy, Scott
+ * Peverelle, Timothy Rogers, Tor M. Aamodt, Nikos Hardavellas
+ * Northwestern University, Purdue University, The University of British Columbia
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice, this
+ *    list of conditions and the following disclaimer;
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution;
+ * 3. Neither the names of Northwestern University, Purdue University,
+ *    The University of British Columbia nor the names of their contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ *
+ * EDIT [gasp-gpu]: pointer-chasing array moved from __shared__ to __constant__
+ * to measure constant cache latency.
+ * EDIT [gasp-gpu]: error checks, clock reads, metadata and output use common.h.
+ */
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <cuda_runtime.h>
 #include "common.h"
 
-constexpr int NUM_NODES = 64;
-constexpr int WARP_THREADS = 32;
-constexpr int CHASE_LOADS = 1024;
-constexpr int UNROLL = 16;
-constexpr int DEFAULT_REPS = 200;
+#define CONST_MEM_SIZE 256 // to fit inside per-SM constant cache
+#define THREADS_NUM 1
+#define WARP_SIZE 4
+#define ITERS 4096
 
-static_assert(CHASE_LOADS % UNROLL == 0,
-              "CHASE_LOADS must be a multiple of UNROLL");
+// EDIT: use __constant__ instead of __shared__ [gasp-gpu]
+__constant__ uint64_t s_a[CONST_MEM_SIZE];
 
-// ring of addresses stored in constant memory
-__constant__ uint64_t c_ring[NUM_NODES];
+__global__ void const_lat(uint64_t *startClk, uint64_t *stopClk, uint64_t *dsink) {
+    // thread index
+    uint32_t tid = threadIdx.x;
+    uint32_t bid = blockIdx.x;
+    uint32_t uid = bid * blockDim.x + tid;
 
-static const char* PARAMETER = "const_mem_latency_cycles";
-static const char* SCHEMA_VERSION = "1.1.0";
-static const char* BENCH_VERSION = "1.1.0";
+    if (uid == 0) {
+        // initalize pointer chaser
+        uint64_t p_chaser = 0;
 
-// increment address to next item in ring
-#define CHASE_ONE p = load_constant_pointer(p)
+        // warm up constant cache so timed loop is all hits
+        for (uint32_t i = 0; i < CONST_MEM_SIZE; i += WARP_SIZE) {
+            p_chaser = s_a[p_chaser];
+        }
 
-__device__ __forceinline__ uint64_t load_constant_pointer(uint64_t address) {
-    uint64_t next;
-    asm volatile(
-        "ld.const.u64 %0, [%1];"
-        : "=l"(next)
-        : "l"(address)
-        : "memory");
-    return next;
-}
+        // start timing
+        uint64_t start = read_clock64();
 
-// clock_out[0..1] = lane 0's clock64 cycles and globaltimer ns around the timed region
-__global__ void constant_chase_kernel(unsigned long long* out, unsigned long long* clock_out) {
-    const int lane = threadIdx.x;
-    uint64_t p = reinterpret_cast<uint64_t>(c_ring);
+        // pointer-chasing loop
+        #pragma unroll 16
+        for (uint32_t i = 0; i < ITERS; ++i) {
+            p_chaser = s_a[p_chaser];
+        }
 
-// warm up the constant-memory ring before timing
-#pragma unroll 1
-    for (int i = 0; i < 2 * NUM_NODES; ++i) {
-        CHASE_ONE;
-    }
+        // stop timing
+        uint64_t stop = 0;
+        asm volatile("mov.u64 %0, %%clock64;" : "=l"(stop) : "l"(p_chaser) : "memory");
 
-    const uint64_t baseline_start = read_clock64();
-    const uint64_t baseline_stop = read_clock64();
-
-    const uint64_t g0 = read_globaltimer();
-    const uint64_t start = read_clock64();
-#pragma unroll 1
-    for (int i = 0; i < CHASE_LOADS; i += UNROLL) {
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-    }
-    const uint64_t stop = read_clock64();
-    const uint64_t g1 = read_globaltimer();
-    if (lane == 0) {
-        clock_out[0] = stop - start;
-        clock_out[1] = g1 - g0;
-    }
-
-    // reads the timing and final index of the first lane in warp
-    if (lane == 0) {
-        out[0] = stop - start;
-        out[1] = baseline_stop - baseline_start;
-        out[2] = p;
+        // write time and data back to memory
+        startClk[uid] = start;
+        stopClk[uid] = stop;
+        dsink[uid] = p_chaser;
     }
 }
 
-int main(int argc, char** argv) {
-    int reps = DEFAULT_REPS;
-    std::string gpu_override;
-    std::string out_dir = "hardware/runs";
-
+int main(int argc, char **argv) {
+    std::string gpu_arg;
+    std::string out_dir = executable_dir(argv[0]);
     for (int i = 1; i < argc; ++i) {
-        if (std::string(argv[i]) == "--reps" && i + 1 < argc) {
-            reps = std::atoi(argv[++i]);
-        } else if (std::string(argv[i]) == "--gpu" && i + 1 < argc) {
-            gpu_override = argv[++i];
-        } else if (std::string(argv[i]) == "--out-dir" && i + 1 < argc) {
-            out_dir = argv[++i];
-        } else {
-            fprintf(stderr,
-                    "Usage: %s [--reps N] [--gpu NAME] [--out-dir DIR]\n",
-                    argv[0]);
-            return 1;
-        }
+        if (strcmp(argv[i], "--gpu") == 0 && i + 1 < argc) gpu_arg = argv[++i];
+        else if (strcmp(argv[i], "--out-dir") == 0 && i + 1 < argc) out_dir = argv[++i];
+        else if (strcmp(argv[i], "--reps") == 0 && i + 1 < argc) ++i;
     }
 
-    if (reps < 100) {
-        fprintf(stderr, "--reps must be at least 100\n");
-        return 1;
+    uint64_t *h_a = (uint64_t*) malloc(CONST_MEM_SIZE * sizeof(uint64_t));
+    for (uint32_t i = 0; i < (CONST_MEM_SIZE - WARP_SIZE); i += WARP_SIZE) {
+        h_a[i] = (i + WARP_SIZE) % CONST_MEM_SIZE;
+    }
+    CUDA_CHECK( cudaMemcpyToSymbol(s_a, h_a, CONST_MEM_SIZE * sizeof(uint64_t)) );
+
+    uint64_t *startClk = (uint64_t*) malloc(THREADS_NUM * sizeof(uint64_t));
+    uint64_t *stopClk = (uint64_t*) malloc(THREADS_NUM * sizeof(uint64_t));
+    uint64_t *dsink = (uint64_t*) malloc(THREADS_NUM * sizeof(uint64_t));
+
+    uint64_t *startClk_g;
+    uint64_t *stopClk_g;
+    uint64_t *dsink_g;
+
+    CUDA_CHECK( cudaMalloc(&startClk_g, THREADS_NUM * sizeof(uint64_t)) ); // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
+    CUDA_CHECK( cudaMalloc(&stopClk_g, THREADS_NUM * sizeof(uint64_t)) ); // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
+    CUDA_CHECK( cudaMalloc(&dsink_g, THREADS_NUM * sizeof(uint64_t)) );
+
+    const_lat<<<1, THREADS_NUM>>>(startClk_g, stopClk_g, dsink_g);
+    CUDA_CHECK( cudaPeekAtLastError() );
+
+    CUDA_CHECK( cudaMemcpy(startClk, startClk_g, THREADS_NUM * sizeof(uint64_t), cudaMemcpyDeviceToHost) ); // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
+    CUDA_CHECK( cudaMemcpy(stopClk, stopClk_g, THREADS_NUM * sizeof(uint64_t), cudaMemcpyDeviceToHost) ); // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
+    CUDA_CHECK( cudaMemcpy(dsink, dsink_g, THREADS_NUM * sizeof(uint64_t), cudaMemcpyDeviceToHost) );
+
+    float latency;
+    latency = ((float)(stopClk[0] - startClk[0])) / ((float)(ITERS));
+
+    // EDIT: SM clock from common.h clock_kernel so we can report the global speed
+    double sm_clock_ghz = 0.0;
+    {
+        unsigned long long *d_clock;
+        CUDA_CHECK( cudaMalloc(&d_clock, 2 * sizeof(unsigned long long)) );
+        clock_kernel<<<1, 1>>>(d_clock);
+        CUDA_CHECK( cudaGetLastError() );
+        CUDA_CHECK( cudaDeviceSynchronize() );
+        unsigned long long c[2];
+        CUDA_CHECK( cudaMemcpy(c, d_clock, sizeof(c), cudaMemcpyDeviceToHost) );
+        CUDA_CHECK( cudaFree(d_clock) );
+        if (c[1] > 0) sm_clock_ghz = (double)c[0] / (double)c[1];
     }
 
-    int device = 0;
-    CUDA_CHECK(cudaGetDevice(&device));
-
-    cudaDeviceProp prop{};
-    CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
-
-    const std::string gpu_name = prop.name;
-    const std::string gpu = gpu_override.empty()
-        ? short_gpu_name(gpu_name)
-        : gpu_override;
-    const std::string arch =
-        "sm_" + std::to_string(prop.major * 10 + prop.minor);
-    const std::string architecture = architecture_name(prop.major, prop.minor);
-
-    void* ring_address = nullptr;
-    CUDA_CHECK(cudaGetSymbolAddress(&ring_address, c_ring));
-
-    std::array<uint64_t, NUM_NODES> host_ring{};
-    const uint64_t base_address =
-        reinterpret_cast<uint64_t>(ring_address);
-
-    for (int i = 0; i < NUM_NODES; ++i) {
-        const int next = (i + 1) % NUM_NODES;
-        host_ring[i] = base_address +
-                       static_cast<uint64_t>(next) * sizeof(uint64_t);
-    }
-
-    CUDA_CHECK(cudaMemcpyToSymbol(c_ring, host_ring.data(),
-                                  sizeof(host_ring)));
-
-    unsigned long long* device_output = nullptr;
-    unsigned long long* device_clock = nullptr;  // lane 0's cycles and ns, for the SM clock
-    CUDA_CHECK(cudaMalloc(&device_clock, 2 * sizeof(unsigned long long)));
-    double sum_clock_cycles = 0.0, sum_clock_ns = 0.0;
-    CUDA_CHECK(cudaMalloc(&device_output, 3 * sizeof(unsigned long long)));
-
-    std::vector<double> raw_cycles;
-    std::vector<double> clock_overhead_cycles;
-    raw_cycles.reserve(reps);
-    clock_overhead_cycles.reserve(reps);
-
-    //run the kernel for X reps
-    for (int rep = 0; rep < reps; ++rep) {
-        constant_chase_kernel<<<1, WARP_THREADS>>>(device_output, device_clock);
-        CUDA_CHECK(cudaGetLastError());
-        CUDA_CHECK(cudaDeviceSynchronize());
-        unsigned long long host_clock[2] = {0, 0};
-        CUDA_CHECK(cudaMemcpy(host_clock, device_clock, sizeof(host_clock),
-                              cudaMemcpyDeviceToHost));
-        if (host_clock[1] > 0) {
-            sum_clock_cycles += static_cast<double>(host_clock[0]);
-            sum_clock_ns += static_cast<double>(host_clock[1]);
-        }
-
-        unsigned long long output[3]{};
-        CUDA_CHECK(cudaMemcpy(output, device_output, sizeof(output),
-                              cudaMemcpyDeviceToHost));
-
-        raw_cycles.push_back(static_cast<double>(output[0]));
-        clock_overhead_cycles.push_back(static_cast<double>(output[1]));
-    }
-    // statistics collection
-    const double clock_overhead = median_of(clock_overhead_cycles);
-    std::vector<double> per_load_cycles;
-    per_load_cycles.reserve(reps);
-
-    for (double cycles : raw_cycles) {
-        per_load_cycles.push_back(
-            (cycles - clock_overhead) / CHASE_LOADS);
-    }
-
-    const Stats stats = compute_stats(per_load_cycles);
-    const double value = stats.median;
-
+    //gasp-gpu output------------------------------------------------------------------------------
+    cudaDeviceProp prop;
+    CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
     int runtime_version = 0;
-    int driver_api_version = 0;
     CUDA_CHECK(cudaRuntimeGetVersion(&runtime_version));
-    CUDA_CHECK(cudaDriverGetVersion(&driver_api_version));
+    const std::string gpu = gpu_arg.empty() ? short_gpu_name(prop.name) : gpu_arg;
 
-    int shared_mem_per_sm = 0;
-    CUDA_CHECK(cudaDeviceGetAttribute(
-        &shared_mem_per_sm,
-        cudaDevAttrMaxSharedMemoryPerMultiprocessor,
-        device));
+    std::string json;
+    json += "{\n";
+    json += "  \"benchmark\": \"constant_memory_load.cu\",\n";
+    json += "  \"parameter\": \"const_mem_latency_cycles\",\n";
+    json += strprintf("  \"value\": %.4f,\n", latency);
+    json += "  \"unit\": \"cycles\",\n";
+    json += strprintf("  \"gpu\": \"%s\",\n", gpu.c_str());
+    json += strprintf("  \"gpu_name\": \"%s\",\n", json_escape(prop.name).c_str());
+    json += strprintf("  \"arch\": \"sm_%d%d\",\n", prop.major, prop.minor);
+    json += strprintf("  \"num_sms\": %d,\n", prop.multiProcessorCount);
+    json += strprintf("  \"clock\": {\"sm_clock_ghz\": %.4f},\n", sm_clock_ghz);
+    json += strprintf("  \"cuda_version\": \"%s\",\n", cuda_version_string(runtime_version).c_str());
+    json += strprintf("  \"nvcc_version\": \"%d.%d\",\n", __CUDACC_VER_MAJOR__, __CUDACC_VER_MINOR__);
+    json += strprintf("  \"driver_version\": \"%s\",\n", json_escape(driver_version()).c_str());
+    json += strprintf("  \"git_commit\": \"%s\",\n", json_escape(git_commit()).c_str());
+    json += strprintf("  \"timestamp\": \"%s\"\n", utc_timestamp().c_str());
+    json += "}\n";
 
-    const int max_warps_per_sm =
-        prop.maxThreadsPerMultiProcessor / prop.warpSize;
+    const std::string out_path = write_run_json(out_dir, "const_mem_latency_cycles", gpu, json);
+    if (out_path.empty()) return 1;
 
-    // json file processing
-    std::ostringstream json;
-    json.setf(std::ios::fixed);
-    json.precision(4);
+    printf("%s", json.c_str());
+    fprintf(stderr, "Saved %s (%.3f cycles per const load)\n", out_path.c_str(), latency);
 
-    json << "{\n"
-         << "  \"schema_version\": \"" << SCHEMA_VERSION << "\",\n"
-         << "  \"benchmark\": \"constant_memory_load.cu\",\n"
-         << "  \"benchmark_version\": \"" << BENCH_VERSION << "\",\n"
-         << "  \"parameter\": \"" << PARAMETER << "\",\n"
-         << "  \"value\": " << value << ",\n"
-         << "  \"unit\": \"cycles\",\n"
-         << "  \"gpu\": \"" << json_escape(gpu) << "\",\n"
-         << "  \"architecture\": \"" << architecture << "\",\n"
-         << "  \"arch\": \"" << arch << "\",\n"
-         << "  \"device\": {\n"
-         << "    \"name\": \"" << json_escape(gpu_name) << "\",\n"
-         << "    \"sms\": " << prop.multiProcessorCount << ",\n"
-         << "    \"max_warps_per_sm\": " << max_warps_per_sm << ",\n"
-         << "    \"l2_cache_bytes\": " << prop.l2CacheSize << ",\n"
-         << "    \"shared_mem_per_sm_bytes\": " << shared_mem_per_sm << "\n"
-         << "  },\n"
-         << json_stats(stats)
-         << "  \"raw_cycles\": " << json_array(raw_cycles) << ",\n"
-         << "  \"clock_overhead_samples_cycles\": " << json_array(clock_overhead_cycles) << ",\n"
-         << "  \"clock_overhead_cycles\": " << clock_overhead << ",\n"
-         << "  \"per_load_cycles\": " << json_array(per_load_cycles) << ",\n"
-         // clock.sm_clock_ghz: total clock64 cycles / total globaltimer ns over all reps
-         << "  \"clock\": {\"sm_clock_ghz\": "
-         << (sum_clock_ns > 0.0 ? sum_clock_cycles / sum_clock_ns : 0.0) << "},\n"
-         << "  \"measurement\": {\n"
-         << "    \"method\": \"dependent uniform constant-cache-hit pointer chase\",\n"
-         << "    \"load_instruction\": \"ld.const.u64\",\n"
-         << "    \"timer\": \"clock64 (cycles), globaltimer (SM clock)\",\n"
-         << "    \"nodes\": " << NUM_NODES << ",\n"
-         << "    \"loads_per_rep\": " << CHASE_LOADS << ",\n"
-         << "    \"threads_per_block\": " << WARP_THREADS << ",\n"
-         << "    \"reps\": " << reps << "\n"
-         << "  },\n"
-         << "  \"cuda_version\": \"" << cuda_version_string(runtime_version)
-         << "\",\n"
-         << "  \"driver_api_version\": \""
-         << cuda_version_string(driver_api_version) << "\",\n"
-         << "  \"driver_version\": \"" << json_escape(driver_version())
-         << "\",\n"
-         << "  \"timestamp\": \"" << utc_timestamp() << "\"\n"
-         << "}\n";
-
-    const std::string result = json.str();
-    const std::string output_path = write_run_json(out_dir, PARAMETER, gpu, result);
-    if (output_path.empty()) return 1;
-
-    printf("%s", result.c_str());
-    fprintf(stderr, "Saved results to %s\n", output_path.c_str());
-
-    CUDA_CHECK(cudaFree(device_output));
-    CUDA_CHECK(cudaFree(device_clock));
+    CUDA_CHECK(cudaFree(startClk_g));
+    CUDA_CHECK(cudaFree(stopClk_g));
+    CUDA_CHECK(cudaFree(dsink_g));
+    free(h_a);
+    free(startClk);
+    free(stopClk);
+    free(dsink);
     return 0;
 }

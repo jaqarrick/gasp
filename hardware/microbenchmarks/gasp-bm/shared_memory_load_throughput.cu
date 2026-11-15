@@ -1,20 +1,21 @@
 // shared_memory_load_throughput.cu: SM cycles per warp shared-memory load when
 // the shared-memory pipe is saturated.
 //
-// One block per SM. Every warp issues LOADS independent, conflict-free shared
-// loads per group: lane l reads word slot * 32 + l, so the 32 lanes hit 32
-// banks, and no address depends on a loaded value. (The dependent chain, which
-// gives the latency, is shared_memory_load.cu.) The span per SM is taken with
-// clock64 around the timed loop:
+// One or two blocks per SM (two when warps per SM exceeds 32). Every warp
+// issues LOADS independent, conflict-free shared loads per group: lane l reads
+// word slot * 32 + l, so the 32 lanes hit 32 banks, and no address depends on a
+// loaded value. (The dependent chain, which gives the latency, is
+// shared_memory_load.cu.) The span per SM is taken with clock64 around the
+// timed loop:
 //
 //     cycles per load = (span - overhead) / (warps on the SM x loads per warp)
 //
 // where overhead is the span of the same kernel with an empty loop.
 //
-// Sweep: warps per SM (1..32), since one warp may be limited by its own issue
-// rate and the pipe's limit shows as a plateau; and a mixed shape with
-// MIX_LOADS loads to MIX_STORES store per group (tiled matmul's ratio), to see
-// whether loads and stores share the pipe. Design:
+// Sweep: warps per SM (1..max_warps_per_sm), since one warp may be limited by
+// its own issue rate and the pipe's limit shows as a plateau; and a mixed shape
+// with MIX_LOADS loads to MIX_STORES store per group (tiled matmul's ratio), to
+// see whether loads and stores share the pipe. Design:
 // .local/shared_memory_load_throughput.md (handoff I46, I66).
 //
 // The profile value is the plateau of the loads-only shape. A group is 16 LDS,
@@ -42,17 +43,17 @@
 #include "common.h"
 
 constexpr int WARP_THREADS = 32;
-constexpr int LOAD_SLOTS = 16;    // rows of 32 words every warp reads
-constexpr int MAX_WARPS = 32;     // store rows, one per warp
-constexpr int LOADS = 16;         // loads per group, loads-only shape
-constexpr int MIX_LOADS = 10;     // loads per group, mixed shape
-constexpr int MIX_STORES = 1;     // stores per group, mixed shape
-constexpr int ITERATIONS = 256;   // timed groups per warp
-constexpr int ACCS = 4;           // XOR accumulators the loaded values go into
+constexpr int LOAD_SLOTS = 16; //rows of 32 words every warp reads
+constexpr int MAX_BLOCK_WARPS = 32; //store rows per block, one per warp (1024 threads max)
+constexpr int LOADS = 16; //loads per group, loads-only shape
+constexpr int MIX_LOADS = 10; // loads per group, mixed shape
+constexpr int MIX_STORES = 1; //stores per group, mixed shape
+constexpr int ITERATIONS = 256; //timed groups per warp
+constexpr int ACCS = 4; // XOR accumulators the loaded values go into
 constexpr int WARMUP_LAUNCHES = 3;
 constexpr int DEFAULT_REPS = 200;
 constexpr double PLATEAU_TOLERANCE = 0.02;
-constexpr int TIMING_FIELDS = 4;  // start, end, smid, warps
+constexpr int TIMING_FIELDS = 4; //start, end, smid, warps
 
 static_assert(LOADS <= LOAD_SLOTS && MIX_LOADS <= LOAD_SLOTS,
               "each load of a group reads its own slot");
@@ -71,12 +72,11 @@ __device__ __forceinline__ uint32_t load_shared_volatile(uint32_t address) {
     return value;
 }
 
-// N_LOADS loads and N_STORES stores per group; N_LOADS = 0 is the empty loop
-// that gives the overhead (clock reads and barriers).
+// N_LOADS loads and N_STORES stores per group; N_LOADS = 0 is the empty loop that gives the overhead (clock reads and barriers).
 template <int N_LOADS, int N_STORES>
 __global__ void shared_load_kernel(uint32_t* sink, unsigned long long* timing) {
     __shared__ uint32_t load_words[LOAD_SLOTS * WARP_THREADS];
-    __shared__ uint32_t store_words[MAX_WARPS * WARP_THREADS];
+    __shared__ uint32_t store_words[MAX_BLOCK_WARPS * WARP_THREADS];
 
     const uint32_t lane = threadIdx.x % WARP_THREADS;
     const uint32_t warp = threadIdx.x / WARP_THREADS;
@@ -146,11 +146,11 @@ struct Shape {
 struct Result {
     Shape shape;
     int warps_per_sm;
-    double span_cycles;         // median over reps, of the median over SMs
-    double overhead_cycles;     // the empty loop's span at this warp count
-    double cycles_per_load;     // (span - overhead) / loads on the SM
-    double cycles_per_access;   // the same over loads + stores
-    double spread;              // (max - min) / median of the per-rep spans
+    double span_cycles; // median over reps, of the median over SMs
+    double overhead_cycles; // the empty loop's span at this warp count
+    double cycles_per_load; //(span - overhead) / loads on the SM
+    double cycles_per_access; //the same over loads + stores
+    double spread; // (max - min) / median of the per-rep spans
     int sms_measured;
 };
 
@@ -175,24 +175,30 @@ struct Span {
     int sms_measured;
 };
 
-static Span measure(const Shape& shape, int sms, int threads, int reps,
+static Span measure(const Shape& shape, int sms, int warps_per_sm, int reps,
                     uint32_t* d_sink, unsigned long long* d_timing) {
-    std::vector<unsigned long long> timing(sms * TIMING_FIELDS);
+    // split into multiple blocks per SM when warps exceeds the 32-warp block limit
+    const int blocks_per_sm = (warps_per_sm + MAX_BLOCK_WARPS - 1) / MAX_BLOCK_WARPS;
+    const int warps_per_block = warps_per_sm / blocks_per_sm;
+    const int grid = sms * blocks_per_sm;
+    const int threads = warps_per_block * WARP_THREADS;
+
+    std::vector<unsigned long long> timing(grid * TIMING_FIELDS);
     for (int i = 0; i < WARMUP_LAUNCHES; ++i) {
-        launch_shape(shape, sms, threads, d_sink, d_timing);
+        launch_shape(shape, grid, threads, d_sink, d_timing);
     }
     CUDA_CHECK(cudaDeviceSynchronize());
 
     std::vector<double> spans, warps_seen;
     int sms_measured = 0;
     for (int rep = 0; rep < reps; ++rep) {
-        launch_shape(shape, sms, threads, d_sink, d_timing);
+        launch_shape(shape, grid, threads, d_sink, d_timing);
         CUDA_CHECK(cudaDeviceSynchronize());
         CUDA_CHECK(cudaMemcpy(timing.data(), d_timing,
                               timing.size() * sizeof(unsigned long long),
                               cudaMemcpyDeviceToHost));
         std::map<unsigned long long, std::vector<unsigned long long>> per_sm;
-        for (int b = 0; b < sms; ++b) {
+        for (int b = 0; b < grid; ++b) {
             const unsigned long long* t = &timing[b * TIMING_FIELDS];
             auto& e = per_sm[t[2]];
             if (e.empty()) e = {t[0], t[1], 0};
@@ -248,33 +254,35 @@ int main(int argc, char** argv) {
     cudaDeviceProp prop{};
     CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
     const int sms = prop.multiProcessorCount;
-    const int max_warps =
-        std::min({prop.maxThreadsPerBlock / WARP_THREADS,
-                  prop.maxThreadsPerMultiProcessor / WARP_THREADS, MAX_WARPS});
+    // sweep up to the SM's full warp capacity; above 32 warps we launch multiple blocks per SM
+    const int max_warps = prop.maxThreadsPerMultiProcessor / WARP_THREADS;
+    const int max_blocks_per_sm = (max_warps + MAX_BLOCK_WARPS - 1) / MAX_BLOCK_WARPS;
+    const int max_grid = sms * max_blocks_per_sm;
 
     const Shape empty{0, 0};
     const std::vector<Shape> shapes = {{LOADS, 0}, {MIX_LOADS, MIX_STORES}};
     std::vector<int> warp_counts;
     for (int w = 1; w <= max_warps; w *= 2) warp_counts.push_back(w);
+    if (warp_counts.back() < max_warps) warp_counts.push_back(max_warps);
 
     uint32_t* d_sink = nullptr;
     unsigned long long* d_timing = nullptr;
     unsigned long long* d_clock = nullptr;
     CUDA_CHECK(cudaMalloc(&d_sink, sizeof(uint32_t)));
-    CUDA_CHECK(cudaMalloc(&d_timing, sms * TIMING_FIELDS * sizeof(unsigned long long)));
+    CUDA_CHECK(cudaMalloc(&d_timing, max_grid * TIMING_FIELDS * sizeof(unsigned long long)));
     CUDA_CHECK(cudaMalloc(&d_clock, 2 * sizeof(unsigned long long)));
 
     std::map<int, double> overhead;  // warps per SM -> the empty loop's span
     for (int warps : warp_counts) {
         overhead[warps] =
-            measure(empty, sms, warps * WARP_THREADS, reps, d_sink, d_timing).cycles;
+            measure(empty, sms, warps, reps, d_sink, d_timing).cycles;
     }
 
     std::vector<Result> results;
     for (const Shape& shape : shapes) {
         for (int warps : warp_counts) {
             const Span span =
-                measure(shape, sms, warps * WARP_THREADS, reps, d_sink, d_timing);
+                measure(shape, sms, warps, reps, d_sink, d_timing);
             const double net = span.cycles - overhead[warps];
             const double loads = span.warps_on_sm * ITERATIONS * shape.loads;
             const double accesses =
@@ -289,8 +297,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    // plateau per shape: the lowest cycles per access; accepted when the two
-    // highest warp counts agree within PLATEAU_TOLERANCE
+    // plateau per shape: the lowest cycles per access; accepted when the two highest warp counts agree within PLATEAU_TOLERANCE
     struct Plateau { double per_load; double per_access; bool ok; };
     std::map<std::string, Plateau> plateaus;
     for (const Shape& shape : shapes) {
@@ -383,7 +390,7 @@ int main(int argc, char** argv) {
     json << "\n  ],\n"
          << "  \"clock\": {\"sm_clock_ghz\": " << sm_clock_ghz << "},\n"
          << "  \"measurement\": {\n"
-         << "    \"method\": \"independent conflict-free warp shared loads, one block per SM; per-SM clock64 span minus the empty loop's\",\n"
+         << "    \"method\": \"independent conflict-free warp shared loads, one or two blocks per SM; per-SM clock64 span minus the empty loop's\",\n"
          << "    \"load_instruction\": \"ld.volatile.shared.u32\",\n"
          << "    \"store_instruction\": \"st.volatile.shared.u32\",\n"
          << "    \"value_formula\": \"(span - overhead) / (warps on the SM x groups x loads per group), lowest over warps per SM, loads_only shape\",\n"
@@ -391,7 +398,7 @@ int main(int argc, char** argv) {
          << "    \"loads_per_group\": " << LOADS << ",\n"
          << "    \"mixed_loads_per_group\": " << MIX_LOADS << ",\n"
          << "    \"mixed_stores_per_group\": " << MIX_STORES << ",\n"
-         << "    \"blocks\": " << sms << ",\n"
+         << "    \"blocks\": " << max_grid << ",\n"
          << "    \"reps\": " << reps << "\n"
          << "  },\n"
          << "  \"cuda_version\": \"" << cuda_version_string(runtime_version) << "\",\n"
