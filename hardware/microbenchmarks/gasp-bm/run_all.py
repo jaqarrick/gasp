@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import statistics
 import subprocess
@@ -232,6 +233,14 @@ def git_commit() -> str:
         cwd=REPO_ROOT,
     )
     return result.stdout.strip() or "unknown"
+
+
+def nvidia_smi_gpu():
+    """Extra nvidia-smi args selecting the GPU the benchmarks run on."""
+    dev = os.environ.get("CUDA_VISIBLE_DEVICES")
+    if dev:
+        return ["-i", dev.split(",")[0].strip()]
+    return []
 
 
 def run_json_path(
