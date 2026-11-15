@@ -7,7 +7,11 @@ from pathlib import Path
 import pytest
 
 SCRIPT = (
-    Path(__file__).resolve().parents[1] / "hardware" / "microbenchmarks" / "run_all.py"
+    Path(__file__).resolve().parents[1]
+    / "hardware"
+    / "microbenchmarks"
+    / "gasp-bm"
+    / "run_all.py"
 )
 spec = importlib.util.spec_from_file_location("run_all", SCRIPT)
 run_all = importlib.util.module_from_spec(spec)
