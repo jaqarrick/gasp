@@ -1,0 +1,50 @@
+{
+    "architecture": "ampere",
+    "chip": "a100",
+    "arch": "sm_80",
+    "spec": {
+        "warp_size": 32,
+        "simd_width": 64,
+        "sfu_width": 16,
+        "sms_per_gpu": 108,
+        "max_warps_per_sm": 64,
+        "max_blocks_per_sm": 32,
+        "max_registers_per_sm": 65536,
+        "max_shared_mem_per_sm_bytes": 167936,
+        "l2_cache_size_bytes": 41943040,
+        "l1_shared_array_bytes": 196608,
+        "shared_mem_carveouts_bytes": [
+            0,
+            8192,
+            16384,
+            32768,
+            65536,
+            102400,
+            135168,
+            167936
+        ]
+    },
+    "profiled": {
+        "launch_overhead_base_cycles": 2081.936341103804,
+        "launch_overhead_per_thread_cycles": 0.0018062283677625665,
+        "departure_delay_cycles": 2.1527,
+        "sync_factor": 0.1667,
+        "dram_latency_cycles": 483.0356,
+        "l1_cache_hit_latency_cycles": 33.1512,
+        "l2_cache_hit_latency_cycles": 270,
+        "shared_mem_load_latency_cycles": 29.0273,
+        "shared_mem_store_latency_cycles": 4.998,
+        "shared_mem_load_throughput_cycles": 1.001,
+        "l1_cycles_per_request": 2.4956,
+        "l1_sectors_per_cycle_per_sm": 3.8898,
+        "l2_bandwidth_bytes_per_cycle": 1720.705,
+        "const_mem_latency_cycles": 28.3604,
+        "bank_penalty_cycles": 1,
+        "sfu_inst_latency_cycles": 17.2622,
+        "fp32_inst_latency_cycles": 4.1049,
+        "int32_inst_latency_cycles": 4.3032,
+        "fp64_inst_latency_cycles": 6.1012,
+        "dram_bandwidth_bytes_per_cycle": 838.3333,
+        "clock_rate_ghz": 1.0944
+    }
+}

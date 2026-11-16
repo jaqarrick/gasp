@@ -1,0 +1,56 @@
+$ nvcc -O3 -std=c++17 -arch=sm_80 /home/jsr10062/repos/gasp/hardware/microbenchmarks/gasp-bm/launch_overhead_bench.cu -o /home/jsr10062/repos/gasp/hardware/runs/a100/1_1/build/launch_overhead
+$ /usr/bin/python3 /home/jsr10062/repos/gasp/hardware/microbenchmarks/gasp-bm/run_launch_overhead.py --binary /home/jsr10062/repos/gasp/hardware/runs/a100/1_1/build/launch_overhead --output-dir /home/jsr10062/repos/gasp/hardware/runs/a100/1_1/launch_overhead --raw-dir /home/jsr10062/repos/gasp/hardware/runs/a100/1_1/launch_overhead/raw --gpu a100 --clock-control base
+[rep 1/5] 1x1
+[rep 1/5] 1x32
+[rep 1/5] 1x256
+[rep 1/5] 1x1024
+[rep 1/5] 32x256
+[rep 1/5] 128x256
+[rep 1/5] 256x256
+[rep 1/5] 512x256
+[rep 2/5] 1x1
+[rep 2/5] 1x32
+[rep 2/5] 1x256
+[rep 2/5] 1x1024
+[rep 2/5] 32x256
+[rep 2/5] 128x256
+[rep 2/5] 256x256
+[rep 2/5] 512x256
+[rep 3/5] 1x1
+[rep 3/5] 1x32
+[rep 3/5] 1x256
+[rep 3/5] 1x1024
+[rep 3/5] 32x256
+[rep 3/5] 128x256
+[rep 3/5] 256x256
+[rep 3/5] 512x256
+[rep 4/5] 1x1
+[rep 4/5] 1x32
+[rep 4/5] 1x256
+[rep 4/5] 1x1024
+[rep 4/5] 32x256
+[rep 4/5] 128x256
+[rep 4/5] 256x256
+[rep 4/5] 512x256
+[rep 5/5] 1x1
+[rep 5/5] 1x32
+[rep 5/5] 1x256
+[rep 5/5] 1x1024
+[rep 5/5] 32x256
+[rep 5/5] 128x256
+[rep 5/5] 256x256
+[rep 5/5] 512x256
+
+GPU: NVIDIA A100-SXM4-40GB (sm_80, 108 SMs); 5 reps, 1 warmup launch(es)
+Median launch overhead per config (cycles):
+    config         cold         warm    warm-cold
+       1x1       1996.0       2059.0         63.0
+      1x32       1994.0       2064.0         70.0
+     1x256       2025.0       2105.0         80.0
+    1x1024       3002.0       2040.0       -962.0
+    32x256       1979.0       2052.0         73.0
+   128x256       2458.0       1982.0       -476.0
+   256x256       2452.0       1973.0       -479.0
+   512x256       2292.0       2072.0       -220.0
+launch_base_cycles = 2272.11987051 cycles (warm: 2060.16278747) -> /home/jsr10062/repos/gasp/hardware/runs/a100/1_1/launch_overhead/launch_base_cycles_nvidia_a100_sxm4_40gb.json
+launch_per_thread_cycles = 0.00252025500528 cycles/thread (warm: -0.000172233250127) -> /home/jsr10062/repos/gasp/hardware/runs/a100/1_1/launch_overhead/launch_per_thread_cycles_nvidia_a100_sxm4_40gb.json

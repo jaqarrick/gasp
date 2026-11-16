@@ -1,0 +1,21 @@
+==WARNING== Note: Running with uncontrolled GPU caches. Profiling results may be inconsistent.
+==PROF== Connected to process 12009 (/home/jsr10062/repos/gasp/hardware/runs/a100/1_1/build/bank_conflict)
+==PROF== Profiling "bank_conflict_latency" - 0: 0%....50%....100% - 1 pass
+==PROF== Profiling "clock_kernel" - 1: 0%....50%....100% - 1 pass
+==PROF== Disconnected from process 12009
+[12009] bank_conflict@127.0.0.1
+  bank_conflict_latency(unsigned long *, unsigned long *, unsigned long *, unsigned long *, unsigned int *) (1, 1, 1)x(32, 1, 1), Context 1, Stream 7, Device 0, CC 8.0
+    Section: Command line profiler metrics
+    ----------------------- ----------- ------------
+    Metric Name             Metric Unit Metric Value
+    ----------------------- ----------- ------------
+    gpc__cycles_elapsed.max       cycle       447178
+    ----------------------- ----------- ------------
+
+  clock_kernel(unsigned long long *) (1, 1, 1)x(1, 1, 1), Context 1, Stream 7, Device 0, CC 8.0
+    Section: Command line profiler metrics
+    ----------------------- ----------- ------------
+    Metric Name             Metric Unit Metric Value
+    ----------------------- ----------- ------------
+    gpc__cycles_elapsed.max       cycle      2003268
+    ----------------------- ----------- ------------

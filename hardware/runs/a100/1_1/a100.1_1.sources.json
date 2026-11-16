@@ -1,0 +1,128 @@
+{
+    "version": "1.1",
+    "gpu": "a100",
+    "arch": "sm_80",
+    "base_profile": "hardware/profiles/a100.placeholder.json",
+    "git_commit": "a3b6e53",
+    "timestamp": "2026-11-16T19:50:40Z",
+    "fields": {
+        "launch_overhead_base_cycles": {
+            "value": 2272.1198705104916,
+            "source": "hardware/runs/a100/1_1/launch_overhead/launch_base_cycles_nvidia_a100_sxm4_40gb.json",
+            "sm_clock_ghz": null
+        },
+        "launch_overhead_per_thread_cycles": {
+            "value": 0.0025202550052790614,
+            "source": "hardware/runs/a100/1_1/launch_overhead/launch_per_thread_cycles_nvidia_a100_sxm4_40gb.json",
+            "sm_clock_ghz": null
+        },
+        "departure_delay_cycles": {
+            "value": 2.6367,
+            "source": "hardware/runs/a100/1_1/departure_delay_cycles/departure_delay_cycles.a100.run.json",
+            "sm_clock_ghz": 1.0948
+        },
+        "sync_factor": {
+            "value": 0.1417,
+            "source": "hardware/runs/a100/1_1/sync_factor_cycles/sync_factor_cycles.a100.run.json",
+            "sm_clock_ghz": 1.0923
+        },
+        "dram_latency_cycles": {
+            "value": 480.3477,
+            "source": "hardware/runs/a100/1_1/dram_latency_cycles/dram_latency_cycles.a100.run.json",
+            "sm_clock_ghz": 1.095,
+            "hpmll_not_used": "mem_lat: lts__t_sector_hit_rate.pct = 82.9% > 30% (the chase must miss L2; an L2 of 8 MB or more keeps it)"
+        },
+        "l1_cache_hit_latency_cycles": {
+            "value": 33.1524,
+            "source": "hardware/runs/a100/1_1/hpmll/l1_cache_hit_latency_cycles/l1_cache_hit_latency_cycles.a100.run.json (hpmll)",
+            "sm_clock_ghz": 1.095
+        },
+        "l2_cache_hit_latency_cycles": {
+            "value": 261.8614,
+            "source": "hardware/runs/a100/1_1/hpmll/l2_cache_hit_latency_cycles/l2_cache_hit_latency_cycles.a100.run.json (hpmll)",
+            "sm_clock_ghz": 1.0949
+        },
+        "shared_mem_load_latency_cycles": {
+            "value": 29.0273,
+            "source": "hardware/runs/a100/1_1/hpmll/shared_mem_load_latency_cycles/shared_mem_load_latency_cycles.a100.run.json (hpmll)",
+            "sm_clock_ghz": 1.0942,
+            "replaces": {
+                "value": 22.9902,
+                "source": "hardware/runs/a100/1_1/shared_mem_load_latency_cycles/shared_mem_load_latency_cycles.a100.run.json"
+            }
+        },
+        "shared_mem_store_latency_cycles": {
+            "value": 4.998,
+            "source": "hardware/runs/a100/1_1/shared_mem_store_latency_cycles/shared_mem_store_latency_cycles.a100.run.json",
+            "sm_clock_ghz": 1.0948
+        },
+        "shared_mem_load_throughput_cycles": {
+            "value": 1.001,
+            "source": "hardware/runs/a100/1_1/hpmll/shared_mem_load_throughput_cycles/shared_mem_load_throughput_cycles.a100.run.json (hpmll)",
+            "sm_clock_ghz": 1.0945,
+            "replaces": {
+                "value": 1.0007,
+                "source": "hardware/runs/a100/1_1/shared_mem_load_throughput_cycles/shared_mem_load_throughput_cycles.a100.run.json"
+            }
+        },
+        "l1_cycles_per_request": {
+            "value": 2.4969,
+            "source": "hardware/runs/a100/1_1/l1_throughput_sectors_per_cycle_per_sm/l1_throughput_sectors_per_cycle_per_sm.a100.run.json (l1_cycles_per_request)",
+            "sm_clock_ghz": 1.095
+        },
+        "l1_sectors_per_cycle_per_sm": {
+            "value": 3.8847,
+            "source": "hardware/runs/a100/1_1/hpmll/l1_sectors_per_cycle_per_sm/l1_sectors_per_cycle_per_sm.a100.run.json (hpmll)",
+            "sm_clock_ghz": 1.093,
+            "replaces": {
+                "value": 3.3639,
+                "source": "hardware/runs/a100/1_1/l1_throughput_sectors_per_cycle_per_sm/l1_throughput_sectors_per_cycle_per_sm.a100.run.json (l1_sectors_per_cycle)"
+            }
+        },
+        "l2_bandwidth_bytes_per_cycle": {
+            "value": 1715.1024,
+            "source": "hardware/runs/a100/1_1/l2_bandwidth_bytes_per_cycle/l2_bandwidth_bytes_per_cycle.a100.run.json",
+            "sm_clock_ghz": 1.0941,
+            "hpmll_not_used": "l2_bw_32f: lts__t_sector_hit_rate.pct = 72.8% < 95% (the array must stay in L2); l2_bw_64f: lts__t_sector_hit_rate.pct = 72.9% < 95% (the array must stay in L2); l2_bw_128: lts__t_sector_hit_rate.pct = 72.8% < 95% (the array must stay in L2)"
+        },
+        "const_mem_latency_cycles": {
+            "value": 34.6177,
+            "source": "hardware/runs/a100/1_1/const_mem_latency_cycles/const_mem_latency_cycles.a100.run.json",
+            "sm_clock_ghz": 1.095
+        },
+        "bank_penalty_cycles": {
+            "value": 1.995,
+            "source": "hardware/runs/a100/1_1/bank_penalty_cycles/bank_penalty_cycles.a100.run.json",
+            "sm_clock_ghz": 1.095
+        },
+        "sfu_inst_latency_cycles": {
+            "value": 17.26,
+            "source": "hardware/runs/a100/1_1/sfu_inst_latency_cycles/sfu_inst_latency_cycles.a100.run.json",
+            "sm_clock_ghz": 1.095
+        },
+        "fp32_inst_latency_cycles": {
+            "value": 4.1041,
+            "source": "hardware/runs/a100/1_1/hpmll/fp32_inst_latency_cycles/fp32_inst_latency_cycles.a100.run.json (hpmll)",
+            "sm_clock_ghz": 1.0941
+        },
+        "int32_inst_latency_cycles": {
+            "value": 4.2993,
+            "source": "hardware/runs/a100/1_1/hpmll/int32_inst_latency_cycles/int32_inst_latency_cycles.a100.run.json (hpmll)",
+            "sm_clock_ghz": 1.0922
+        },
+        "fp64_inst_latency_cycles": {
+            "value": 6.1007,
+            "source": "hardware/runs/a100/1_1/hpmll/fp64_inst_latency_cycles/fp64_inst_latency_cycles.a100.run.json (hpmll)",
+            "sm_clock_ghz": 1.0944
+        },
+        "dram_bandwidth_bytes_per_cycle": {
+            "value": 840.0,
+            "source": "hardware/runs/a100/1_1/dram_bandwidth_bytes_per_cycle/dram_bandwidth_bytes_per_cycle.a100.run.json",
+            "sm_clock_ghz": null
+        },
+        "clock_rate_ghz": {
+            "value": 1.0948,
+            "source": "median SM clock of the runs"
+        }
+    }
+}
