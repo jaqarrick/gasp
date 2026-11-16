@@ -346,6 +346,20 @@ class TestLoadProfileFile:
         hp = load_profile_file(write_profile(tmp_path, data), logger)
         assert hp.dram_latency_cycles == 406.36
 
+    def test_version_accepted(self, tmp_path, logger):
+        data = json.loads(json.dumps(VALID_PROFILE))
+        data["version"] = "1.2"
+        hp = load_profile_file(write_profile(tmp_path, data), logger)
+        assert hp.chip == "a100"
+        logger.error.assert_not_called()
+
+    def test_non_string_version_exits(self, tmp_path, logger):
+        data = json.loads(json.dumps(VALID_PROFILE))
+        data["version"] = 1.2
+        with pytest.raises(SystemExit):
+            load_profile_file(write_profile(tmp_path, data), logger)
+        assert "version" in error_message(logger)
+
 
 class TestGpuProfileFlags:
     def test_both_flags_warn_and_exit(self, monkeypatch, profile_file, capsys):

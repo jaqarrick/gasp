@@ -124,6 +124,13 @@ def load_profile_file(path: str | Path, logger: Logger) -> HardwareProfile:
                 logger,
                 f"hardware profile {path} needs a '{section}' object",
             )
+    # optional run label written by run_all.py (e.g. "1.2"); the model doesn't use it
+    version = profile.pop("version", None)
+    if version is not None and not isinstance(version, str):
+        _fail(
+            logger,
+            f"hardware profile {path} has a non-string version: {version!r}",
+        )
     spec = profile.pop("spec")
     profiled = profile.pop("profiled")
     flat = {**profile, **spec, **profiled}
@@ -154,7 +161,11 @@ def load_profile_file(path: str | Path, logger: Logger) -> HardwareProfile:
         )
 
     hp = HardwareProfile(**flat)
-    logger.trace("config", f"hardware profile {path}: chip {hp.chip}, arch {hp.arch}")
+    logger.trace(
+        "config",
+        f"hardware profile {path}: chip {hp.chip}, arch {hp.arch}, "
+        f"version {version or 'none'}",
+    )
     for name in expected:
         logger.trace("config", f"  {name} = {getattr(hp, name)}")
     return hp
