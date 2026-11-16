@@ -464,6 +464,8 @@ def run_benchmark(
         if produced is None:
             raise BenchmarkError(f"no {bench.params[0]} JSON next to {binary}")
         shutil.move(produced, bench_dir / f"{bench.params[0]}.{gpu}.run.json")
+    elif run_json_path(bench_dir, bench.params[0], bench.aliases) is None:
+        raise BenchmarkError(f"wrote no {bench.params[0]} run JSON in {bench_dir}")
 
 
 # ---- Profile -----------------------------------------------------------------------

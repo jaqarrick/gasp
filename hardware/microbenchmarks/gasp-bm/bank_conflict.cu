@@ -78,7 +78,13 @@ __global__ void bank_conflict_latency(uint64_t *start_clock_penalty, uint64_t *s
 }
 
 int main(int argc, char **argv) {
-  (void)argc;
+  std::string gpu_arg;
+  std::string out_dir = executable_dir(argv[0]);
+  for (int i = 1; i < argc; ++i) {
+    if (strcmp(argv[i], "--gpu") == 0 && i + 1 < argc) gpu_arg = argv[++i];
+    else if (strcmp(argv[i], "--out-dir") == 0 && i + 1 < argc) out_dir = argv[++i];
+  }
+
   uint64_t *start_clock_penalty = (uint64_t*) malloc(TOTAL_THREADS*sizeof(uint64_t));
 	uint64_t *stop_clock_penalty = (uint64_t*) malloc(TOTAL_THREADS*sizeof(uint64_t));
   uint64_t *start_clock_no_penalty = (uint64_t*) malloc(TOTAL_THREADS*sizeof(uint64_t));
@@ -130,7 +136,7 @@ int main(int argc, char **argv) {
 	CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
 	int runtime_version = 0;
 	CUDA_CHECK(cudaRuntimeGetVersion(&runtime_version));
-	const std::string gpu = short_gpu_name(prop.name);
+	const std::string gpu = gpu_arg.empty() ? short_gpu_name(prop.name) : gpu_arg;
 
 	std::string json;
 	json += "{\n";
@@ -150,11 +156,11 @@ int main(int argc, char **argv) {
 	json += strprintf("  \"timestamp\": \"%s\"\n", utc_timestamp().c_str());
 	json += "}\n";
 
-	const std::string out_path = write_run_json(executable_dir(argv[0]), "sfu_inst_latency_cycles", gpu, json);
+	const std::string out_path = write_run_json(out_dir, "bank_penalty_cycles", gpu, json);
 	if (out_path.empty()) return 1;
 
 	printf("%s", json.c_str());
-	fprintf(stderr, "Saved %s (%.3f cycles per SFU op)\n", out_path.c_str(), latency);
+	fprintf(stderr, "Saved %s (%.3f cycles per bank conflict)\n", out_path.c_str(), latency);
 
 	CUDA_CHECK(cudaFree(start_clock_penalty_g));
   CUDA_CHECK(cudaFree(stop_clock_penalty_g));
