@@ -1,0 +1,106 @@
+{
+    "version": "1_2",
+    "gpu": "titanv",
+    "arch": "sm_70",
+    "suite": "hpmll",
+    "hpmll_commit": "ded6f57",
+    "base_profile": "hardware/profiles/titanv.placeholder.json",
+    "git_commit": "bcbc273",
+    "timestamp": "2026-11-16T14:31:54Z",
+    "fields": {
+        "launch_overhead_base_cycles": {
+            "value": 1409.6080620787568,
+            "source": "copied from base profile"
+        },
+        "launch_overhead_per_thread_cycles": {
+            "value": 0.0027383894813643147,
+            "source": "copied from base profile"
+        },
+        "departure_delay_cycles": {
+            "value": 4,
+            "source": "copied from base profile"
+        },
+        "sync_factor": {
+            "value": 0.179,
+            "source": "copied from base profile"
+        },
+        "dram_latency_cycles": {
+            "value": 406.3643,
+            "source": "copied from base profile",
+            "hpmll_not_used": "mem_lat: lts__t_sector_hit_rate.pct = 50.4% > 10% (the chase must miss L2; an L2 of 8 MB or more keeps it)"
+        },
+        "dram_bandwidth_bytes_per_cycle": {
+            "value": 428.7303,
+            "source": "copied from base profile"
+        },
+        "l1_cache_hit_latency_cycles": {
+            "value": 28.188,
+            "source": "hardware/runs/titanv/1_2/hpmll/l1_cache_hit_latency_cycles/l1_cache_hit_latency_cycles.titanv.run.json (hpmll l1_lat)",
+            "sm_clock_ghz": 1.2007
+        },
+        "l2_cache_hit_latency_cycles": {
+            "value": 220.4839,
+            "source": "hardware/runs/titanv/1_2/hpmll/l2_cache_hit_latency_cycles/l2_cache_hit_latency_cycles.titanv.run.json (hpmll l2_lat)",
+            "sm_clock_ghz": 1.2
+        },
+        "shared_mem_load_latency_cycles": {
+            "value": 27.0132,
+            "source": "hardware/runs/titanv/1_2/hpmll/shared_mem_load_latency_cycles/shared_mem_load_latency_cycles.titanv.run.json (hpmll shared_lat)",
+            "sm_clock_ghz": 1.1989
+        },
+        "shared_mem_store_latency_cycles": {
+            "value": 5,
+            "source": "copied from base profile"
+        },
+        "shared_mem_load_throughput_cycles": {
+            "value": 1.0102,
+            "source": "hardware/runs/titanv/1_2/hpmll/shared_mem_load_throughput_cycles/shared_mem_load_throughput_cycles.titanv.run.json (hpmll shared_bw)",
+            "sm_clock_ghz": 1.1996
+        },
+        "l1_cycles_per_request": {
+            "value": 2.4796,
+            "source": "copied from base profile"
+        },
+        "l1_sectors_per_cycle_per_sm": {
+            "value": 3.8406,
+            "source": "hardware/runs/titanv/1_2/hpmll/l1_sectors_per_cycle_per_sm/l1_sectors_per_cycle_per_sm.titanv.run.json (hpmll l1_bw_64f)",
+            "sm_clock_ghz": 1.1983
+        },
+        "l2_bandwidth_bytes_per_cycle": {
+            "value": 1773.7093,
+            "source": "hardware/runs/titanv/1_2/hpmll/l2_bandwidth_bytes_per_cycle/l2_bandwidth_bytes_per_cycle.titanv.run.json (hpmll l2_bw_128)",
+            "sm_clock_ghz": 1.2056
+        },
+        "const_mem_latency_cycles": {
+            "value": 26,
+            "source": "copied from base profile"
+        },
+        "bank_penalty_cycles": {
+            "value": 2,
+            "source": "copied from base profile"
+        },
+        "sfu_inst_latency_cycles": {
+            "value": 15,
+            "source": "copied from base profile"
+        },
+        "fp32_inst_latency_cycles": {
+            "value": 4.228,
+            "source": "hardware/runs/titanv/1_2/hpmll/fp32_inst_latency_cycles/fp32_inst_latency_cycles.titanv.run.json (hpmll alu_lat_float)",
+            "sm_clock_ghz": 1.1994
+        },
+        "int32_inst_latency_cycles": {
+            "value": 4.8167,
+            "source": "hardware/runs/titanv/1_2/hpmll/int32_inst_latency_cycles/int32_inst_latency_cycles.titanv.run.json (hpmll alu_lat_int32)",
+            "sm_clock_ghz": 1.198
+        },
+        "fp64_inst_latency_cycles": {
+            "value": 8.1535,
+            "source": "hardware/runs/titanv/1_2/hpmll/fp64_inst_latency_cycles/fp64_inst_latency_cycles.titanv.run.json (hpmll alu_lat_double)",
+            "sm_clock_ghz": 1.1995
+        },
+        "clock_rate_ghz": {
+            "value": 1.1999,
+            "source": "median SM clock of the runs"
+        }
+    }
+}
