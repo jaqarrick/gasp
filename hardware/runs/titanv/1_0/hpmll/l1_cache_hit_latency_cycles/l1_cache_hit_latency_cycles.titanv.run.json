@@ -1,0 +1,82 @@
+{
+  "schema_version": "1.0.0",
+  "benchmark": "hpmll/RegularUnits/l1_lat/l1_lat.cu",
+  "parameter": "l1_cache_hit_latency_cycles",
+  "value": 28.1792,
+  "unit": "cycles",
+  "gpu": "titanv",
+  "gpu_name": "NVIDIA TITAN V",
+  "arch": "sm_70",
+  "stats": {
+    "median": 28.1792,
+    "mean": 28.1787,
+    "std": 0.0007,
+    "min": 28.178,
+    "max": 28.1792
+  },
+  "clock": {
+    "sm_clock_ghz": 1.1953,
+    "max_sm_clock_ghz": 1.912
+  },
+  "candidates": {
+    "l1_lat": {
+      "benchmark": "hpmll/RegularUnits/l1_lat/l1_lat.cu",
+      "stats": {
+        "median": 28.1792,
+        "mean": 28.1787,
+        "std": 0.0007,
+        "min": 28.178,
+        "max": 28.1792
+      },
+      "values": [
+        28.1792,
+        28.1792,
+        28.1792,
+        28.178,
+        28.178
+      ],
+      "printed_values": [
+        28.1792,
+        28.1792,
+        28.1792,
+        28.178,
+        28.178
+      ],
+      "printed_lines": [
+        "L1 Latency  =      28.1792",
+        "L1 Latency  =      28.1792",
+        "L1 Latency  =      28.1792",
+        "L1 Latency  =      28.1780",
+        "L1 Latency  =      28.1780"
+      ],
+      "sm_clock_ghz_samples": [
+        1.1949,
+        1.203,
+        1.1959,
+        1.1945,
+        1.1953
+      ],
+      "conversion": "printed value (ld.global.ca pointer chase, 32 KB array, 256 passes)",
+      "hit_rates_pct": {
+        "l1tex__t_sector_hit_rate.pct": 99.88
+      },
+      "valid": true,
+      "invalid_reason": null,
+      "source_changes": {
+        "ITERS": {
+          "hpmll": 32768,
+          "used": 1048576
+        }
+      },
+      "notes": [
+        "built with ITERS 1048576 (hpmll: 32768) so the cold first pass is negligible"
+      ]
+    }
+  },
+  "reps": 5,
+  "hpmll_commit": "ded6f57",
+  "nvcc_version": "12.4",
+  "driver_version": "580.196.07",
+  "git_commit": "e88b0c1",
+  "timestamp": "2026-11-14T01:21:21Z"
+}

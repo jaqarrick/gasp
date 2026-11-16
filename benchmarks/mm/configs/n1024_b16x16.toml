@@ -1,0 +1,25 @@
+# M = N = K = 1024; basic 16x16, tiled 16x16 (fixed tile)
+# reuse: L1 hit share by sectors
+
+[defaults]
+problem_size = 1024
+footprint = 12582912
+block_size = [16, 16]
+grid_size = [64, 64]
+params = { M = 1024, N = 1024, K = 1024 }
+program_args = ["1024", "1024", "1024", "16", "16"]
+
+[[kernel]]
+name = "basic"
+file = "benchmarks/mm/mm_basic.cu"
+loop_counts = [64, 0, 0]
+reuse = 0.875
+
+[[kernel]]
+name = "tiled"
+file = "benchmarks/mm/mm_tiled.cu"
+block_size = [16, 16]
+grid_size = [64, 64]
+program_args = ["1024", "1024", "1024", "16", "16"]
+loop_counts = [64]
+reuse = 0

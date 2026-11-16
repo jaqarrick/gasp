@@ -1,0 +1,915 @@
+{
+  "schema_version": "1",
+  "benchmark": "launch_overhead_bench.cu",
+  "benchmark_version": "2",
+  "parameter": "launch_per_thread_cycles",
+  "value": 0.006799228017468333,
+  "unit": "cycles/thread",
+  "gpu": "titanv",
+  "architecture": "volta",
+  "arch": "sm_70",
+  "device": {
+    "name": "NVIDIA TITAN V",
+    "sms": 80,
+    "max_warps_per_sm": 64,
+    "l2_cache_bytes": 4718592,
+    "shared_mem_per_sm_bytes": 98304
+  },
+  "gpu_name": "NVIDIA TITAN V",
+  "num_sms": 80,
+  "l2_cache_bytes": 4718592,
+  "stats": {
+    "median": 0.006799228017468333,
+    "mean": 0.006785159295643675,
+    "std": 5.455703116959379e-05,
+    "min": 0.0067230256586658385,
+    "max": 0.006843780049806177
+  },
+  "per_rep_values": [
+    0.006843780049806177,
+    0.006826546433382688,
+    0.0067230256586658385,
+    0.006733216318895337,
+    0.006799228017468333
+  ],
+  "r_squared_per_rep": [
+    0.9908481663131531,
+    0.9925165261357699,
+    0.991968896084214,
+    0.9924379374074268,
+    0.9925164471954672
+  ],
+  "warm_launch": {
+    "value": 0.0053908350183025895,
+    "stats": {
+      "median": 0.0053908350183025895,
+      "mean": 0.005431533338710481,
+      "std": 0.00010459170822191249,
+      "min": 0.005339136938057774,
+      "max": 0.005601843919510168
+    },
+    "per_rep_values": [
+      0.0053908350183025895,
+      0.005601843919510168,
+      0.005339136938057774,
+      0.005456891586393263,
+      0.005368959231288611
+    ],
+    "r_squared_per_rep": [
+      0.9865514993572302,
+      0.9854738774429104,
+      0.9861366041135523,
+      0.9874650299229178,
+      0.9819280035148648
+    ]
+  },
+  "warmup_effect": [
+    {
+      "grid": 1,
+      "block": 1,
+      "total_threads": 1,
+      "cold_median_cycles": 1666.0,
+      "warm_median_cycles": 1370.0,
+      "warm_minus_cold_cycles": -296.0
+    },
+    {
+      "grid": 1,
+      "block": 32,
+      "total_threads": 32,
+      "cold_median_cycles": 1666.0,
+      "warm_median_cycles": 1368.0,
+      "warm_minus_cold_cycles": -298.0
+    },
+    {
+      "grid": 1,
+      "block": 256,
+      "total_threads": 256,
+      "cold_median_cycles": 1619.0,
+      "warm_median_cycles": 1319.0,
+      "warm_minus_cold_cycles": -300.0
+    },
+    {
+      "grid": 1,
+      "block": 1024,
+      "total_threads": 1024,
+      "cold_median_cycles": 1606.0,
+      "warm_median_cycles": 1308.0,
+      "warm_minus_cold_cycles": -298.0
+    },
+    {
+      "grid": 32,
+      "block": 256,
+      "total_threads": 8192,
+      "cold_median_cycles": 1672.0,
+      "warm_median_cycles": 1398.0,
+      "warm_minus_cold_cycles": -274.0
+    },
+    {
+      "grid": 128,
+      "block": 256,
+      "total_threads": 32768,
+      "cold_median_cycles": 1812.0,
+      "warm_median_cycles": 1578.0,
+      "warm_minus_cold_cycles": -234.0
+    },
+    {
+      "grid": 256,
+      "block": 256,
+      "total_threads": 65536,
+      "cold_median_cycles": 2075.0,
+      "warm_median_cycles": 1705.0,
+      "warm_minus_cold_cycles": -370.0
+    },
+    {
+      "grid": 512,
+      "block": 256,
+      "total_threads": 131072,
+      "cold_median_cycles": 2530.0,
+      "warm_median_cycles": 2046.0,
+      "warm_minus_cold_cycles": -484.0
+    }
+  ],
+  "runs": [
+    {
+      "rep": 0,
+      "grid": 1,
+      "block": 1,
+      "total_threads": 1,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2513.0,
+        "cycles_active_max": 842.0,
+        "launch_overhead_cycles": 1671.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1634.0,
+        "cycles_active_max": 265.0,
+        "launch_overhead_cycles": 1369.0
+      }
+    },
+    {
+      "rep": 0,
+      "grid": 1,
+      "block": 32,
+      "total_threads": 32,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2506.0,
+        "cycles_active_max": 840.0,
+        "launch_overhead_cycles": 1666.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1632.0,
+        "cycles_active_max": 264.0,
+        "launch_overhead_cycles": 1368.0
+      }
+    },
+    {
+      "rep": 0,
+      "grid": 1,
+      "block": 256,
+      "total_threads": 256,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2471.0,
+        "cycles_active_max": 852.0,
+        "launch_overhead_cycles": 1619.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1594.0,
+        "cycles_active_max": 275.0,
+        "launch_overhead_cycles": 1319.0
+      }
+    },
+    {
+      "rep": 0,
+      "grid": 1,
+      "block": 1024,
+      "total_threads": 1024,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2484.0,
+        "cycles_active_max": 881.0,
+        "launch_overhead_cycles": 1603.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1607.0,
+        "cycles_active_max": 299.0,
+        "launch_overhead_cycles": 1308.0
+      }
+    },
+    {
+      "rep": 0,
+      "grid": 32,
+      "block": 256,
+      "total_threads": 8192,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2597.0,
+        "cycles_active_max": 926.0,
+        "launch_overhead_cycles": 1671.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1721.0,
+        "cycles_active_max": 319.0,
+        "launch_overhead_cycles": 1402.0
+      }
+    },
+    {
+      "rep": 0,
+      "grid": 128,
+      "block": 256,
+      "total_threads": 32768,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2824.0,
+        "cycles_active_max": 1016.0,
+        "launch_overhead_cycles": 1808.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1913.0,
+        "cycles_active_max": 342.0,
+        "launch_overhead_cycles": 1571.0
+      }
+    },
+    {
+      "rep": 0,
+      "grid": 256,
+      "block": 256,
+      "total_threads": 65536,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 3092.0,
+        "cycles_active_max": 1021.0,
+        "launch_overhead_cycles": 2071.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 2195.0,
+        "cycles_active_max": 495.0,
+        "launch_overhead_cycles": 1700.0
+      }
+    },
+    {
+      "rep": 0,
+      "grid": 512,
+      "block": 256,
+      "total_threads": 131072,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 3641.0,
+        "cycles_active_max": 1104.0,
+        "launch_overhead_cycles": 2537.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 2741.0,
+        "cycles_active_max": 695.0,
+        "launch_overhead_cycles": 2046.0
+      }
+    },
+    {
+      "rep": 1,
+      "grid": 1,
+      "block": 1,
+      "total_threads": 1,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2511.0,
+        "cycles_active_max": 845.0,
+        "launch_overhead_cycles": 1666.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1635.0,
+        "cycles_active_max": 265.0,
+        "launch_overhead_cycles": 1370.0
+      }
+    },
+    {
+      "rep": 1,
+      "grid": 1,
+      "block": 32,
+      "total_threads": 32,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2507.0,
+        "cycles_active_max": 842.0,
+        "launch_overhead_cycles": 1665.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1633.0,
+        "cycles_active_max": 265.0,
+        "launch_overhead_cycles": 1368.0
+      }
+    },
+    {
+      "rep": 1,
+      "grid": 1,
+      "block": 256,
+      "total_threads": 256,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2497.0,
+        "cycles_active_max": 877.0,
+        "launch_overhead_cycles": 1620.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1592.0,
+        "cycles_active_max": 276.0,
+        "launch_overhead_cycles": 1316.0
+      }
+    },
+    {
+      "rep": 1,
+      "grid": 1,
+      "block": 1024,
+      "total_threads": 1024,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2485.0,
+        "cycles_active_max": 877.0,
+        "launch_overhead_cycles": 1608.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1603.0,
+        "cycles_active_max": 299.0,
+        "launch_overhead_cycles": 1304.0
+      }
+    },
+    {
+      "rep": 1,
+      "grid": 32,
+      "block": 256,
+      "total_threads": 8192,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2600.0,
+        "cycles_active_max": 928.0,
+        "launch_overhead_cycles": 1672.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1723.0,
+        "cycles_active_max": 326.0,
+        "launch_overhead_cycles": 1397.0
+      }
+    },
+    {
+      "rep": 1,
+      "grid": 128,
+      "block": 256,
+      "total_threads": 32768,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2823.0,
+        "cycles_active_max": 1011.0,
+        "launch_overhead_cycles": 1812.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1922.0,
+        "cycles_active_max": 340.0,
+        "launch_overhead_cycles": 1582.0
+      }
+    },
+    {
+      "rep": 1,
+      "grid": 256,
+      "block": 256,
+      "total_threads": 65536,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 3096.0,
+        "cycles_active_max": 1021.0,
+        "launch_overhead_cycles": 2075.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 2198.0,
+        "cycles_active_max": 489.0,
+        "launch_overhead_cycles": 1709.0
+      }
+    },
+    {
+      "rep": 1,
+      "grid": 512,
+      "block": 256,
+      "total_threads": 131072,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 3647.0,
+        "cycles_active_max": 1114.0,
+        "launch_overhead_cycles": 2533.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 2746.0,
+        "cycles_active_max": 674.0,
+        "launch_overhead_cycles": 2072.0
+      }
+    },
+    {
+      "rep": 2,
+      "grid": 1,
+      "block": 1,
+      "total_threads": 1,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2511.0,
+        "cycles_active_max": 843.0,
+        "launch_overhead_cycles": 1668.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1630.0,
+        "cycles_active_max": 264.0,
+        "launch_overhead_cycles": 1366.0
+      }
+    },
+    {
+      "rep": 2,
+      "grid": 1,
+      "block": 32,
+      "total_threads": 32,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2558.0,
+        "cycles_active_max": 892.0,
+        "launch_overhead_cycles": 1666.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1633.0,
+        "cycles_active_max": 265.0,
+        "launch_overhead_cycles": 1368.0
+      }
+    },
+    {
+      "rep": 2,
+      "grid": 1,
+      "block": 256,
+      "total_threads": 256,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2473.0,
+        "cycles_active_max": 853.0,
+        "launch_overhead_cycles": 1620.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1599.0,
+        "cycles_active_max": 276.0,
+        "launch_overhead_cycles": 1323.0
+      }
+    },
+    {
+      "rep": 2,
+      "grid": 1,
+      "block": 1024,
+      "total_threads": 1024,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2666.0,
+        "cycles_active_max": 1060.0,
+        "launch_overhead_cycles": 1606.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1606.0,
+        "cycles_active_max": 298.0,
+        "launch_overhead_cycles": 1308.0
+      }
+    },
+    {
+      "rep": 2,
+      "grid": 32,
+      "block": 256,
+      "total_threads": 8192,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2732.0,
+        "cycles_active_max": 1054.0,
+        "launch_overhead_cycles": 1678.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1722.0,
+        "cycles_active_max": 323.0,
+        "launch_overhead_cycles": 1399.0
+      }
+    },
+    {
+      "rep": 2,
+      "grid": 128,
+      "block": 256,
+      "total_threads": 32768,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2821.0,
+        "cycles_active_max": 1011.0,
+        "launch_overhead_cycles": 1810.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1915.0,
+        "cycles_active_max": 341.0,
+        "launch_overhead_cycles": 1574.0
+      }
+    },
+    {
+      "rep": 2,
+      "grid": 256,
+      "block": 256,
+      "total_threads": 65536,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 3097.0,
+        "cycles_active_max": 1014.0,
+        "launch_overhead_cycles": 2083.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 2191.0,
+        "cycles_active_max": 492.0,
+        "launch_overhead_cycles": 1699.0
+      }
+    },
+    {
+      "rep": 2,
+      "grid": 512,
+      "block": 256,
+      "total_threads": 131072,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 3645.0,
+        "cycles_active_max": 1129.0,
+        "launch_overhead_cycles": 2516.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 2740.0,
+        "cycles_active_max": 702.0,
+        "launch_overhead_cycles": 2038.0
+      }
+    },
+    {
+      "rep": 3,
+      "grid": 1,
+      "block": 1,
+      "total_threads": 1,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2513.0,
+        "cycles_active_max": 849.0,
+        "launch_overhead_cycles": 1664.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1635.0,
+        "cycles_active_max": 264.0,
+        "launch_overhead_cycles": 1371.0
+      }
+    },
+    {
+      "rep": 3,
+      "grid": 1,
+      "block": 32,
+      "total_threads": 32,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2516.0,
+        "cycles_active_max": 849.0,
+        "launch_overhead_cycles": 1667.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1634.0,
+        "cycles_active_max": 265.0,
+        "launch_overhead_cycles": 1369.0
+      }
+    },
+    {
+      "rep": 3,
+      "grid": 1,
+      "block": 256,
+      "total_threads": 256,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2471.0,
+        "cycles_active_max": 853.0,
+        "launch_overhead_cycles": 1618.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1599.0,
+        "cycles_active_max": 275.0,
+        "launch_overhead_cycles": 1324.0
+      }
+    },
+    {
+      "rep": 3,
+      "grid": 1,
+      "block": 1024,
+      "total_threads": 1024,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2483.0,
+        "cycles_active_max": 877.0,
+        "launch_overhead_cycles": 1606.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1612.0,
+        "cycles_active_max": 299.0,
+        "launch_overhead_cycles": 1313.0
+      }
+    },
+    {
+      "rep": 3,
+      "grid": 32,
+      "block": 256,
+      "total_threads": 8192,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2593.0,
+        "cycles_active_max": 922.0,
+        "launch_overhead_cycles": 1671.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1721.0,
+        "cycles_active_max": 323.0,
+        "launch_overhead_cycles": 1398.0
+      }
+    },
+    {
+      "rep": 3,
+      "grid": 128,
+      "block": 256,
+      "total_threads": 32768,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2827.0,
+        "cycles_active_max": 1015.0,
+        "launch_overhead_cycles": 1812.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1919.0,
+        "cycles_active_max": 341.0,
+        "launch_overhead_cycles": 1578.0
+      }
+    },
+    {
+      "rep": 3,
+      "grid": 256,
+      "block": 256,
+      "total_threads": 65536,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 3091.0,
+        "cycles_active_max": 1015.0,
+        "launch_overhead_cycles": 2076.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 2199.0,
+        "cycles_active_max": 491.0,
+        "launch_overhead_cycles": 1708.0
+      }
+    },
+    {
+      "rep": 3,
+      "grid": 512,
+      "block": 256,
+      "total_threads": 131072,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 3639.0,
+        "cycles_active_max": 1122.0,
+        "launch_overhead_cycles": 2517.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 2742.0,
+        "cycles_active_max": 686.0,
+        "launch_overhead_cycles": 2056.0
+      }
+    },
+    {
+      "rep": 4,
+      "grid": 1,
+      "block": 1,
+      "total_threads": 1,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2507.0,
+        "cycles_active_max": 842.0,
+        "launch_overhead_cycles": 1665.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1634.0,
+        "cycles_active_max": 264.0,
+        "launch_overhead_cycles": 1370.0
+      }
+    },
+    {
+      "rep": 4,
+      "grid": 1,
+      "block": 32,
+      "total_threads": 32,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2508.0,
+        "cycles_active_max": 842.0,
+        "launch_overhead_cycles": 1666.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1633.0,
+        "cycles_active_max": 265.0,
+        "launch_overhead_cycles": 1368.0
+      }
+    },
+    {
+      "rep": 4,
+      "grid": 1,
+      "block": 256,
+      "total_threads": 256,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2635.0,
+        "cycles_active_max": 1018.0,
+        "launch_overhead_cycles": 1617.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1592.0,
+        "cycles_active_max": 275.0,
+        "launch_overhead_cycles": 1317.0
+      }
+    },
+    {
+      "rep": 4,
+      "grid": 1,
+      "block": 1024,
+      "total_threads": 1024,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2485.0,
+        "cycles_active_max": 878.0,
+        "launch_overhead_cycles": 1607.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1605.0,
+        "cycles_active_max": 298.0,
+        "launch_overhead_cycles": 1307.0
+      }
+    },
+    {
+      "rep": 4,
+      "grid": 32,
+      "block": 256,
+      "total_threads": 8192,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2604.0,
+        "cycles_active_max": 926.0,
+        "launch_overhead_cycles": 1678.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1720.0,
+        "cycles_active_max": 322.0,
+        "launch_overhead_cycles": 1398.0
+      }
+    },
+    {
+      "rep": 4,
+      "grid": 128,
+      "block": 256,
+      "total_threads": 32768,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 2826.0,
+        "cycles_active_max": 1014.0,
+        "launch_overhead_cycles": 1812.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 1922.0,
+        "cycles_active_max": 335.0,
+        "launch_overhead_cycles": 1587.0
+      }
+    },
+    {
+      "rep": 4,
+      "grid": 256,
+      "block": 256,
+      "total_threads": 65536,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 3093.0,
+        "cycles_active_max": 1021.0,
+        "launch_overhead_cycles": 2072.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 2197.0,
+        "cycles_active_max": 492.0,
+        "launch_overhead_cycles": 1705.0
+      }
+    },
+    {
+      "rep": 4,
+      "grid": 512,
+      "block": 256,
+      "total_threads": 131072,
+      "cold": {
+        "launch_index": 0,
+        "cycles_elapsed_max": 3650.0,
+        "cycles_active_max": 1120.0,
+        "launch_overhead_cycles": 2530.0
+      },
+      "warm": {
+        "launch_index": 1,
+        "cycles_elapsed_max": 2739.0,
+        "cycles_active_max": 700.0,
+        "launch_overhead_cycles": 2039.0
+      }
+    }
+  ],
+  "measurement": {
+    "method": "ncu: launch overhead = sm__cycles_elapsed.max - sm__cycles_active.max per kernel launch; least-squares fit against grid*block per repetition; value = median over repetitions of the cold-launch (first launch) fit",
+    "metric_elapsed": "sm__cycles_elapsed.max",
+    "metric_active": "sm__cycles_active.max",
+    "launch_used_for_value": "cold",
+    "profiler": "NVIDIA (R) Nsight Compute Command Line Profiler\nCopyright (c) 2018-2024 NVIDIA Corporation\nVersion 2024.1.1.0 (build 33998838) (public-release)",
+    "ncu_cache_control": "none",
+    "ncu_clock_control": "base",
+    "configs": [
+      {
+        "grid": 1,
+        "block": 1,
+        "total_threads": 1
+      },
+      {
+        "grid": 1,
+        "block": 32,
+        "total_threads": 32
+      },
+      {
+        "grid": 1,
+        "block": 256,
+        "total_threads": 256
+      },
+      {
+        "grid": 1,
+        "block": 1024,
+        "total_threads": 1024
+      },
+      {
+        "grid": 32,
+        "block": 256,
+        "total_threads": 8192
+      },
+      {
+        "grid": 128,
+        "block": 256,
+        "total_threads": 32768
+      },
+      {
+        "grid": 256,
+        "block": 256,
+        "total_threads": 65536
+      },
+      {
+        "grid": 512,
+        "block": 256,
+        "total_threads": 131072
+      }
+    ],
+    "warmup_launches": 1,
+    "reps": 5,
+    "device_index": 0,
+    "gpu_uuid": "GPU-baa7d0cf-b5de-0c6d-e487-2b8d5c508e8b",
+    "visible_gpu_count": 2
+  },
+  "cuda_version": "12.4",
+  "nvcc_version": "12.4",
+  "driver_version": "580.196.07",
+  "git_commit": "62330d8",
+  "timestamp": "2026-11-14T02:10:58Z"
+}

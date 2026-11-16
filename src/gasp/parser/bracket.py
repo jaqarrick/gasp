@@ -10,3 +10,9 @@ class BracketSASSParser(SASSParser):
         if op.startswith("["):
             return self._strip_operand_brackets(op)
         return None
+
+    def _address_inner(self, op) -> str | None:
+        # [R2.64+0x10] -> R2.64+0x10
+        if op.startswith("["):
+            return op.strip("[]")
+        return None

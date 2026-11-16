@@ -1,0 +1,57 @@
+$ nvcc -O3 -std=c++17 -arch=sm_70 /home/jpc465/gpu/gasp-gpu/hardware/microbenchmarks/gasp-bm/launch_overhead_bench.cu -o /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/build/launch_overhead
+$ /home/jpc465/gpu/gasp-gpu/.venv/bin/python3 /home/jpc465/gpu/gasp-gpu/hardware/microbenchmarks/gasp-bm/run_launch_overhead.py --binary /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/build/launch_overhead --output-dir /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/launch_overhead --raw-dir /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/launch_overhead/raw --gpu titanv --clock-control base
+Warning: 2 GPUs are visible; the benchmark uses device 0 (NVIDIA TITAN V). Every run is checked against it.
+[rep 1/5] 1x1
+[rep 1/5] 1x32
+[rep 1/5] 1x256
+[rep 1/5] 1x1024
+[rep 1/5] 32x256
+[rep 1/5] 128x256
+[rep 1/5] 256x256
+[rep 1/5] 512x256
+[rep 2/5] 1x1
+[rep 2/5] 1x32
+[rep 2/5] 1x256
+[rep 2/5] 1x1024
+[rep 2/5] 32x256
+[rep 2/5] 128x256
+[rep 2/5] 256x256
+[rep 2/5] 512x256
+[rep 3/5] 1x1
+[rep 3/5] 1x32
+[rep 3/5] 1x256
+[rep 3/5] 1x1024
+[rep 3/5] 32x256
+[rep 3/5] 128x256
+[rep 3/5] 256x256
+[rep 3/5] 512x256
+[rep 4/5] 1x1
+[rep 4/5] 1x32
+[rep 4/5] 1x256
+[rep 4/5] 1x1024
+[rep 4/5] 32x256
+[rep 4/5] 128x256
+[rep 4/5] 256x256
+[rep 4/5] 512x256
+[rep 5/5] 1x1
+[rep 5/5] 1x32
+[rep 5/5] 1x256
+[rep 5/5] 1x1024
+[rep 5/5] 32x256
+[rep 5/5] 128x256
+[rep 5/5] 256x256
+[rep 5/5] 512x256
+
+GPU: NVIDIA TITAN V (sm_70, 80 SMs); 5 reps, 1 warmup launch(es)
+Median launch overhead per config (cycles):
+    config         cold         warm    warm-cold
+       1x1       1666.0       1370.0       -296.0
+      1x32       1666.0       1368.0       -298.0
+     1x256       1619.0       1319.0       -300.0
+    1x1024       1606.0       1308.0       -298.0
+    32x256       1672.0       1398.0       -274.0
+   128x256       1812.0       1578.0       -234.0
+   256x256       2075.0       1705.0       -370.0
+   512x256       2530.0       2046.0       -484.0
+launch_base_cycles = 1627.82031907 cycles (warm: 1349.94770364) -> /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/launch_overhead/launch_base_cycles_nvidia_titan_v.json
+launch_per_thread_cycles = 0.00679922801747 cycles/thread (warm: 0.0053908350183) -> /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/launch_overhead/launch_per_thread_cycles_nvidia_titan_v.json

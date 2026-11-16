@@ -1,0 +1,27 @@
+# gasp --gpu rtx2080ti --run --config benchmarks/divergence/divergence.toml
+#
+# The same work per thread, n = 256 steps of __sinf or __cosf, chosen by a branch.
+# divergent branches on threadIdx.x & 1, so every warp runs both loops; uniform
+# branches on blockIdx.x & 1, so every warp runs one. Expected: uniform about 2x
+# faster, and GASP's Divergent Insts about one loop's worth for divergent, 0 for uniform.
+#
+# __sinf / __cosf avoid the slow-path branches of sinf / cosf, and #pragma unroll 1
+# keeps each loop a single loop. loop_counts are the two loops in code order
+# (sin, then cos), n steps each; change them with n.
+
+[defaults]
+problem_size = 1048576
+block_size = 256
+grid_size = 4096
+params = { N = 1048576, n = 256 }
+program_args = ["1048576", "256"]
+
+[[kernel]]
+name = "divergent"
+file = "benchmarks/divergence/branch_divergent.cu"
+loop_counts = [256, 256]
+
+[[kernel]]
+name = "uniform"
+file = "benchmarks/divergence/branch_uniform.cu"
+loop_counts = [256, 256]

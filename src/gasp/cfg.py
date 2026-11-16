@@ -168,6 +168,18 @@ def filter_cfg(cfg: ControlFlowGraph, kernel: str) -> ControlFlowGraph:
     return ControlFlowGraph(nodes=nodes, edges=edges)
 
 
+def neighbors(
+    cfg: ControlFlowGraph,
+) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+    """(successors, predecessors) of every node, one entry per edge."""
+    successors: dict[str, list[str]] = {node_id: [] for node_id in cfg.nodes}
+    predecessors: dict[str, list[str]] = {node_id: [] for node_id in cfg.nodes}
+    for edge in cfg.edges:
+        successors[edge.source].append(edge.target)
+        predecessors[edge.target].append(edge.source)
+    return successors, predecessors
+
+
 def format_cfg(cfg: ControlFlowGraph) -> str:
     """Render a ControlFlowGraph as readable text."""
     out = [f"=== CFG: {len(cfg.nodes)} nodes, {len(cfg.edges)} edges ===", ""]

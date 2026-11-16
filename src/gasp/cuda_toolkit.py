@@ -1,3 +1,4 @@
+import os
 import re
 import shutil
 import subprocess
@@ -7,14 +8,66 @@ from typing import TypedDict
 from gasp.logger import Logger
 
 REQUIRED: list[str] = ["nvcc", "nvdisasm", "cuobjdump"]
+# a CUDA install outside PATH, the usual place on Linux
+DEFAULT_CUDA_BIN = "/usr/local/cuda/bin"
+
+
+def cuda_hint() -> str:
+    """How to get the CUDA tools onto PATH on this machine."""
+    # Lmod and Environment Modules both set MODULESHOME, e.g. on HPC clusters
+    if os.environ.get("MODULESHOME") or os.environ.get("LMOD_CMD"):
+        return (
+            "Load the CUDA module first, e.g. 'module load cuda' "
+            "('module avail cuda' lists the versions)"
+        )
+    if os.path.isfile(os.path.join(DEFAULT_CUDA_BIN, "nvcc")):
+        return f"CUDA is installed but not on PATH: add {DEFAULT_CUDA_BIN} to PATH"
+    return "Install the CUDA Toolkit and add its bin/ to PATH"
+
+
 # kernel name -> {"reg" | "shared" | "stack" | "local": value}
 ResourceUsage = dict[str, dict[str, int]]
+
+
+# label (.L_x_4, or a kernel name) -> (source file, line) of its first instruction
+LabelLines = dict[str, tuple[str, int]]
 
 
 class KernelInfo(TypedDict):
     raw_sass: str
     raw_cfg: str
     resources: ResourceUsage
+    label_lines: LabelLines
+
+
+_LABEL = re.compile(r"^([.\w$]+):\s*$")
+_LINE_INFO = re.compile(r'//## File "([^"]+)", line (\d+)')
+_INSTRUCTION = re.compile(r"^\s*/\*[0-9a-f]+\*/")
+
+
+def parse_label_lines(disassembly: str) -> LabelLines:
+    """Source line of each label's first instruction, from `nvdisasm -g` output.
+
+    nvdisasm writes a `//## File` comment only when the line changes, so a label
+    with none before its first instruction is still on the line seen last.
+    """
+    lines: LabelLines = {}
+    current: tuple[str, int] | None = None
+    pending: list[str] = []
+    for text in disassembly.splitlines():
+        if (info := _LINE_INFO.search(text)) is not None:
+            current = (info.group(1), int(info.group(2)))
+            for label in pending:
+                lines[label] = current
+            pending = []
+        elif (label := _LABEL.match(text)) is not None:
+            pending.append(label.group(1))
+        elif _INSTRUCTION.match(text):
+            if current is not None:
+                for label in pending:
+                    lines[label] = current
+            pending = []
+    return lines
 
 
 class CUDAExtractor:
@@ -37,7 +90,7 @@ class CUDAExtractor:
         missing = [t for t in REQUIRED if not shutil.which(t)]
         if missing:
             self.logger.error(f"Missing packages: {', '.join(missing)}")
-            self.logger.error("Install the CUDA Toolkit (nvidia-cuda-toolkit)")
+            self.logger.error(cuda_hint())
             sys.exit(1)
 
     def compile(self) -> None:
@@ -45,6 +98,8 @@ class CUDAExtractor:
             "nvcc",
             "-cubin",
             f"-arch={self.arch}",
+            # source lines for the loop table; the SASS is the same without it
+            "-lineinfo",
             *(f"-I{d}" for d in self.include_dirs),
             *self.extra_flags,
             self.input_file,
@@ -67,6 +122,22 @@ class CUDAExtractor:
             self.logger.error(f"nvdisasm failed:\n{result.stderr}")
             sys.exit(1)
         return result.stdout
+
+    def get_label_lines(self) -> LabelLines:
+        """Source lines of the labels. Only used to describe loops, so a failure
+        only warns."""
+        result = subprocess.run(
+            ["nvdisasm", "-g", self.cubin_path],
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+        if result.returncode != 0:
+            self.logger.warning(
+                f"nvdisasm -g failed, no source lines:\n{result.stderr}"
+            )
+            return {}
+        return parse_label_lines(result.stdout)
 
     def get_cfg(self) -> str:
         result = subprocess.run(
@@ -119,10 +190,13 @@ class CUDAExtractor:
         raw_cfg = self.get_cfg()
         self.logger.info("Extracting kernel resource usage")
         resources = self.get_resource_usage()
+        self.logger.info("Extracting source lines")
+        label_lines = self.get_label_lines()
         kernel_info: KernelInfo = {
             "raw_sass": sass,
             "raw_cfg": raw_cfg,
             "resources": resources,
+            "label_lines": label_lines,
         }
 
         return kernel_info

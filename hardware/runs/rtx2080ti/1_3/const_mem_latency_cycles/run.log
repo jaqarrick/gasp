@@ -1,0 +1,19 @@
+$ nvcc -O3 -std=c++17 -arch=sm_75 /home/jpc465/gpu/gasp-gpu/hardware/microbenchmarks/gasp-bm/constant_memory_load.cu -o /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx2080ti/1_3/build/constant_memory_load
+$ ncu --clock-control base --cache-control none --metrics gpc__cycles_elapsed.max --log-file /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx2080ti/1_3/const_mem_latency_cycles/ncu.log /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx2080ti/1_3/build/constant_memory_load --gpu rtx2080ti --out-dir /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx2080ti/1_3/const_mem_latency_cycles
+Saved /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx2080ti/1_3/const_mem_latency_cycles/const_mem_latency_cycles.rtx2080ti.run.json (32.560 cycles per const load)
+{
+  "benchmark": "constant_memory_load.cu",
+  "parameter": "const_mem_latency_cycles",
+  "value": 32.5598,
+  "unit": "cycles",
+  "gpu": "rtx2080ti",
+  "gpu_name": "NVIDIA GeForce RTX 2080 Ti",
+  "arch": "sm_75",
+  "num_sms": 68,
+  "clock": {"sm_clock_ghz": 1.3380},
+  "cuda_version": "12.4",
+  "nvcc_version": "12.4",
+  "driver_version": "595.104.02",
+  "git_commit": "533f4be",
+  "timestamp": "2026-11-16T15:49:44Z"
+}

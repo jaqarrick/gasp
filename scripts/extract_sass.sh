@@ -11,7 +11,7 @@ usage() {
     echo ""
     echo "Options:"
     echo "  --arch ARCH        Target architecture (default: sm_80)"
-    echo "                     Options: sm_80, sm_86, sm_89, sm_90, sm_100"
+    echo "                     Options: sm_70, sm_75, sm_80, sm_86, sm_89, sm_90, sm_100"
     echo "  --out-dir, -od DIR Output directory (default: same as input file)"
     echo "  -I DIR             Add an include directory (repeatable)"
     echo "  --nvcc-flags FLAGS Extra flags passed to nvcc, e.g. \"--use_fast_math -Xptxas -dlcm=cg\""

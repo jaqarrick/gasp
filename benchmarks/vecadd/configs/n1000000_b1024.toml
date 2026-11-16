@@ -1,0 +1,15 @@
+# N = 1000000, block 1024
+
+[defaults]
+problem_size = 1000000
+footprint = 12000000
+block_size = 1024
+program_args = ["1000000"]
+
+[[kernel]]
+name = "good"
+file = "benchmarks/vecadd/vecadd_good.cu"
+
+[[kernel]]
+name = "poor"
+file = "benchmarks/vecadd/vecadd_poor.cu"

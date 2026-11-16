@@ -1,0 +1,66 @@
+$ nvcc -O3 -std=c++17 -arch=sm_70 /home/jpc465/gpu/gasp-gpu/hardware/microbenchmarks/gasp-bm/shared_memory_load_throughput.cu -o /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/build/shared_memory_load_throughput
+$ ncu --clock-control base --cache-control none --metrics gpc__cycles_elapsed.max --log-file /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/shared_mem_load_throughput_cycles/ncu.log /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/build/shared_memory_load_throughput --gpu titanv --out-dir /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/shared_mem_load_throughput_cycles
+loads_only       warps/SM  1: 5.5645 cycles/load, 5.5645 cycles/access
+loads_only       warps/SM  2: 2.8447 cycles/load, 2.8447 cycles/access
+loads_only       warps/SM  4: 1.4225 cycles/load, 1.4225 cycles/access
+loads_only       warps/SM  8: 1.0170 cycles/load, 1.0170 cycles/access
+loads_only       warps/SM 16: 1.0027 cycles/load, 1.0027 cycles/access
+loads_only       warps/SM 32: 1.0012 cycles/load, 1.0012 cycles/access
+10loads_1store   warps/SM  1: 7.2055 cycles/load, 6.5504 cycles/access
+10loads_1store   warps/SM  2: 3.6029 cycles/load, 3.2754 cycles/access
+10loads_1store   warps/SM  4: 1.8016 cycles/load, 1.6378 cycles/access
+10loads_1store   warps/SM  8: 1.1023 cycles/load, 1.0021 cycles/access
+10loads_1store   warps/SM 16: 1.1040 cycles/load, 1.0036 cycles/access
+10loads_1store   warps/SM 32: 1.1020 cycles/load, 1.0018 cycles/access
+Saved results to /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/shared_mem_load_throughput_cycles/shared_mem_load_throughput_cycles.titanv.run.json
+{
+  "schema_version": "1.1.0",
+  "benchmark": "shared_memory_load_throughput.cu",
+  "benchmark_version": "1.0.0",
+  "parameter": "shared_mem_load_throughput_cycles",
+  "value": 1.0012,
+  "unit": "SM cycles per warp shared load instruction, at the plateau",
+  "plateau_ok": true,
+  "gpu": "titanv",
+  "architecture": "volta",
+  "arch": "sm_70",
+  "device": {
+    "name": "NVIDIA TITAN V",
+    "sms": 80,
+    "max_warps_per_sm": 64
+  },
+  "plateaus": {
+    "loads_only": {"cycles_per_load": 1.0012, "cycles_per_access": 1.0012, "plateau_ok": true},
+    "10loads_1store": {"cycles_per_load": 1.1020, "cycles_per_access": 1.0018, "plateau_ok": true}
+  },
+  "configs": [
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 1, "span_cycles": 22850.0000, "overhead_cycles": 58.0000, "cycles_per_load": 5.5645, "cycles_per_access": 5.5645, "rep_spread": 0.0000, "sms_measured": 80},
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 2, "span_cycles": 23366.0000, "overhead_cycles": 62.0000, "cycles_per_load": 2.8447, "cycles_per_access": 2.8447, "rep_spread": 0.0000, "sms_measured": 80},
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 4, "span_cycles": 23376.0000, "overhead_cycles": 70.0000, "cycles_per_load": 1.4225, "cycles_per_access": 1.4225, "rep_spread": 0.0009, "sms_measured": 80},
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 8, "span_cycles": 33410.5000, "overhead_cycles": 86.0000, "cycles_per_load": 1.0170, "cycles_per_access": 1.0170, "rep_spread": 0.0036, "sms_measured": 80},
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 16, "span_cycles": 65831.0000, "overhead_cycles": 118.0000, "cycles_per_load": 1.0027, "cycles_per_access": 1.0027, "rep_spread": 0.0001, "sms_measured": 80},
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 32, "span_cycles": 131409.0000, "overhead_cycles": 183.0000, "cycles_per_load": 1.0012, "cycles_per_access": 1.0012, "rep_spread": 0.0004, "sms_measured": 80},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 1, "span_cycles": 18504.0000, "overhead_cycles": 58.0000, "cycles_per_load": 7.2055, "cycles_per_access": 6.5504, "rep_spread": 0.0000, "sms_measured": 80},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 2, "span_cycles": 18509.0000, "overhead_cycles": 62.0000, "cycles_per_load": 3.6029, "cycles_per_access": 3.2754, "rep_spread": 0.0001, "sms_measured": 80},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 4, "span_cycles": 18518.0000, "overhead_cycles": 70.0000, "cycles_per_load": 1.8016, "cycles_per_access": 1.6378, "rep_spread": 0.0000, "sms_measured": 80},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 8, "span_cycles": 22662.0000, "overhead_cycles": 86.0000, "cycles_per_load": 1.1023, "cycles_per_access": 1.0021, "rep_spread": 0.0019, "sms_measured": 80},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 16, "span_cycles": 45337.0000, "overhead_cycles": 118.0000, "cycles_per_load": 1.1040, "cycles_per_access": 1.0036, "rep_spread": 0.0008, "sms_measured": 80},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 32, "span_cycles": 90457.0000, "overhead_cycles": 183.0000, "cycles_per_load": 1.1020, "cycles_per_access": 1.0018, "rep_spread": 0.0002, "sms_measured": 80}
+  ],
+  "clock": {"sm_clock_ghz": 1.2075},
+  "measurement": {
+    "method": "independent conflict-free warp shared loads, one block per SM; per-SM clock64 span minus the empty loop's",
+    "load_instruction": "ld.volatile.shared.u32",
+    "store_instruction": "st.volatile.shared.u32",
+    "value_formula": "(span - overhead) / (warps on the SM x groups x loads per group), lowest over warps per SM, loads_only shape",
+    "groups_per_warp": 256,
+    "loads_per_group": 16,
+    "mixed_loads_per_group": 10,
+    "mixed_stores_per_group": 1,
+    "blocks": 80,
+    "reps": 200
+  },
+  "cuda_version": "12.4",
+  "driver_api_version": "13.0",
+  "timestamp": "2026-11-14T01:24:26Z"
+}

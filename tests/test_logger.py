@@ -1,5 +1,7 @@
 """Tests for gasp.logger — module-scoped traces."""
 
+import json
+
 from gasp.logger import TRACE_MODULES, Logger, format_table
 
 
@@ -71,3 +73,23 @@ def test_format_table_aligns_columns():
     assert format_table(["Name", "V"], [["a", "100"], ["long name", "1"]]) == (
         "Name       V\n---------  ---\na          100\nlong name  1"
     )
+
+
+def test_json_mode_keeps_stdout_for_the_json(capsys):
+    logger = Logger(json_mode=True)
+
+    logger.table("Prediction", ["Kernel"], [["good"]], force=True)
+    logger.success("saved")
+    logger.emit_json({"prediction": {"kernels": {}}, "result": None})
+
+    out, err = capsys.readouterr()
+    assert json.loads(out) == {"prediction": {"kernels": {}}, "result": None}
+    assert "\x1b[" not in out
+    assert "PREDICTION" in err
+    assert "saved" in err
+
+
+def test_tables_go_to_stdout_without_json_mode(capsys):
+    Logger().table("Prediction", ["Kernel"], [["good"]], force=True)
+
+    assert "PREDICTION" in capsys.readouterr().out

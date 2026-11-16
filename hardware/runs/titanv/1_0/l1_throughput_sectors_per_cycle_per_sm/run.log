@@ -1,0 +1,105 @@
+$ nvcc -O3 -std=c++17 -arch=sm_70 /home/jpc465/gpu/gasp-gpu/hardware/microbenchmarks/gasp-bm/l1_throughput.cu -o /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/build/l1_throughput
+$ ncu --clock-control base --cache-control none --metrics gpc__cycles_elapsed.max --log-file /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/l1_throughput_sectors_per_cycle_per_sm/ncu.log /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/build/l1_throughput --gpu titanv --out-dir /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/l1_throughput_sectors_per_cycle_per_sm --l1-bytes 131072
+32bit_4sectors           warps/SM  1: 0.0733 requests/cycle, 0.2933 sectors/cycle
+32bit_4sectors           warps/SM  2: 0.1446 requests/cycle, 0.5785 sectors/cycle
+32bit_4sectors           warps/SM  4: 0.2853 requests/cycle, 1.1414 sectors/cycle
+32bit_4sectors           warps/SM  8: 0.3552 requests/cycle, 1.4208 sectors/cycle
+32bit_4sectors           warps/SM 16: 0.4322 requests/cycle, 1.7290 sectors/cycle
+32bit_4sectors           warps/SM 32: 0.4345 requests/cycle, 1.7381 sectors/cycle
+32bit_2sectors           warps/SM  1: 0.0733 requests/cycle, 0.1466 sectors/cycle
+32bit_2sectors           warps/SM  2: 0.1440 requests/cycle, 0.2880 sectors/cycle
+32bit_2sectors           warps/SM  4: 0.2853 requests/cycle, 0.5707 sectors/cycle
+32bit_2sectors           warps/SM  8: 0.3552 requests/cycle, 0.7104 sectors/cycle
+32bit_2sectors           warps/SM 16: 0.4322 requests/cycle, 0.8645 sectors/cycle
+32bit_2sectors           warps/SM 32: 0.4346 requests/cycle, 0.8692 sectors/cycle
+64bit_8sectors           warps/SM  1: 0.0497 requests/cycle, 0.3972 sectors/cycle
+64bit_8sectors           warps/SM  2: 0.0987 requests/cycle, 0.7895 sectors/cycle
+64bit_8sectors           warps/SM  4: 0.1903 requests/cycle, 1.5220 sectors/cycle
+64bit_8sectors           warps/SM  8: 0.3210 requests/cycle, 2.5677 sectors/cycle
+64bit_8sectors           warps/SM 16: 0.4091 requests/cycle, 3.2731 sectors/cycle
+64bit_8sectors           warps/SM 32: 0.4165 requests/cycle, 3.3318 sectors/cycle
+128bit_16sectors         warps/SM  1: 0.0459 requests/cycle, 0.7351 sectors/cycle
+128bit_16sectors         warps/SM  2: 0.0918 requests/cycle, 1.4695 sectors/cycle
+128bit_16sectors         warps/SM  4: 0.1738 requests/cycle, 2.7815 sectors/cycle
+128bit_16sectors         warps/SM  8: 0.2168 requests/cycle, 3.4688 sectors/cycle
+128bit_16sectors         warps/SM 16: 0.2333 requests/cycle, 3.7327 sectors/cycle
+128bit_16sectors         warps/SM 32: 0.2339 requests/cycle, 3.7431 sectors/cycle
+32bit_4sectors_2stores   warps/SM  1: 0.0683 requests/cycle, 0.2732 sectors/cycle
+32bit_4sectors_2stores   warps/SM  2: 0.1366 requests/cycle, 0.5464 sectors/cycle
+32bit_4sectors_2stores   warps/SM  4: 0.2732 requests/cycle, 1.0926 sectors/cycle
+32bit_4sectors_2stores   warps/SM  8: 0.3753 requests/cycle, 1.5011 sectors/cycle
+32bit_4sectors_2stores   warps/SM 16: 0.4171 requests/cycle, 1.6685 sectors/cycle
+32bit_4sectors_2stores   warps/SM 32: 0.4166 requests/cycle, 1.6664 sectors/cycle
+{
+  "schema_version": "1.1.0",
+  "benchmark": "l1_throughput.cu",
+  "benchmark_version": "1.0.0",
+  "parameter": "l1_throughput_sectors_per_cycle_per_sm",
+  "value": 1.7381,
+  "unit": "32-byte sectors per SM cycle (global loads, L1 hits)",
+  "plateau_ok": true,
+  "requests_per_cycle_per_sm": 0.4345,
+  "gpu": "titanv",
+  "architecture": "volta",
+  "arch": "sm_70",
+  "device": {
+    "name": "NVIDIA TITAN V",
+    "sms": 80,
+    "l2_cache_bytes": 4718592
+  },
+  "plateaus": {
+    "32bit_4sectors": {"requests_per_cycle": 0.4345, "sectors_per_cycle": 1.7381, "plateau_ok": true},
+    "32bit_2sectors": {"requests_per_cycle": 0.4346, "sectors_per_cycle": 0.8692, "plateau_ok": true},
+    "64bit_8sectors": {"requests_per_cycle": 0.4165, "sectors_per_cycle": 3.3318, "plateau_ok": true},
+    "128bit_16sectors": {"requests_per_cycle": 0.2339, "sectors_per_cycle": 3.7431, "plateau_ok": true},
+    "32bit_4sectors_2stores": {"requests_per_cycle": 0.4171, "sectors_per_cycle": 1.6685, "plateau_ok": true}
+  },
+  "configs": [
+    {"shape": "32bit_4sectors", "load_width_bytes": 4, "sectors_per_request": 4.0000, "stores_per_group": 0, "warps_per_sm": 1, "requests_per_cycle": 0.0733, "sectors_per_cycle": 0.2933, "accesses_per_cycle": 0.0733, "rep_spread": 0.0000, "sms_measured": 80},
+    {"shape": "32bit_4sectors", "load_width_bytes": 4, "sectors_per_request": 4.0000, "stores_per_group": 0, "warps_per_sm": 2, "requests_per_cycle": 0.1446, "sectors_per_cycle": 0.5785, "accesses_per_cycle": 0.1446, "rep_spread": 0.0090, "sms_measured": 80},
+    {"shape": "32bit_4sectors", "load_width_bytes": 4, "sectors_per_request": 4.0000, "stores_per_group": 0, "warps_per_sm": 4, "requests_per_cycle": 0.2853, "sectors_per_cycle": 1.1414, "accesses_per_cycle": 0.2853, "rep_spread": 0.0000, "sms_measured": 80},
+    {"shape": "32bit_4sectors", "load_width_bytes": 4, "sectors_per_request": 4.0000, "stores_per_group": 0, "warps_per_sm": 8, "requests_per_cycle": 0.3552, "sectors_per_cycle": 1.4208, "accesses_per_cycle": 0.3552, "rep_spread": 0.0000, "sms_measured": 80},
+    {"shape": "32bit_4sectors", "load_width_bytes": 4, "sectors_per_request": 4.0000, "stores_per_group": 0, "warps_per_sm": 16, "requests_per_cycle": 0.4322, "sectors_per_cycle": 1.7290, "accesses_per_cycle": 0.4322, "rep_spread": 0.0022, "sms_measured": 80},
+    {"shape": "32bit_4sectors", "load_width_bytes": 4, "sectors_per_request": 4.0000, "stores_per_group": 0, "warps_per_sm": 32, "requests_per_cycle": 0.4345, "sectors_per_cycle": 1.7381, "accesses_per_cycle": 0.4345, "rep_spread": 0.0012, "sms_measured": 80},
+    {"shape": "32bit_2sectors", "load_width_bytes": 4, "sectors_per_request": 2.0000, "stores_per_group": 0, "warps_per_sm": 1, "requests_per_cycle": 0.0733, "sectors_per_cycle": 0.1466, "accesses_per_cycle": 0.0733, "rep_spread": 0.0000, "sms_measured": 80},
+    {"shape": "32bit_2sectors", "load_width_bytes": 4, "sectors_per_request": 2.0000, "stores_per_group": 0, "warps_per_sm": 2, "requests_per_cycle": 0.1440, "sectors_per_cycle": 0.2880, "accesses_per_cycle": 0.1440, "rep_spread": 0.0000, "sms_measured": 80},
+    {"shape": "32bit_2sectors", "load_width_bytes": 4, "sectors_per_request": 2.0000, "stores_per_group": 0, "warps_per_sm": 4, "requests_per_cycle": 0.2853, "sectors_per_cycle": 0.5707, "accesses_per_cycle": 0.2853, "rep_spread": 0.0000, "sms_measured": 80},
+    {"shape": "32bit_2sectors", "load_width_bytes": 4, "sectors_per_request": 2.0000, "stores_per_group": 0, "warps_per_sm": 8, "requests_per_cycle": 0.3552, "sectors_per_cycle": 0.7104, "accesses_per_cycle": 0.3552, "rep_spread": 0.0000, "sms_measured": 80},
+    {"shape": "32bit_2sectors", "load_width_bytes": 4, "sectors_per_request": 2.0000, "stores_per_group": 0, "warps_per_sm": 16, "requests_per_cycle": 0.4322, "sectors_per_cycle": 0.8645, "accesses_per_cycle": 0.4322, "rep_spread": 0.0020, "sms_measured": 80},
+    {"shape": "32bit_2sectors", "load_width_bytes": 4, "sectors_per_request": 2.0000, "stores_per_group": 0, "warps_per_sm": 32, "requests_per_cycle": 0.4346, "sectors_per_cycle": 0.8692, "accesses_per_cycle": 0.4346, "rep_spread": 0.0013, "sms_measured": 80},
+    {"shape": "64bit_8sectors", "load_width_bytes": 8, "sectors_per_request": 8.0000, "stores_per_group": 0, "warps_per_sm": 1, "requests_per_cycle": 0.0497, "sectors_per_cycle": 0.3972, "accesses_per_cycle": 0.0497, "rep_spread": 0.0000, "sms_measured": 80},
+    {"shape": "64bit_8sectors", "load_width_bytes": 8, "sectors_per_request": 8.0000, "stores_per_group": 0, "warps_per_sm": 2, "requests_per_cycle": 0.0987, "sectors_per_cycle": 0.7895, "accesses_per_cycle": 0.0987, "rep_spread": 0.0000, "sms_measured": 80},
+    {"shape": "64bit_8sectors", "load_width_bytes": 8, "sectors_per_request": 8.0000, "stores_per_group": 0, "warps_per_sm": 4, "requests_per_cycle": 0.1903, "sectors_per_cycle": 1.5220, "accesses_per_cycle": 0.1903, "rep_spread": 0.0000, "sms_measured": 80},
+    {"shape": "64bit_8sectors", "load_width_bytes": 8, "sectors_per_request": 8.0000, "stores_per_group": 0, "warps_per_sm": 8, "requests_per_cycle": 0.3210, "sectors_per_cycle": 2.5677, "accesses_per_cycle": 0.3210, "rep_spread": 0.0093, "sms_measured": 80},
+    {"shape": "64bit_8sectors", "load_width_bytes": 8, "sectors_per_request": 8.0000, "stores_per_group": 0, "warps_per_sm": 16, "requests_per_cycle": 0.4091, "sectors_per_cycle": 3.2731, "accesses_per_cycle": 0.4091, "rep_spread": 0.0022, "sms_measured": 80},
+    {"shape": "64bit_8sectors", "load_width_bytes": 8, "sectors_per_request": 8.0000, "stores_per_group": 0, "warps_per_sm": 32, "requests_per_cycle": 0.4165, "sectors_per_cycle": 3.3318, "accesses_per_cycle": 0.4165, "rep_spread": 0.0011, "sms_measured": 80},
+    {"shape": "128bit_16sectors", "load_width_bytes": 16, "sectors_per_request": 16.0000, "stores_per_group": 0, "warps_per_sm": 1, "requests_per_cycle": 0.0459, "sectors_per_cycle": 0.7351, "accesses_per_cycle": 0.0459, "rep_spread": 0.0000, "sms_measured": 80},
+    {"shape": "128bit_16sectors", "load_width_bytes": 16, "sectors_per_request": 16.0000, "stores_per_group": 0, "warps_per_sm": 2, "requests_per_cycle": 0.0918, "sectors_per_cycle": 1.4695, "accesses_per_cycle": 0.0918, "rep_spread": 0.0000, "sms_measured": 80},
+    {"shape": "128bit_16sectors", "load_width_bytes": 16, "sectors_per_request": 16.0000, "stores_per_group": 0, "warps_per_sm": 4, "requests_per_cycle": 0.1738, "sectors_per_cycle": 2.7815, "accesses_per_cycle": 0.1738, "rep_spread": 0.0000, "sms_measured": 80},
+    {"shape": "128bit_16sectors", "load_width_bytes": 16, "sectors_per_request": 16.0000, "stores_per_group": 0, "warps_per_sm": 8, "requests_per_cycle": 0.2168, "sectors_per_cycle": 3.4688, "accesses_per_cycle": 0.2168, "rep_spread": 0.0023, "sms_measured": 80},
+    {"shape": "128bit_16sectors", "load_width_bytes": 16, "sectors_per_request": 16.0000, "stores_per_group": 0, "warps_per_sm": 16, "requests_per_cycle": 0.2333, "sectors_per_cycle": 3.7327, "accesses_per_cycle": 0.2333, "rep_spread": 0.0006, "sms_measured": 80},
+    {"shape": "128bit_16sectors", "load_width_bytes": 16, "sectors_per_request": 16.0000, "stores_per_group": 0, "warps_per_sm": 32, "requests_per_cycle": 0.2339, "sectors_per_cycle": 3.7431, "accesses_per_cycle": 0.2339, "rep_spread": 0.0004, "sms_measured": 80},
+    {"shape": "32bit_4sectors_2stores", "load_width_bytes": 4, "sectors_per_request": 4.0000, "stores_per_group": 2, "warps_per_sm": 1, "requests_per_cycle": 0.0683, "sectors_per_cycle": 0.2732, "accesses_per_cycle": 0.0854, "rep_spread": 0.0000, "sms_measured": 80},
+    {"shape": "32bit_4sectors_2stores", "load_width_bytes": 4, "sectors_per_request": 4.0000, "stores_per_group": 2, "warps_per_sm": 2, "requests_per_cycle": 0.1366, "sectors_per_cycle": 0.5464, "accesses_per_cycle": 0.1707, "rep_spread": 0.0000, "sms_measured": 80},
+    {"shape": "32bit_4sectors_2stores", "load_width_bytes": 4, "sectors_per_request": 4.0000, "stores_per_group": 2, "warps_per_sm": 4, "requests_per_cycle": 0.2732, "sectors_per_cycle": 1.0926, "accesses_per_cycle": 0.3415, "rep_spread": 0.0000, "sms_measured": 80},
+    {"shape": "32bit_4sectors_2stores", "load_width_bytes": 4, "sectors_per_request": 4.0000, "sSaved results to /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/l1_throughput_sectors_per_cycle_per_sm/l1_throughput_sectors_per_cycle_per_sm.titanv.run.json
+tores_per_group": 2, "warps_per_sm": 8, "requests_per_cycle": 0.3753, "sectors_per_cycle": 1.5011, "accesses_per_cycle": 0.4691, "rep_spread": 0.0034, "sms_measured": 80},
+    {"shape": "32bit_4sectors_2stores", "load_width_bytes": 4, "sectors_per_request": 4.0000, "stores_per_group": 2, "warps_per_sm": 16, "requests_per_cycle": 0.4171, "sectors_per_cycle": 1.6685, "accesses_per_cycle": 0.5214, "rep_spread": 0.0047, "sms_measured": 80},
+    {"shape": "32bit_4sectors_2stores", "load_width_bytes": 4, "sectors_per_request": 4.0000, "stores_per_group": 2, "warps_per_sm": 32, "requests_per_cycle": 0.4166, "sectors_per_cycle": 1.6664, "accesses_per_cycle": 0.5208, "rep_spread": 0.0036, "sms_measured": 80}
+  ],
+  "clock": {"sm_clock_ghz": 1.2075},
+  "measurement": {
+    "method": "per-block slice in L1, warm pass, independent coalesced loads; per-SM clock64 span",
+    "load_instruction": "ld.global.u32 / .v2.u32 / .v4.u32 (default cache policy)",
+    "slice_bytes_per_sm": 65536,
+    "l1_bytes": 131072,
+    "loads_per_warp": 4096,
+    "unroll": 8,
+    "stores_per_group_mixed": 2,
+    "blocks": 80,
+    "reps": 100
+  },
+  "cuda_version": "12.4",
+  "driver_api_version": "13.0",
+  "timestamp": "2026-11-14T01:24:46Z"
+}

@@ -15,6 +15,9 @@
 #   BIN_DIR       where the wrappers go          (default ~/.local/bin)
 #   FAIAL_MODE    auto | native | container      (default auto)
 #
+# If BIN_DIR is not on PATH, the script offers to add it to your shell's rc
+# file. Declining is fine: set GASP_FAIAL_COST to the wrapper's path instead.
+#
 # Usage: scripts/install_faial.sh [--force]
 #   --force  reinstall even if a working faial-cost is already available
 set -euo pipefail
@@ -43,6 +46,44 @@ case "$FAIAL_MODE" in
   *) die "FAIAL_MODE must be auto, native or container (got '$FAIAL_MODE')" ;;
 esac
 
+# gasp finds faial-cost on PATH, or at $GASP_FAIAL_COST. When BIN_DIR is not on
+# PATH, offer to add it to the shell's rc file (only when run from a terminal),
+# and otherwise print the GASP_FAIAL_COST alternative.
+offer_path() {
+  case ":$PATH:" in
+    *":$BIN_DIR:"*) return ;;
+  esac
+  echo "$BIN_DIR is not on PATH, so gasp can't find faial-cost there yet."
+
+  case "$(basename "${SHELL:-}")" in
+    zsh) rc="$HOME/.zshrc" ;;
+    bash) rc="$HOME/.bashrc" ;;
+    *) rc="$HOME/.profile" ;;
+  esac
+  line="export PATH=\"$BIN_DIR:\$PATH\""
+
+  if [ -t 0 ]; then
+    read -r -p "Add $BIN_DIR to PATH in $rc? [y/N] " answer || answer=""
+    case "$answer" in
+      y | Y | yes | YES)
+        if [ -f "$rc" ] && grep -qxF "$line" "$rc"; then
+          echo "$rc already adds $BIN_DIR to PATH"
+        else
+          printf '\n# Added by gasp scripts/install_faial.sh\n%s\n' "$line" >> "$rc"
+          echo "Added to $rc"
+        fi
+        echo "Run 'source $rc' or open a new shell for it to take effect."
+        return
+        ;;
+    esac
+  fi
+
+  echo "Either add it to PATH yourself:"
+  echo "  $line"
+  echo "or point gasp at the wrapper directly:"
+  echo "  export GASP_FAIAL_COST=\"$BIN_DIR/faial-cost\""
+}
+
 existing="$(command -v faial-cost || true)"
 if [ -z "$existing" ] && [ -x "$BIN_DIR/faial-cost" ]; then
   existing="$BIN_DIR/faial-cost"
@@ -50,6 +91,7 @@ fi
 if [ -n "$existing" ] && [ "$force" -eq 0 ]; then
   if "$existing" --help > /dev/null 2>&1; then
     echo "faial-cost is already installed at $existing; rerun with --force to reinstall"
+    command -v faial-cost > /dev/null || offer_path
     exit 0
   fi
   echo "faial-cost at $existing does not run; reinstalling"
@@ -166,7 +208,4 @@ else
   echo "warning: '$BIN_DIR/faial-cost --help' failed"
 fi
 
-case ":$PATH:" in
-  *":$BIN_DIR:"*) ;;
-  *) echo "note: $BIN_DIR is not on PATH; add it to use faial-cost from gasp" ;;
-esac
+offer_path

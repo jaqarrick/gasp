@@ -1,0 +1,178 @@
+/*
+ * Adapted from the Accel-Sim GPU microbenchmark suite:
+ *   https://github.com/accel-sim/accel-sim-framework
+ *   util/tuner/GPU_Microbenchmark/ubench/core/sfu_lat_fsqrt/sfu_lat_fsqrt.h
+ *   (release branch, commit aa95f49; BSD 2-Clause, notice below)
+ *
+ * M. Khairy, Z. Shen, T. M. Aamodt, T. G. Rogers, "Accel-Sim: An Extensible
+ * Simulation Framework for Validated GPU Modeling," ISCA 2020.
+ *
+ * BSD 2-Clause License
+ *
+ * Copyright (c) 2018-2021, Vijay Kandiah, Junrui Pan, Mahmoud Khairy, Scott
+ * Peverelle, Timothy Rogers, Tor M. Aamodt, Nikos Hardavellas
+ * Northwestern University, Purdue University, The University of British Columbia
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice, this
+ *    list of conditions and the following disclaimer;
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution;
+ * 3. Neither the names of Northwestern University, Purdue University,
+ *    The University of British Columbia nor the names of their contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ *
+ * EDIT [gasp-gpu]: error checks, clock reads, metadata and output use common.h.
+ * Output is written to <exe dir>/sfu_sin_latency_cycles.<gpu>.run.json.
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <cuda_runtime.h>
+#include "common.h"
+
+#define THREADS_PER_BLOCK 1
+#define THREADS_PER_SM 1
+#define BLOCKS_NUM 1
+#define TOTAL_THREADS (THREADS_PER_BLOCK*BLOCKS_NUM)
+#define WARP_SIZE 32
+#define REPEAT_TIMES 1024
+
+__global__ void sfu_latency(uint64_t *startClk, uint64_t *stopClk, float *data1, float *res) {
+	int gid = blockIdx.x*blockDim.x + threadIdx.x;
+	register float s1 = data1[gid];
+	register float result = s1;
+
+	// synchronize all threads
+	asm volatile ("bar.sync 0;");
+
+	// start timing
+	uint64_t start = read_clock64();
+
+	for (int j=0 ; j<REPEAT_TIMES ; ++j) {
+		asm volatile ("{\t\n"
+				"sin.approx.ftz.f32 %0, %0;\n\t"
+				"sin.approx.ftz.f32 %0, %0;\n\t"
+				"sin.approx.ftz.f32 %0, %0;\n\t"
+				"sin.approx.ftz.f32 %0, %0;\n\t"
+				"}" : "+f"(result)
+		);
+	}
+	// synchronize all threads
+	asm volatile("bar.sync 0;");
+
+	// stop timing
+	uint64_t stop = read_clock64();
+
+	// write time and data back to memory
+	startClk[gid] = start;
+	stopClk[gid] = stop;
+	res[gid] = result;
+}
+
+int main(int argc, char **argv){
+	(void)argc;
+	uint64_t *startClk = (uint64_t*) malloc(TOTAL_THREADS*sizeof(uint64_t));
+	uint64_t *stopClk = (uint64_t*) malloc(TOTAL_THREADS*sizeof(uint64_t));
+	float *data1 = (float*) malloc(TOTAL_THREADS*sizeof(float));
+	float *res = (float*) malloc(TOTAL_THREADS*sizeof(float));
+
+	uint64_t *startClk_g;
+	uint64_t *stopClk_g;
+	float *data1_g;
+	float *res_g;
+
+	for (uint32_t i=0; i<TOTAL_THREADS; i++) {
+		data1[i] = 10.124234521;
+	}
+
+	CUDA_CHECK( cudaMalloc(&startClk_g, TOTAL_THREADS*sizeof(uint64_t)) ); // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
+	CUDA_CHECK( cudaMalloc(&stopClk_g, TOTAL_THREADS*sizeof(uint64_t)) ); // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
+	CUDA_CHECK( cudaMalloc(&data1_g, TOTAL_THREADS*sizeof(int32_t)) );
+	CUDA_CHECK( cudaMalloc(&res_g, TOTAL_THREADS*sizeof(int32_t)) );
+
+	CUDA_CHECK( cudaMemcpy(data1_g, data1, TOTAL_THREADS*sizeof(int32_t), cudaMemcpyHostToDevice) );
+
+	sfu_latency<<<BLOCKS_NUM,THREADS_PER_BLOCK>>>(startClk_g, stopClk_g, data1_g, res_g);
+	CUDA_CHECK( cudaPeekAtLastError() );
+
+	CUDA_CHECK( cudaMemcpy(startClk, startClk_g, TOTAL_THREADS*sizeof(uint64_t), cudaMemcpyDeviceToHost) ); // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
+	CUDA_CHECK( cudaMemcpy(stopClk, stopClk_g, TOTAL_THREADS*sizeof(uint64_t), cudaMemcpyDeviceToHost) ); // EDIT: need to use uint64_t to store clock64() [gasp-gpu]
+	CUDA_CHECK( cudaMemcpy(res, res_g, TOTAL_THREADS*sizeof(float), cudaMemcpyDeviceToHost) );
+
+	float latency;
+	latency = ((float)(stopClk[0]-startClk[0]))/((float)(REPEAT_TIMES*4));
+
+	// EDIT: SM clock from common.h clock_kernel so we can report the global speed
+	double sm_clock_ghz = 0.0;
+	{
+		unsigned long long *d_clock;
+		CUDA_CHECK( cudaMalloc(&d_clock, 2*sizeof(unsigned long long)) );
+		clock_kernel<<<1, 1>>>(d_clock);
+		CUDA_CHECK( cudaGetLastError() );
+		CUDA_CHECK( cudaDeviceSynchronize() );
+		unsigned long long c[2];
+		CUDA_CHECK( cudaMemcpy(c, d_clock, sizeof(c), cudaMemcpyDeviceToHost) );
+		CUDA_CHECK( cudaFree(d_clock) );
+		if (c[1] > 0) sm_clock_ghz = (double)c[0] / (double)c[1];
+	}
+
+	//gasp-gpu output------------------------------------------------------------------------------
+	cudaDeviceProp prop;
+	CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
+	int runtime_version = 0;
+	CUDA_CHECK(cudaRuntimeGetVersion(&runtime_version));
+	const std::string gpu = short_gpu_name(prop.name);
+
+	std::string json;
+	json += "{\n";
+	json += "  \"benchmark\": \"sfu_latency_sin.cu\",\n";
+	json += "  \"parameter\": \"sfu_sin_latency_cycles\",\n";
+	json += strprintf("  \"value\": %.4f,\n", latency);
+	json += "  \"unit\": \"cycles\",\n";
+	json += strprintf("  \"gpu\": \"%s\",\n", gpu.c_str());
+	json += strprintf("  \"gpu_name\": \"%s\",\n", json_escape(prop.name).c_str());
+	json += strprintf("  \"arch\": \"sm_%d%d\",\n", prop.major, prop.minor);
+	json += strprintf("  \"num_sms\": %d,\n", prop.multiProcessorCount);
+	// clock.sm_clock_ghz: clock_kernel cycles / globaltimer ns
+	json += strprintf("  \"clock\": {\"sm_clock_ghz\": %.4f},\n", sm_clock_ghz);
+	json += strprintf("  \"cuda_version\": \"%s\",\n", cuda_version_string(runtime_version).c_str());
+	json += strprintf("  \"nvcc_version\": \"%d.%d\",\n", __CUDACC_VER_MAJOR__, __CUDACC_VER_MINOR__);
+	json += strprintf("  \"driver_version\": \"%s\",\n", json_escape(driver_version()).c_str());
+	json += strprintf("  \"git_commit\": \"%s\",\n", json_escape(git_commit()).c_str());
+	json += strprintf("  \"timestamp\": \"%s\"\n", utc_timestamp().c_str());
+	json += "}\n";
+
+	const std::string out_path = write_run_json(executable_dir(argv[0]), "sfu_sin_latency_cycles", gpu, json);
+	if (out_path.empty()) return 1;
+
+	printf("%s", json.c_str());
+	fprintf(stderr, "Saved %s (%.3f cycles per sin op)\n", out_path.c_str(), latency);
+
+	CUDA_CHECK(cudaFree(startClk_g));
+	CUDA_CHECK(cudaFree(stopClk_g));
+	CUDA_CHECK(cudaFree(data1_g));
+	CUDA_CHECK(cudaFree(res_g));
+	free(startClk);
+	free(stopClk);
+	free(data1);
+	free(res);
+	return 0;
+}

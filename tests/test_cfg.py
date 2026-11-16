@@ -2,7 +2,16 @@ from pathlib import Path
 
 import pytest
 
-from gasp.cfg import CFGEdge, filter_cfg, format_cfg, gen_cfg_from_raw, print_cfg
+from gasp.cfg import (
+    CFGEdge,
+    CFGNode,
+    ControlFlowGraph,
+    filter_cfg,
+    format_cfg,
+    gen_cfg_from_raw,
+    neighbors,
+    print_cfg,
+)
 
 # raw cfg file to compare against
 FIXTURE = Path(__file__).parent / "fixtures" / "cfg" / "vecadd.bbcfg.dot"
@@ -184,3 +193,18 @@ subgraph "cluster_k" {
 def test_filter_cfg_unknown_kernel_raises():
     with pytest.raises(ValueError, match="_Z7missingv"):
         filter_cfg(gen_cfg_from_raw(MULTI_KERNEL), "_Z7missingv")
+
+
+def test_neighbors():
+    # diamond A -> B, C -> D, plus a self-loop on D
+    cfg = ControlFlowGraph(
+        nodes={n: CFGNode(id=n, label="") for n in "ABCD"},
+        edges=[
+            CFGEdge(s, None, None, t, None, None, None)
+            for s, t in [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"), ("D", "D")]
+        ],
+    )
+    successors, predecessors = neighbors(cfg)
+
+    assert successors == {"A": ["B", "C"], "B": ["D"], "C": ["D"], "D": ["D"]}
+    assert predecessors == {"A": [], "B": ["A"], "C": ["A"], "D": ["B", "C", "D"]}

@@ -1,0 +1,167 @@
+{
+  "schema_version": "1.0.0",
+  "benchmark": "hpmll/RegularUnits/l1_bw_128/l1_bw_128.cu",
+  "parameter": "l1_sectors_per_cycle_per_sm",
+  "value": 2.6998,
+  "unit": "sectors/cycle/SM",
+  "gpu": "rtx2080ti",
+  "gpu_name": "NVIDIA GeForce RTX 2080 Ti",
+  "arch": "sm_75",
+  "stats": {
+    "median": 2.6998,
+    "mean": 2.6986,
+    "std": 0.0045,
+    "min": 2.6912,
+    "max": 2.703
+  },
+  "clock": {
+    "sm_clock_ghz": 1.3215,
+    "max_sm_clock_ghz": 2.16
+  },
+  "candidates": {
+    "l1_bw_32f": {
+      "benchmark": "hpmll/RegularUnits/l1_bw_32f/l1_bw_32f.cu",
+      "stats": {
+        "median": 1.9912,
+        "mean": 1.9909,
+        "std": 0.0011,
+        "min": 1.9896,
+        "max": 1.992
+      },
+      "values": [
+        1.9898,
+        1.992,
+        1.9896,
+        1.9912,
+        1.9916
+      ],
+      "printed_values": [
+        63.67355,
+        63.74419,
+        63.668716,
+        63.719982,
+        63.732567
+      ],
+      "printed_lines": [
+        "L1 bandwidth = 63.673550",
+        "L1 bandwidth = 63.744190",
+        "L1 bandwidth = 63.668716",
+        "L1 bandwidth = 63.719982",
+        "L1 bandwidth = 63.732567"
+      ],
+      "sm_clock_ghz_samples": [
+        1.3196,
+        1.3196,
+        1.3201,
+        1.3186,
+        1.3201
+      ],
+      "conversion": "printed bytes per clock per SM / 32; the field takes the highest valid shape",
+      "hit_rates_pct": {
+        "l1tex__t_sector_hit_rate.pct": 95.61
+      },
+      "valid": true,
+      "invalid_reason": null,
+      "source_changes": {},
+      "notes": []
+    },
+    "l1_bw_64f": {
+      "benchmark": "hpmll/RegularUnits/l1_bw_64f/l1_bw_64f.cu",
+      "stats": {
+        "median": 0.419,
+        "mean": 0.4189,
+        "std": 0.0,
+        "min": 0.4189,
+        "max": 0.419
+      },
+      "values": [
+        0.4189,
+        0.4189,
+        0.419,
+        0.419,
+        0.419
+      ],
+      "printed_values": [
+        13.404529,
+        13.405772,
+        13.407014,
+        13.407271,
+        13.406543
+      ],
+      "printed_lines": [
+        "L1 bandwidth = 13.404529",
+        "L1 bandwidth = 13.405772",
+        "L1 bandwidth = 13.407014",
+        "L1 bandwidth = 13.407271",
+        "L1 bandwidth = 13.406543"
+      ],
+      "sm_clock_ghz_samples": [
+        1.3208,
+        1.3213,
+        1.3215,
+        1.3214,
+        1.3211
+      ],
+      "conversion": "printed bytes per clock per SM / 32; the field takes the highest valid shape",
+      "hit_rates_pct": {
+        "l1tex__t_sector_hit_rate.pct": 93.4
+      },
+      "valid": false,
+      "invalid_reason": "l1tex__t_sector_hit_rate.pct = 93.4% < 95% (the array must stay in L1)",
+      "source_changes": {},
+      "notes": []
+    },
+    "l1_bw_128": {
+      "benchmark": "hpmll/RegularUnits/l1_bw_128/l1_bw_128.cu",
+      "stats": {
+        "median": 2.6998,
+        "mean": 2.6986,
+        "std": 0.0045,
+        "min": 2.6912,
+        "max": 2.703
+      },
+      "values": [
+        2.7005,
+        2.6912,
+        2.6984,
+        2.6998,
+        2.703
+      ],
+      "printed_values": [
+        86.416685,
+        86.118818,
+        86.34908,
+        86.394101,
+        86.497215
+      ],
+      "printed_lines": [
+        "L1 bandwidth = 86.416685",
+        "L1 bandwidth = 86.118818",
+        "L1 bandwidth = 86.349080",
+        "L1 bandwidth = 86.394101",
+        "L1 bandwidth = 86.497215"
+      ],
+      "sm_clock_ghz_samples": [
+        1.3214,
+        1.322,
+        1.3215,
+        1.3216,
+        1.3209
+      ],
+      "conversion": "printed bytes per clock per SM / 32; the field takes the highest valid shape",
+      "hit_rates_pct": {
+        "l1tex__t_sector_hit_rate.pct": 95.63
+      },
+      "valid": true,
+      "invalid_reason": null,
+      "source_changes": {},
+      "notes": []
+    }
+  },
+  "reps": 5,
+  "hpmll_commit": "ded6f57",
+  "nvcc_version": "12.4",
+  "driver_version": "595.104.02",
+  "git_commit": "9b76f4f",
+  "timestamp": "2026-11-13T23:47:36Z"
+}

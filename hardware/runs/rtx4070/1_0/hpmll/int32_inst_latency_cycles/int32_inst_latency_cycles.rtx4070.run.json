@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.0.0",
+  "benchmark": "hpmll/RegularUnits/alu_lat_int32/alu_lat_int32.cu",
+  "parameter": "int32_inst_latency_cycles",
+  "value": 4.2808,
+  "unit": "cycles",
+  "gpu": "rtx4070",
+  "gpu_name": "NVIDIA GeForce RTX 4070",
+  "arch": "sm_89",
+  "stats": {
+    "median": 4.2808,
+    "mean": 4.2798,
+    "std": 0.0021,
+    "min": 4.2764,
+    "max": 4.2815
+  },
+  "clock": {
+    "sm_clock_ghz": 1.9083,
+    "max_sm_clock_ghz": 3.105
+  },
+  "candidates": {
+    "alu_lat_int32": {
+      "benchmark": "hpmll/RegularUnits/alu_lat_int32/alu_lat_int32.cu",
+      "stats": {
+        "median": 4.2808,
+        "mean": 4.2798,
+        "std": 0.0021,
+        "min": 4.2764,
+        "max": 4.2815
+      },
+      "values": [
+        4.2791,
+        4.2815,
+        4.2808,
+        4.2812,
+        4.2764
+      ],
+      "printed_values": [
+        4.279053,
+        4.281494,
+        4.280762,
+        4.28125,
+        4.276367
+      ],
+      "printed_lines": [
+        "int32 latency = 4.279053",
+        "int32 latency = 4.281494",
+        "int32 latency = 4.280762",
+        "int32 latency = 4.281250",
+        "int32 latency = 4.276367"
+      ],
+      "sm_clock_ghz_samples": [
+        1.9067,
+        1.9147,
+        1.9068,
+        1.9083,
+        1.9123
+      ],
+      "conversion": "printed value (dependent mad.lo.s32 chain)",
+      "hit_rates_pct": {},
+      "valid": true,
+      "invalid_reason": null,
+      "source_changes": {},
+      "notes": [
+        "measures IMAD (mad.lo.s32), not IADD3"
+      ]
+    }
+  },
+  "reps": 5,
+  "hpmll_commit": "ded6f57",
+  "nvcc_version": "12.4",
+  "driver_version": "595.104.02",
+  "git_commit": "e88b0c1",
+  "timestamp": "2026-11-14T01:23:50Z"
+}

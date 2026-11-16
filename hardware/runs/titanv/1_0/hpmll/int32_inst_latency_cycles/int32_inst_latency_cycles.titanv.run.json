@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.0.0",
+  "benchmark": "hpmll/RegularUnits/alu_lat_int32/alu_lat_int32.cu",
+  "parameter": "int32_inst_latency_cycles",
+  "value": 4.803,
+  "unit": "cycles",
+  "gpu": "titanv",
+  "gpu_name": "NVIDIA TITAN V",
+  "arch": "sm_70",
+  "stats": {
+    "median": 4.803,
+    "mean": 4.8318,
+    "std": 0.0687,
+    "min": 4.7681,
+    "max": 4.9409
+  },
+  "clock": {
+    "sm_clock_ghz": 1.1929,
+    "max_sm_clock_ghz": 1.912
+  },
+  "candidates": {
+    "alu_lat_int32": {
+      "benchmark": "hpmll/RegularUnits/alu_lat_int32/alu_lat_int32.cu",
+      "stats": {
+        "median": 4.803,
+        "mean": 4.8318,
+        "std": 0.0687,
+        "min": 4.7681,
+        "max": 4.9409
+      },
+      "values": [
+        4.9409,
+        4.8545,
+        4.7681,
+        4.7925,
+        4.803
+      ],
+      "printed_values": [
+        4.940918,
+        4.854492,
+        4.768066,
+        4.79248,
+        4.802979
+      ],
+      "printed_lines": [
+        "int32 latency = 4.940918",
+        "int32 latency = 4.854492",
+        "int32 latency = 4.768066",
+        "int32 latency = 4.792480",
+        "int32 latency = 4.802979"
+      ],
+      "sm_clock_ghz_samples": [
+        1.1929,
+        1.1933,
+        1.1925,
+        1.1924,
+        1.1932
+      ],
+      "conversion": "printed value (dependent mad.lo.s32 chain)",
+      "hit_rates_pct": {},
+      "valid": true,
+      "invalid_reason": null,
+      "source_changes": {},
+      "notes": [
+        "measures IMAD (mad.lo.s32), not IADD3"
+      ]
+    }
+  },
+  "reps": 5,
+  "hpmll_commit": "ded6f57",
+  "nvcc_version": "12.4",
+  "driver_version": "580.196.07",
+  "git_commit": "e88b0c1",
+  "timestamp": "2026-11-14T01:21:21Z"
+}

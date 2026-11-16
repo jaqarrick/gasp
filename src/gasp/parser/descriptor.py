@@ -21,6 +21,20 @@ class DescriptorSASSParser(SASSParser):
 
         return None
 
+    def _address_inner(self, op) -> str | None:
+        # desc[UR4][R2.64+0x10] -> R2.64+0x10: UR4 is the memory descriptor,
+        # the same for every access, so the address is the last group
+        if op.startswith("desc["):
+            groups = re.findall(r"\[([^\]]+)\]", op)
+            return groups[-1] if groups else None
+        # gdesc[UR2] -> UR2
+        if op.startswith("gdesc["):
+            match = re.search(r"\[([^\]]+)\]", op)
+            return match.group(1) if match else None
+        if op.startswith("["):
+            return op.strip("[]")
+        return None
+
     def _strip_descriptor_address(self, raw: str) -> set[str]:
         # desc[UR2][R4.64] extract UR2, R4 + R5
         regs = set()

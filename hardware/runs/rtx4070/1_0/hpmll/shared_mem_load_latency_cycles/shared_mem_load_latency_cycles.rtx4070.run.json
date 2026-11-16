@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.0.0",
+  "benchmark": "hpmll/RegularUnits/shared_lat/shared_lat.cu",
+  "parameter": "shared_mem_load_latency_cycles",
+  "value": 30.0322,
+  "unit": "cycles",
+  "gpu": "rtx4070",
+  "gpu_name": "NVIDIA GeForce RTX 4070",
+  "arch": "sm_89",
+  "stats": {
+    "median": 30.0322,
+    "mean": 30.0322,
+    "std": 0.0,
+    "min": 30.0322,
+    "max": 30.0322
+  },
+  "clock": {
+    "sm_clock_ghz": 1.918,
+    "max_sm_clock_ghz": 3.105
+  },
+  "candidates": {
+    "shared_lat": {
+      "benchmark": "hpmll/RegularUnits/shared_lat/shared_lat.cu",
+      "stats": {
+        "median": 30.0322,
+        "mean": 30.0322,
+        "std": 0.0,
+        "min": 30.0322,
+        "max": 30.0322
+      },
+      "values": [
+        30.0322,
+        30.0322,
+        30.0322,
+        30.0322,
+        30.0322
+      ],
+      "printed_values": [
+        30.032227,
+        30.032227,
+        30.032227,
+        30.032227,
+        30.032227
+      ],
+      "printed_lines": [
+        "Shared Memory Latency  = 30.032227",
+        "Shared Memory Latency  = 30.032227",
+        "Shared Memory Latency  = 30.032227",
+        "Shared Memory Latency  = 30.032227",
+        "Shared Memory Latency  = 30.032227"
+      ],
+      "sm_clock_ghz_samples": [
+        1.918,
+        1.9184,
+        1.9181,
+        1.9171,
+        1.9166
+      ],
+      "conversion": "printed value (ld.shared pointer chase)",
+      "hit_rates_pct": {},
+      "valid": true,
+      "invalid_reason": null,
+      "source_changes": {},
+      "notes": [
+        "each load in the chain waits on a shift that computes its address, so this is shared load latency plus about 4-5 cycles"
+      ]
+    }
+  },
+  "reps": 5,
+  "hpmll_commit": "ded6f57",
+  "nvcc_version": "12.4",
+  "driver_version": "595.104.02",
+  "git_commit": "e88b0c1",
+  "timestamp": "2026-11-14T01:23:50Z"
+}

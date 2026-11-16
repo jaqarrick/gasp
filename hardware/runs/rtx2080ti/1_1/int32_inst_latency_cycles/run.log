@@ -1,0 +1,3 @@
+$ nvcc -O3 -std=c++17 -arch=sm_75 /home/jpc465/gpu/gasp-gpu/hardware/microbenchmarks/int32_latency.cu -o /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx2080ti/1_1/build/int32_latency
+$ ncu --clock-control base --cache-control none --metrics gpc__cycles_elapsed.max --log-file /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx2080ti/1_1/int32_inst_latency_cycles/ncu.log /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx2080ti/1_1/build/int32_latency
+Saved /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx2080ti/1_1/build/int32_inst_latency_cycles.nvidia_geforce_rtx_2080_ti.run.json (median 2.880 cycles per integer add)

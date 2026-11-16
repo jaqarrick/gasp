@@ -1,0 +1,19 @@
+$ nvcc -O3 -std=c++17 -arch=sm_70 /home/jpc465/gpu/gasp-gpu/hardware/microbenchmarks/gasp-bm/sfu_latency.cu -o /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/build/sfu_latency
+$ ncu --clock-control base --cache-control none --metrics gpc__cycles_elapsed.max --log-file /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/sfu_inst_latency_cycles/ncu.log /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/build/sfu_latency
+Saved /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_0/build/sfu_inst_latency_cycles.titan_v.run.json (15.242 cycles per SFU op)
+{
+  "benchmark": "sfu_latency.cu",
+  "parameter": "sfu_inst_latency_cycles",
+  "value": 15.2424,
+  "unit": "cycles",
+  "gpu": "titan_v",
+  "gpu_name": "NVIDIA TITAN V",
+  "arch": "sm_70",
+  "num_sms": 80,
+  "clock": {"sm_clock_ghz": 1.2075},
+  "cuda_version": "12.4",
+  "nvcc_version": "12.4",
+  "driver_version": "580.196.07",
+  "git_commit": "e88b0c1",
+  "timestamp": "2026-11-14T01:21:27Z"
+}

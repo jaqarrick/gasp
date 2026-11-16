@@ -1,0 +1,82 @@
+{
+  "schema_version": "1.0.0",
+  "benchmark": "hpmll/RegularUnits/l1_lat/l1_lat.cu",
+  "parameter": "l1_cache_hit_latency_cycles",
+  "value": 34.2946,
+  "unit": "cycles",
+  "gpu": "rtx4070",
+  "gpu_name": "NVIDIA GeForce RTX 4070",
+  "arch": "sm_89",
+  "stats": {
+    "median": 34.2946,
+    "mean": 34.2947,
+    "std": 0.0001,
+    "min": 34.2946,
+    "max": 34.2948
+  },
+  "clock": {
+    "sm_clock_ghz": 1.92,
+    "max_sm_clock_ghz": 3.105
+  },
+  "candidates": {
+    "l1_lat": {
+      "benchmark": "hpmll/RegularUnits/l1_lat/l1_lat.cu",
+      "stats": {
+        "median": 34.2946,
+        "mean": 34.2947,
+        "std": 0.0001,
+        "min": 34.2946,
+        "max": 34.2948
+      },
+      "values": [
+        34.2946,
+        34.2946,
+        34.2947,
+        34.2946,
+        34.2948
+      ],
+      "printed_values": [
+        34.2946,
+        34.2946,
+        34.2947,
+        34.2946,
+        34.2948
+      ],
+      "printed_lines": [
+        "L1 Latency  =      34.2946",
+        "L1 Latency  =      34.2946",
+        "L1 Latency  =      34.2947",
+        "L1 Latency  =      34.2946",
+        "L1 Latency  =      34.2948"
+      ],
+      "sm_clock_ghz_samples": [
+        1.92,
+        1.92,
+        1.92,
+        1.92,
+        1.92
+      ],
+      "conversion": "printed value (ld.global.ca pointer chase, 32 KB array, 256 passes)",
+      "hit_rates_pct": {
+        "l1tex__t_sector_hit_rate.pct": 99.79
+      },
+      "valid": true,
+      "invalid_reason": null,
+      "source_changes": {
+        "ITERS": {
+          "hpmll": 32768,
+          "used": 1048576
+        }
+      },
+      "notes": [
+        "built with ITERS 1048576 (hpmll: 32768) so the cold first pass is negligible"
+      ]
+    }
+  },
+  "reps": 5,
+  "hpmll_commit": "ded6f57",
+  "nvcc_version": "12.4",
+  "driver_version": "595.104.02",
+  "git_commit": "e88b0c1",
+  "timestamp": "2026-11-14T01:23:50Z"
+}

@@ -9,7 +9,10 @@ import sys
 import tempfile
 from dataclasses import dataclass
 
+from gasp.cuda_toolkit import cuda_hint
+from gasp.launch import Dims, format_dims, padded, total
 from gasp.logger import Logger, format_table
+from gasp.overrides import PROFILED_METRICS
 
 REQUIRED: list[str] = ["nvcc", "ncu"]
 
@@ -17,19 +20,17 @@ DURATION_METRIC = "gpu__time_duration.sum"
 CYCLES_METRIC = "gpc__cycles_elapsed.max"
 GRID_SIZE_METRIC = "launch__grid_size"
 BLOCK_SIZE_METRIC = "launch__block_size"
+SHARED_CONFIG_METRIC = "launch__shared_mem_config_size"
+WARPS_ACTIVE_PCT_METRIC = "sm__warps_active.avg.pct_of_peak_sustained_active"
 METRICS: list[str] = [
     DURATION_METRIC,
     CYCLES_METRIC,
     GRID_SIZE_METRIC,
     BLOCK_SIZE_METRIC,
-    "smsp__inst_executed.sum",
-    "smsp__inst_executed_op_global_ld.sum",
-    "smsp__inst_executed_op_global_st.sum",
-    "l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum",
-    "l1tex__t_requests_pipe_lsu_mem_global_op_ld.sum",
-    "lts__t_sectors_srcunit_tex_op_read_lookup_hit.sum",
-    "lts__t_sectors_srcunit_tex_op_read_lookup_miss.sum",
-    "sm__warps_active.avg.pct_of_peak_sustained_active",
+    SHARED_CONFIG_METRIC,
+    # what profiled overrides are computed from
+    *PROFILED_METRICS,
+    WARPS_ACTIVE_PCT_METRIC,
 ]
 
 # cuobjdump -sass instruction line: /*0040*/  IMAD R2, R3, R4, RZ ;  /* 0x... */
@@ -42,13 +43,34 @@ class ProfileInput:
     input_file: str
     arch: str
     kernel_name: str
-    block_size: int
-    grid_size: int
+    block_dim: Dims
+    grid_dim: Dims
     program_args: list[str]
     include_dirs: list[str]
     extra_flags: list[str]
     repeats: int
     logger: Logger
+
+    @property
+    def block_size(self) -> int:
+        return total(self.block_dim)
+
+    @property
+    def grid_size(self) -> int:
+        return total(self.grid_dim)
+
+    @property
+    def launch(self) -> str:
+        return f"<<<{format_dims(self.grid_dim)}, {format_dims(self.block_dim)}>>>"
+
+
+def launch_macros(i: ProfileInput) -> list[str]:
+    """GASP_BLOCK_SIZE / GASP_GRID_SIZE are totals; the *_DIM_* macros give x, y, z."""
+    macros = [f"-DGASP_BLOCK_SIZE={i.block_size}", f"-DGASP_GRID_SIZE={i.grid_size}"]
+    for prefix, dims in (("BLOCK", i.block_dim), ("GRID", i.grid_dim)):
+        for axis, size in zip("XYZ", padded(dims), strict=True):
+            macros.append(f"-DGASP_{prefix}_DIM_{axis}={size}")
+    return macros
 
 
 @dataclass
@@ -67,6 +89,12 @@ class ProfileOutput:
         return statistics.median(run.cycles for run in self.runs)
 
     @property
+    def shared_mem_config_bytes(self) -> int | None:
+        """Carveout ncu reported on the first run, None if it didn't report one."""
+        value = self.runs[0].metrics.get(SHARED_CONFIG_METRIC) if self.runs else None
+        return None if value is None else int(value)
+
+    @property
     def cycles_min(self) -> float:
         return min(run.cycles for run in self.runs)
 
@@ -79,7 +107,7 @@ def check_packages(logger: Logger) -> None:
     missing = [t for t in REQUIRED if not shutil.which(t)]
     if missing:
         logger.error(f"Missing packages: {', '.join(missing)}")
-        logger.error("Install the CUDA Toolkit with Nsight Compute")
+        logger.error(f"{cuda_hint()}. --run also needs Nsight Compute (ncu)")
         sys.exit(1)
 
 
@@ -89,8 +117,7 @@ def build_executable(i: ProfileInput, out_path: str) -> None:
         f"-arch={i.arch}",
         *(f"-I{d}" for d in i.include_dirs),
         *i.extra_flags,
-        f"-DGASP_BLOCK_SIZE={i.block_size}",
-        f"-DGASP_GRID_SIZE={i.grid_size}",
+        *launch_macros(i),
         i.input_file,
         "-o",
         out_path,
@@ -243,7 +270,7 @@ def trace_measurement(
 
 
 def measure(i: ProfileInput, exe: str, trace: bool) -> KernelMeasurement:
-    label = f"{i.name} <<<{i.grid_size}, {i.block_size}>>>"
+    label = f"{i.name} {i.launch}"
     i.logger.trace("profiler", f"=== {label}: {i.kernel_name} ===")
     metrics = run_ncu(exe, i.program_args, i.kernel_name, i.logger)
     for required in (
@@ -255,16 +282,17 @@ def measure(i: ProfileInput, exe: str, trace: bool) -> KernelMeasurement:
         if required not in metrics:
             i.logger.error(f"ncu did not report {required} for {i.name}")
             sys.exit(1)
-    # a program that ignores GASP_GRID_SIZE / GASP_BLOCK_SIZE launches its own config
+    # a program that ignores the GASP_* macros launches its own config. ncu reports
+    # totals, so a different shape with the same totals isn't caught
     launched_grid = int(metrics[GRID_SIZE_METRIC])
     launched_block = int(metrics[BLOCK_SIZE_METRIC])
     if (launched_grid, launched_block) != (i.grid_size, i.block_size):
         i.logger.error(
             f"{i.name} launched <<<{launched_grid}, {launched_block}>>>, "
-            f"expected <<<{i.grid_size}, {i.block_size}>>>. The program must take its "
-            "launch config from GASP_GRID_SIZE / GASP_BLOCK_SIZE, or the requested "
-            "grid and block size must match what it launches "
-            "(see benchmarks/custom/README.md)"
+            f"expected {i.launch} ({i.grid_size} blocks of {i.block_size} threads). "
+            "The program must take its launch config from the GASP_* macros, or the "
+            "requested grid and block size must match what it launches "
+            "(see benchmarks/README.md)"
         )
         sys.exit(1)
     if trace and i.logger.trace_enabled("profiler"):
@@ -283,10 +311,7 @@ def profile_kernel(i: ProfileInput) -> ProfileOutput:
         exe = os.path.join(workdir, "kernel")
         build_executable(i, exe)
         for run in range(i.repeats):
-            i.logger.info(
-                f"Profiling {i.name} <<<{i.grid_size}, {i.block_size}>>>, "
-                f"run {run + 1}/{i.repeats}"
-            )
+            i.logger.info(f"Profiling {i.name} {i.launch}, run {run + 1}/{i.repeats}")
             # ncu --set full is slow, so only the first run gets the full trace
             runs.append(measure(i, exe, trace=run == 0))
     return ProfileOutput(runs=runs)

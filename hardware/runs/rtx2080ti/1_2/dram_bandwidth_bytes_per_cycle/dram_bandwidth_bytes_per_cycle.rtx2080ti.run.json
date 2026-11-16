@@ -1,0 +1,37 @@
+{
+  "schema_version": "3.0.0",
+  "benchmark": "gpu-benches/gpu-stream/main.cu",
+  "parameter": "dram_bandwidth_bytes_per_cycle",
+  "value": 434.8148,
+  "unit": "bytes/cycle",
+  "gpu": "rtx2080ti",
+  "arch": "sm_75",
+  "method": "read kernel (one 8-byte load per thread over a 2 GiB buffer), median of 31 launches per occupancy; the highest occupancy's GB/s",
+  "read_gb_per_s": 587.0,
+  "peak": {
+    "block_size": 384,
+    "threads": 52224,
+    "blocks_per_sm": 2,
+    "occupancy_pct": 75.0,
+    "gb_per_s": {
+      "init": 581.0,
+      "read": 587.0,
+      "scale": 534.0,
+      "triad": 558.0,
+      "3pt": 534.0,
+      "5pt": 533.0
+    }
+  },
+  "clock": {
+    "sm_clock_ghz": null,
+    "conversion": "read GB/s / base profile clock_rate_ghz (1.35 GHz)",
+    "sampled_mhz": [
+      300.0,
+      300.0,
+      1950.0
+    ]
+  },
+  "gpu_benches_commit": "23e586d",
+  "git_commit": "9b76f4f",
+  "timestamp": "2026-11-13T23:47:59Z"
+}

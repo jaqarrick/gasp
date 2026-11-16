@@ -1,0 +1,57 @@
+$ nvcc -O3 -std=c++17 -arch=sm_75 /home/jpc465/gpu/gasp-gpu/hardware/microbenchmarks/launch_overhead_bench.cu -o /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx2080ti/1_0/build/launch_overhead
+$ /home/jpc465/gpu/gasp-gpu/.venv/bin/python3 /home/jpc465/gpu/gasp-gpu/hardware/microbenchmarks/run_launch_overhead.py --binary /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx2080ti/1_0/build/launch_overhead --output-dir /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx2080ti/1_0/launch_overhead --raw-dir /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx2080ti/1_0/launch_overhead/raw --gpu rtx2080ti --clock-control base
+Warning: 2 GPUs are visible; the benchmark uses device 0 (NVIDIA GeForce RTX 2080 Ti). Every run is checked against it.
+[rep 1/5] 1x1
+[rep 1/5] 1x32
+[rep 1/5] 1x256
+[rep 1/5] 1x1024
+[rep 1/5] 32x256
+[rep 1/5] 128x256
+[rep 1/5] 256x256
+[rep 1/5] 512x256
+[rep 2/5] 1x1
+[rep 2/5] 1x32
+[rep 2/5] 1x256
+[rep 2/5] 1x1024
+[rep 2/5] 32x256
+[rep 2/5] 128x256
+[rep 2/5] 256x256
+[rep 2/5] 512x256
+[rep 3/5] 1x1
+[rep 3/5] 1x32
+[rep 3/5] 1x256
+[rep 3/5] 1x1024
+[rep 3/5] 32x256
+[rep 3/5] 128x256
+[rep 3/5] 256x256
+[rep 3/5] 512x256
+[rep 4/5] 1x1
+[rep 4/5] 1x32
+[rep 4/5] 1x256
+[rep 4/5] 1x1024
+[rep 4/5] 32x256
+[rep 4/5] 128x256
+[rep 4/5] 256x256
+[rep 4/5] 512x256
+[rep 5/5] 1x1
+[rep 5/5] 1x32
+[rep 5/5] 1x256
+[rep 5/5] 1x1024
+[rep 5/5] 32x256
+[rep 5/5] 128x256
+[rep 5/5] 256x256
+[rep 5/5] 512x256
+
+GPU: NVIDIA GeForce RTX 2080 Ti (sm_75, 68 SMs); 5 reps, 1 warmup launch(es)
+Median launch overhead per config (cycles):
+    config         cold         warm    warm-cold
+       1x1       1612.0       1425.0       -187.0
+      1x32       1614.0       1418.0       -196.0
+     1x256       1594.0       1394.0       -200.0
+    1x1024       1583.0       1388.0       -195.0
+    32x256       1608.0       1423.0       -185.0
+   128x256       1679.0       1487.0       -192.0
+   256x256       1778.0       1592.0       -186.0
+   512x256       1967.0       1752.0       -215.0
+launch_base_cycles = 1406.12279421 cycles (cold: 1596.72550406) -> /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx2080ti/1_0/launch_overhead/launch_base_cycles_nvidia_geforce_rtx_2080_ti.json
+launch_per_thread_cycles = 0.00267085974319 cycles/thread (cold: 0.00281812269501) -> /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx2080ti/1_0/launch_overhead/launch_per_thread_cycles_nvidia_geforce_rtx_2080_ti.json

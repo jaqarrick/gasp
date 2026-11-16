@@ -1,10 +1,12 @@
 import json
+import os
 import shutil
 import subprocess
 import threading
 from dataclasses import dataclass
 
 from gasp.kernels import kernel_base_name, source_base_name
+from gasp.launch import Dims
 from gasp.logger import Logger
 
 
@@ -12,11 +14,11 @@ from gasp.logger import Logger
 class PicoInput:
     input_file: str
     kernel_name: str
-    block_size: int
-    grid_size: int
+    block_dim: Dims
+    grid_dim: Dims
     problem_size: int
     bank_count: int | None
-    parameters: list[dict[str, int]] | None
+    params: dict[str, int]  # kernel arguments, each passed as -p NAME=VALUE
     logger: Logger
 
 
@@ -29,7 +31,28 @@ class PicoOutput:
     error: bool
 
 
-pico = "faial-cost"
+# faial-cost is found on PATH unless GASP_FAIAL_COST gives its path
+PICO_ENV = "GASP_FAIAL_COST"
+PICO_DEFAULT = "faial-cost"
+
+
+def pico_executable() -> str:
+    return os.environ.get(PICO_ENV) or PICO_DEFAULT
+
+
+def format_dim(dims: Dims) -> str:
+    """faial-cost's form: `256` for one dimension, `[16,16]` for several."""
+    if len(dims) == 1:
+        return str(dims[0])
+    return "[" + ",".join(str(d) for d in dims) + "]"
+
+
+def pico_command(i: PicoInput, cmd: str) -> list[str]:
+    command = [pico_executable(), "-m", cmd, "-b", format_dim(i.block_dim)]
+    command += ["-g", format_dim(i.grid_dim)]
+    for name, value in i.params.items():
+        command += ["-p", f"{name}={value}"]
+    return command + ["--json", i.input_file]
 
 
 def parse_total_cost(raw: str, kernel_name: str) -> int:
@@ -49,15 +72,7 @@ def parse_total_cost(raw: str, kernel_name: str) -> int:
 
 
 def run_pico(i: PicoInput, cmd: str, results: dict) -> None:
-    params = []
-    for d in i.parameters:
-        for k, v in d.items():
-            params.append(f"{k}={v}")
-
-    path = [pico, "-m", cmd, "-b", str(i.block_size), "-g", str(i.grid_size)]
-    if params:
-        path += ["-p", *params]
-    path += ["--json", i.input_file]
+    path = pico_command(i, cmd)
     i.logger.trace("pico", f"command: {' '.join(path)}")
 
     result = subprocess.run(
@@ -86,8 +101,16 @@ def _fallback() -> PicoOutput:
 
 def perform_pico_analysis(input: PicoInput) -> PicoOutput:
     logger = input.logger
+    pico = pico_executable()
     if shutil.which(pico) is None:
-        logger.error(f"pico ({pico}) is not available on current system.")
+        if PICO_ENV in os.environ:
+            logger.error(f"pico: {PICO_ENV}={pico} is not an executable file.")
+        else:
+            logger.error(
+                f"pico ({pico}) is not on PATH. Run scripts/install_faial.sh, then "
+                f"add its bin directory to PATH or set {PICO_ENV} to the "
+                f"faial-cost path."
+            )
         return _fallback()
 
     commands = ["bc", "ua", "count", "active"]
