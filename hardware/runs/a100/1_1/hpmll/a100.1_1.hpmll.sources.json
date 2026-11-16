@@ -1,0 +1,106 @@
+{
+    "version": "1_1",
+    "gpu": "a100",
+    "arch": "sm_80",
+    "suite": "hpmll",
+    "hpmll_commit": "ded6f57",
+    "base_profile": "hardware/profiles/a100.placeholder.json",
+    "git_commit": "a3b6e53",
+    "timestamp": "2026-11-16T19:43:06Z",
+    "fields": {
+        "launch_overhead_base_cycles": {
+            "value": 1409.6080620787568,
+            "source": "copied from base profile"
+        },
+        "launch_overhead_per_thread_cycles": {
+            "value": 0.0027383894813643147,
+            "source": "copied from base profile"
+        },
+        "departure_delay_cycles": {
+            "value": 4,
+            "source": "copied from base profile"
+        },
+        "sync_factor": {
+            "value": 64,
+            "source": "copied from base profile"
+        },
+        "dram_latency_cycles": {
+            "value": 420,
+            "source": "copied from base profile",
+            "hpmll_not_used": "mem_lat: lts__t_sector_hit_rate.pct = 82.9% > 30% (the chase must miss L2; an L2 of 8 MB or more keeps it)"
+        },
+        "l1_cache_hit_latency_cycles": {
+            "value": 33.1524,
+            "source": "hardware/runs/a100/1_1/hpmll/l1_cache_hit_latency_cycles/l1_cache_hit_latency_cycles.a100.run.json (hpmll l1_lat)",
+            "sm_clock_ghz": 1.095
+        },
+        "l2_cache_hit_latency_cycles": {
+            "value": 261.8614,
+            "source": "hardware/runs/a100/1_1/hpmll/l2_cache_hit_latency_cycles/l2_cache_hit_latency_cycles.a100.run.json (hpmll l2_lat)",
+            "sm_clock_ghz": 1.0949
+        },
+        "shared_mem_load_latency_cycles": {
+            "value": 29.0273,
+            "source": "hardware/runs/a100/1_1/hpmll/shared_mem_load_latency_cycles/shared_mem_load_latency_cycles.a100.run.json (hpmll shared_lat)",
+            "sm_clock_ghz": 1.0942
+        },
+        "shared_mem_store_latency_cycles": {
+            "value": 10,
+            "source": "copied from base profile"
+        },
+        "shared_mem_load_throughput_cycles": {
+            "value": 1.001,
+            "source": "hardware/runs/a100/1_1/hpmll/shared_mem_load_throughput_cycles/shared_mem_load_throughput_cycles.a100.run.json (hpmll shared_bw)",
+            "sm_clock_ghz": 1.0945
+        },
+        "l1_cycles_per_request": {
+            "value": 1.0,
+            "source": "copied from base profile"
+        },
+        "l1_sectors_per_cycle_per_sm": {
+            "value": 3.8847,
+            "source": "hardware/runs/a100/1_1/hpmll/l1_sectors_per_cycle_per_sm/l1_sectors_per_cycle_per_sm.a100.run.json (hpmll l1_bw_64f)",
+            "sm_clock_ghz": 1.093
+        },
+        "l2_bandwidth_bytes_per_cycle": {
+            "value": 5120,
+            "source": "copied from base profile",
+            "hpmll_not_used": "l2_bw_32f: lts__t_sector_hit_rate.pct = 72.8% < 95% (the array must stay in L2); l2_bw_64f: lts__t_sector_hit_rate.pct = 72.9% < 95% (the array must stay in L2); l2_bw_128: lts__t_sector_hit_rate.pct = 72.8% < 95% (the array must stay in L2)"
+        },
+        "const_mem_latency_cycles": {
+            "value": 10,
+            "source": "copied from base profile"
+        },
+        "bank_penalty_cycles": {
+            "value": 1,
+            "source": "copied from base profile"
+        },
+        "sfu_inst_latency_cycles": {
+            "value": 28,
+            "source": "copied from base profile"
+        },
+        "fp32_inst_latency_cycles": {
+            "value": 4.1041,
+            "source": "hardware/runs/a100/1_1/hpmll/fp32_inst_latency_cycles/fp32_inst_latency_cycles.a100.run.json (hpmll alu_lat_float)",
+            "sm_clock_ghz": 1.0941
+        },
+        "int32_inst_latency_cycles": {
+            "value": 4.2993,
+            "source": "hardware/runs/a100/1_1/hpmll/int32_inst_latency_cycles/int32_inst_latency_cycles.a100.run.json (hpmll alu_lat_int32)",
+            "sm_clock_ghz": 1.0922
+        },
+        "fp64_inst_latency_cycles": {
+            "value": 6.1007,
+            "source": "hardware/runs/a100/1_1/hpmll/fp64_inst_latency_cycles/fp64_inst_latency_cycles.a100.run.json (hpmll alu_lat_double)",
+            "sm_clock_ghz": 1.0944
+        },
+        "dram_bandwidth_bytes_per_cycle": {
+            "value": 3500,
+            "source": "copied from base profile"
+        },
+        "clock_rate_ghz": {
+            "value": 1.0945,
+            "source": "median SM clock of the runs"
+        }
+    }
+}

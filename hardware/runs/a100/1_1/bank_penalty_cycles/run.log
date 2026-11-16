@@ -1,0 +1,19 @@
+$ nvcc -O3 -std=c++17 -arch=sm_80 /home/jsr10062/repos/gasp/hardware/microbenchmarks/gasp-bm/bank_conflict.cu -o /home/jsr10062/repos/gasp/hardware/runs/a100/1_1/build/bank_conflict
+$ ncu --clock-control base --cache-control none --metrics gpc__cycles_elapsed.max --log-file /home/jsr10062/repos/gasp/hardware/runs/a100/1_1/bank_penalty_cycles/ncu.log /home/jsr10062/repos/gasp/hardware/runs/a100/1_1/build/bank_conflict --gpu a100 --out-dir /home/jsr10062/repos/gasp/hardware/runs/a100/1_1/bank_penalty_cycles
+Saved /home/jsr10062/repos/gasp/hardware/runs/a100/1_1/bank_penalty_cycles/bank_penalty_cycles.a100.run.json (1.995 cycles per bank conflict)
+{
+  "benchmark": "bank_conflict.cu",
+  "parameter": "bank_penalty_cycles",
+  "value": 1.9950,
+  "unit": "cycles",
+  "gpu": "a100",
+  "gpu_name": "NVIDIA A100-SXM4-40GB",
+  "arch": "sm_80",
+  "num_sms": 108,
+  "clock": {"sm_clock_ghz": 1.0950},
+  "cuda_version": "12.6",
+  "nvcc_version": "12.6",
+  "driver_version": "610.43.02",
+  "git_commit": "a3b6e53",
+  "timestamp": "2026-11-16T19:44:59Z"
+}

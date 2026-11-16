@@ -1,0 +1,11 @@
+$ /usr/bin/python3 /home/jsr10062/repos/gasp/scripts/run/run_gpu_benches.py --gpu a100 --version 1_1 --arch sm_80 --base-profile /home/jsr10062/repos/gasp/hardware/profiles/a100.placeholder.json --force
+GPU a100, sm_80, version 1_1, base clock 1.800 GHz, base profile /home/jsr10062/repos/gasp/hardware/profiles/a100.placeholder.json
+
+== gpu-stream
+  $ nvcc -std=c++20 -O3 -arch=sm_80 /home/jsr10062/repos/gasp/hardware/microbenchmarks/gpu-benches/gpu-stream/main.cu -o /home/jsr10062/repos/gasp/hardware/runs/a100/1_1/gpu-benches/build/gpu-stream
+  $ /home/jsr10062/repos/gasp/hardware/runs/a100/1_1/gpu-benches/build/gpu-stream
+  read peak 1512 GB/s at 221184 threads (100.0% occupancy) = 840.00 bytes/cycle at base
+  wrote hardware/runs/a100/1_1/dram_bandwidth_bytes_per_cycle/dram_bandwidth_bytes_per_cycle.a100.run.json
+
+Comparison: dram_bandwidth_bytes_per_cycle 840   base 3500 (-76.0%)  hpmll 3500 (-76.0%)
+Results: /home/jsr10062/repos/gasp/hardware/runs/a100/1_1/gpu-benches/a100.1_1.gpu-benches.json

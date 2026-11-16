@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.0.0",
+  "benchmark": "hpmll/RegularUnits/shared_lat/shared_lat.cu",
+  "parameter": "shared_mem_load_latency_cycles",
+  "value": 29.0273,
+  "unit": "cycles",
+  "gpu": "a100",
+  "gpu_name": "NVIDIA A100-SXM4-40GB",
+  "arch": "sm_80",
+  "stats": {
+    "median": 29.0273,
+    "mean": 29.0273,
+    "std": 0.0,
+    "min": 29.0273,
+    "max": 29.0273
+  },
+  "clock": {
+    "sm_clock_ghz": 1.0942,
+    "max_sm_clock_ghz": 1.41
+  },
+  "candidates": {
+    "shared_lat": {
+      "benchmark": "hpmll/RegularUnits/shared_lat/shared_lat.cu",
+      "stats": {
+        "median": 29.0273,
+        "mean": 29.0273,
+        "std": 0.0,
+        "min": 29.0273,
+        "max": 29.0273
+      },
+      "values": [
+        29.0273,
+        29.0273,
+        29.0273,
+        29.0273,
+        29.0273
+      ],
+      "printed_values": [
+        29.027344,
+        29.027344,
+        29.027344,
+        29.027344,
+        29.027344
+      ],
+      "printed_lines": [
+        "Shared Memory Latency  = 29.027344",
+        "Shared Memory Latency  = 29.027344",
+        "Shared Memory Latency  = 29.027344",
+        "Shared Memory Latency  = 29.027344",
+        "Shared Memory Latency  = 29.027344"
+      ],
+      "sm_clock_ghz_samples": [
+        1.0939,
+        1.0943,
+        1.0942,
+        1.0946,
+        1.094
+      ],
+      "conversion": "printed value (ld.shared pointer chase)",
+      "hit_rates_pct": {},
+      "valid": true,
+      "invalid_reason": null,
+      "source_changes": {},
+      "notes": [
+        "each load in the chain waits on a shift that computes its address, so this is shared load latency plus about 4-5 cycles"
+      ]
+    }
+  },
+  "reps": 5,
+  "hpmll_commit": "ded6f57",
+  "nvcc_version": "12.6",
+  "driver_version": "610.43.02",
+  "git_commit": "d9048cb",
+  "timestamp": "2026-11-15T23:40:17Z"
+}

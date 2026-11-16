@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.0.0",
+  "benchmark": "hpmll/RegularUnits/alu_lat_int32/alu_lat_int32.cu",
+  "parameter": "int32_inst_latency_cycles",
+  "value": 4.2993,
+  "unit": "cycles",
+  "gpu": "a100",
+  "gpu_name": "NVIDIA A100-SXM4-40GB",
+  "arch": "sm_80",
+  "stats": {
+    "median": 4.2993,
+    "mean": 4.2991,
+    "std": 0.0005,
+    "min": 4.2983,
+    "max": 4.2996
+  },
+  "clock": {
+    "sm_clock_ghz": 1.0922,
+    "max_sm_clock_ghz": 1.41
+  },
+  "candidates": {
+    "alu_lat_int32": {
+      "benchmark": "hpmll/RegularUnits/alu_lat_int32/alu_lat_int32.cu",
+      "stats": {
+        "median": 4.2993,
+        "mean": 4.2991,
+        "std": 0.0005,
+        "min": 4.2983,
+        "max": 4.2996
+      },
+      "values": [
+        4.2993,
+        4.2983,
+        4.2991,
+        4.2993,
+        4.2996
+      ],
+      "printed_values": [
+        4.299316,
+        4.29834,
+        4.299072,
+        4.299316,
+        4.299561
+      ],
+      "printed_lines": [
+        "int32 latency = 4.299316",
+        "int32 latency = 4.298340",
+        "int32 latency = 4.299072",
+        "int32 latency = 4.299316",
+        "int32 latency = 4.299561"
+      ],
+      "sm_clock_ghz_samples": [
+        1.0924,
+        1.0921,
+        1.0906,
+        1.0922,
+        1.0926
+      ],
+      "conversion": "printed value (dependent mad.lo.s32 chain)",
+      "hit_rates_pct": {},
+      "valid": true,
+      "invalid_reason": null,
+      "source_changes": {},
+      "notes": [
+        "measures IMAD (mad.lo.s32), not IADD3"
+      ]
+    }
+  },
+  "reps": 5,
+  "hpmll_commit": "ded6f57",
+  "nvcc_version": "12.6",
+  "driver_version": "610.43.02",
+  "git_commit": "a3b6e53",
+  "timestamp": "2026-11-16T19:43:06Z"
+}
