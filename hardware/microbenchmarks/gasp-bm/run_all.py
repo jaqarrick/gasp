@@ -695,13 +695,16 @@ def main() -> int:
         k for k, v in sources.items() if v["source"] == "copied from base profile"
     ]
 
+    # A failed benchmark's fields keep the base profile's values; say so in sources.json
+    for name, reason in failed.items():
+        if name == HPMLL:  # its fields fall back to gasp-bm, not the base profile
+            continue
+        for key in BY_NAME[name].profile_keys:
+            if key in copied:
+                sources[key]["benchmark_failed"] = f"{name}: {reason}"
+
     profile_path = root / f"{args.gpu}.{version}.json"
     sources_path = root / f"{args.gpu}.{version}.sources.json"
-    if failed:
-        log("\nNot writing the profile, because some benchmarks failed:")
-        for name, reason in failed.items():
-            log(f"  {name}: {reason}")
-        return 1
     profile_path.write_text(json.dumps(profile, indent=4) + "\n")
     sources_path.write_text(
         json.dumps(
@@ -735,6 +738,16 @@ def main() -> int:
     no_clock = sorted(set(measured) - clocked - launch_keys - clock_free)
     if no_clock:
         log(f"No clock recorded (check these ran at base clock): {', '.join(no_clock)}")
+    if failed:
+        log("\nWARNING: some benchmarks failed; the profile was written anyway:")
+        for name, reason in failed.items():
+            if name == HPMLL:
+                log(f"  {name}: {reason} (its fields come from gasp-bm instead)")
+                continue
+            keys = [k for k in BY_NAME[name].profile_keys if k in copied]
+            log(f"  {name}: {reason}")
+            if keys:
+                log(f"    copied from {base_path.name} instead: {', '.join(keys)}")
     return 0
 
 
