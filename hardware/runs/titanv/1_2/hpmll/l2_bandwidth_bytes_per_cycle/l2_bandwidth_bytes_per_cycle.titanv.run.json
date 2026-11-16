@@ -1,0 +1,173 @@
+{
+  "schema_version": "1.0.0",
+  "benchmark": "hpmll/RegularUnits/l2_bw_128/l2_bw_128.cu",
+  "parameter": "l2_bandwidth_bytes_per_cycle",
+  "value": 1773.7093,
+  "unit": "bytes/cycle",
+  "gpu": "titanv",
+  "gpu_name": "NVIDIA TITAN V",
+  "arch": "sm_70",
+  "stats": {
+    "median": 1773.7093,
+    "mean": 1774.1595,
+    "std": 2.9943,
+    "min": 1771.5669,
+    "max": 1778.94
+  },
+  "clock": {
+    "sm_clock_ghz": 1.2056,
+    "max_sm_clock_ghz": 1.912
+  },
+  "candidates": {
+    "l2_bw_32f": {
+      "benchmark": "hpmll/RegularUnits/l2_bw_32f/l2_bw_32f.cu",
+      "stats": {
+        "median": 1546.8961,
+        "mean": 1543.1499,
+        "std": 10.8987,
+        "min": 1528.8943,
+        "max": 1555.1029
+      },
+      "values": [
+        1549.9763,
+        1528.8943,
+        1546.8961,
+        1555.1029,
+        1534.8796
+      ],
+      "printed_values": [
+        977.180725,
+        963.893127,
+        975.148376,
+        980.331543,
+        967.656006
+      ],
+      "printed_lines": [
+        "L2 bandwidth = 977.180725",
+        "L2 bandwidth = 963.893127",
+        "L2 bandwidth = 975.148376",
+        "L2 bandwidth = 980.331543",
+        "L2 bandwidth = 967.656006"
+      ],
+      "sm_clock_ghz_samples": [
+        1.2054,
+        1.2054,
+        1.2053,
+        1.2053,
+        1.2054
+      ],
+      "conversion": "printed value x max SM clock / measured SM clock (it converts globaltimer ns with deviceProp.clockRate, the max clock); the field takes the highest valid shape",
+      "hit_rates_pct": {
+        "lts__t_sector_hit_rate.pct": 99.94
+      },
+      "valid": true,
+      "invalid_reason": null,
+      "source_changes": {},
+      "notes": [
+        "only the last of the benchmark's launches is timed"
+      ]
+    },
+    "l2_bw_64f": {
+      "benchmark": "hpmll/RegularUnits/l2_bw_64f/l2_bw_64f.cu",
+      "stats": {
+        "median": 1462.0657,
+        "mean": 1459.2844,
+        "std": 4.9999,
+        "min": 1450.7577,
+        "max": 1462.412
+      },
+      "values": [
+        1462.412,
+        1462.3747,
+        1458.8116,
+        1462.0657,
+        1450.7577
+      ],
+      "printed_values": [
+        922.137634,
+        922.189331,
+        919.94342,
+        921.930664,
+        914.964172
+      ],
+      "printed_lines": [
+        "L2 bandwidth = 922.137634",
+        "L2 bandwidth = 922.189331",
+        "L2 bandwidth = 919.943420",
+        "L2 bandwidth = 921.930664",
+        "L2 bandwidth = 914.964172"
+      ],
+      "sm_clock_ghz_samples": [
+        1.2056,
+        1.2057,
+        1.2057,
+        1.2056,
+        1.2059
+      ],
+      "conversion": "printed value x max SM clock / measured SM clock (it converts globaltimer ns with deviceProp.clockRate, the max clock); the field takes the highest valid shape",
+      "hit_rates_pct": {
+        "lts__t_sector_hit_rate.pct": 99.96
+      },
+      "valid": true,
+      "invalid_reason": null,
+      "source_changes": {},
+      "notes": [
+        "only the last of the benchmark's launches is timed"
+      ]
+    },
+    "l2_bw_128": {
+      "benchmark": "hpmll/RegularUnits/l2_bw_128/l2_bw_128.cu",
+      "stats": {
+        "median": 1773.7093,
+        "mean": 1774.1595,
+        "std": 2.9943,
+        "min": 1771.5669,
+        "max": 1778.94
+      },
+      "values": [
+        1778.94,
+        1771.7781,
+        1774.8033,
+        1771.5669,
+        1773.7093
+      ],
+      "printed_values": [
+        1121.773682,
+        1117.159546,
+        1118.91687,
+        1117.015259,
+        1118.482666
+      ],
+      "printed_lines": [
+        "L2 bandwidth = 1121.773682",
+        "L2 bandwidth = 1117.159546",
+        "L2 bandwidth = 1118.916870",
+        "L2 bandwidth = 1117.015259",
+        "L2 bandwidth = 1118.482666"
+      ],
+      "sm_clock_ghz_samples": [
+        1.2057,
+        1.2056,
+        1.2054,
+        1.2056,
+        1.2057
+      ],
+      "conversion": "printed value x max SM clock / measured SM clock (it converts globaltimer ns with deviceProp.clockRate, the max clock); the field takes the highest valid shape",
+      "hit_rates_pct": {
+        "lts__t_sector_hit_rate.pct": 99.94
+      },
+      "valid": true,
+      "invalid_reason": null,
+      "source_changes": {},
+      "notes": [
+        "only the last of the benchmark's launches is timed"
+      ]
+    }
+  },
+  "reps": 5,
+  "hpmll_commit": "ded6f57",
+  "nvcc_version": "12.4",
+  "driver_version": "580.196.07",
+  "git_commit": "bcbc273",
+  "timestamp": "2026-11-16T14:31:54Z"
+}
