@@ -3,7 +3,8 @@
 # Changes from GPUPerf: shared-memory and FP64 pipe limits in T_comp (O_shmem,
 # O_fp64: one floor at the busier pipe's time); an L1
 # throughput limit on T_mem; the L2 hit ratio against the blocks resident at the
-# same time; launch overhead added to T_exec for T_GPU. To try: ITMLP = MWP_peak_bw when compute-bound (CWP < MWP), below.
+# same time; launch overhead added to T_exec for T_GPU; when compute-bound
+# (CWP < MWP), ITMLP = min(MLP x MWP, MWP_peak_bw) instead of Eq. 15's MWP_cp.
 from gasp.common.constants import SECTORS_PER_LINE
 from gasp.logger import Logger
 from gasp.models.gpuperf.types import HardwareParameters, LaunchParameters
@@ -88,6 +89,8 @@ class GASPerf:
         self.shared_pipe_time = (
             (shared_insts * o.total_warps) / o.active_sms
         ) * h.shared_mem_throughput
+
+        # Calibration experiment 2
         # FP64 pipe limit
         self.fp64_pipe_time = ((k.fp64_inst_count * o.total_warps) / o.active_sms) * (
             h.warp_size / h.fp64_width
@@ -183,13 +186,15 @@ def run(
     bw_per_warp = h.warp_size * WORD_BYTES / h.dram_latency
     mwp_peak_bw = h.dram_bandwidth / (bw_per_warp * occ.active_sms)
 
-    # potential improvement
-    # if cwp < occ.mwp:
-    #     itmlp = mwp_peak_bw
-    # else:
-    #     itmlp = min(m.mlp * mwp_cp, mwp_peak_bw)
-
-    itmlp = min(m.mlp * mwp_cp, mwp_peak_bw)
+    # Compute-bound (CWP < MWP, Hong-Kim's MWP > CWP case): Eq. 15 drops MWP_cp
+    # to 1 and charges every request one at a time, which can make T_mem larger
+    # than T_comp in a kernel the model itself calls compute-bound. Here the
+    # warps' requests overlap up to MWP (capped at N) and DRAM bandwidth, still
+    # limited by MLP. Strict <: CWP = MWP = N keeps Eq. 15. GPUPerf unchanged.
+    if cwp < occ.mwp:
+        itmlp = min(m.mlp * occ.mwp, mwp_peak_bw)
+    else:
+        itmlp = min(m.mlp * mwp_cp, mwp_peak_bw)
 
     l2_hit_ratio = (
         m.l2_hit_ratio_concurrent
@@ -235,6 +240,8 @@ def run(
 
     model = GASPerf(k, o, l, h, logger)
     t_exec = model.predict_total_exec_time_cycles()
+
+    # Include Alvani's launch overhead
     launch_overhead = model.predict_launch_overhead_cycles()
     t_gpu = t_exec + launch_overhead
     logger.trace(
