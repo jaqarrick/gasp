@@ -513,6 +513,20 @@ def build_profile(
     return profile, sources
 
 
+def with_version(profile: dict, version: str) -> dict:
+    """profile with "version" set to the run label (e.g. "1.2"), after "arch"
+    (or first, if there is no "arch"), replacing any version the base had."""
+    rest = {k: v for k, v in profile.items() if k != "version"}
+    if "arch" not in rest:
+        return {"version": version, **rest}
+    out: dict = {}
+    for key, value in rest.items():
+        out[key] = value
+        if key == "arch":
+            out["version"] = version
+    return out
+
+
 # ---- Main --------------------------------------------------------------------------
 
 
@@ -676,6 +690,7 @@ def main() -> int:
         raise SystemExit(
             f"{exc} ({base_path}); fix the base profile or pass --base-profile"
         )
+    profile = with_version(profile, args.version)
     copied = [
         k for k, v in sources.items() if v["source"] == "copied from base profile"
     ]
