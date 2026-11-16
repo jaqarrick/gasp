@@ -1,222 +1,162 @@
-#include <algorithm>
-#include <array>
-#include <cctype>
-#include <cmath>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <ctime>
-#include <filesystem>
-#include <numeric>
-#include <sstream>
-#include <string>
-#include <vector>
+// shared_memory_load.cu
+// Measures shared_mem_load_latency_cycles: how many cycles one shared-memory
+// load takes when there are no bank conflicts.
+//
+// One warp follows a chain of pointers in shared memory. Each load needs the
+// address from the previous one, so we time one load at a time. The 32 lanes use
+// different banks, so there are no conflicts. The cost of reading the clock is
+// measured in the same kernel and subtracted.
+//
+// Run: ./shared_memory_load [--gpu NAME] [--out-dir DIR] [--reps N]
 
 #include <cuda_runtime.h>
 #include "common.h"
 
-constexpr int NUM_NODES = 64;
+static const char* PARAMETER = "shared_mem_load_latency_cycles";
+
+constexpr int NUM_NODES = 64;       // nodes in each lane's chain
 constexpr int WARP_THREADS = 32;
-constexpr int CHASE_LOADS = 1024;
-constexpr int UNROLL = 16;
+constexpr int CHASE_LOADS = 1024;   // loads in the timed region
+constexpr int UNROLL = 16;          // loads per loop iteration
 constexpr int DEFAULT_REPS = 200;
 
-static_assert(CHASE_LOADS % UNROLL == 0,
-              "CHASE_LOADS must be a multiple of UNROLL");
+static_assert(CHASE_LOADS % UNROLL == 0, "CHASE_LOADS must be a multiple of UNROLL");
 
-static const char* PARAMETER = "shared_mem_load_latency_cycles";
-static const char* SCHEMA_VERSION = "1.1.0";
-static const char* BENCH_VERSION = "1.1.0";
+// One dependent load. The register holds the address and gets the next address,
+// so there is no math between loads. "asm volatile" stops the compiler from
+// removing or merging the loads.
+#define CHASE_ONE asm volatile("ld.shared.u32 %0, [%0];" : "+r"(p)::"memory");
 
-__device__ __forceinline__ uint32_t load_shared_address(uint32_t address) {
-    uint32_t next;
-    asm volatile(
-        "ld.shared.u32 %0, [%1];"
-        : "=r"(next)
-        : "r"(address)
-        : "memory");
-    return next;
-}
-
-#define CHASE_ONE p = load_shared_address(p)
-
-// clock_out[0..1] = lane 0's clock64 cycles and globaltimer ns around the timed region
-__global__ void shared_chase_kernel(unsigned long long* out, unsigned long long* clock_out) {
+// out[0] = cycles for the timed loop (includes the cost of reading the clock)
+// out[1] = cost of reading the clock (two clock reads back to back)
+// out[2] = nanoseconds for the timed loop (used to get the SM clock speed)
+__global__ void shared_chase_kernel(unsigned long long* out, uint32_t* sink) {
     __shared__ uint32_t ring[NUM_NODES * WARP_THREADS];
 
     const int lane = threadIdx.x;
-    const uint32_t shared_base =
-        static_cast<uint32_t>(__cvta_generic_to_shared(ring));
+    const uint32_t shared_base = (uint32_t)__cvta_generic_to_shared(ring);
 
-    // interleave node slots by lane: slot (node, lane) is node*32 + lane, so the 32 lanes address 32 different banks.
+    // Node n of lane L is at slot n*32 + L, so the 32 lanes are always in 32
+    // different banks. Each slot holds the address of the next node.
     for (int node = 0; node < NUM_NODES; ++node) {
         const int next_node = (node + 1) % NUM_NODES;
-        const int slot = node * WARP_THREADS + lane;
-        const int next_slot = next_node * WARP_THREADS + lane;
-        ring[slot] = shared_base +
-                     static_cast<uint32_t>(next_slot * sizeof(uint32_t));
+        ring[node * WARP_THREADS + lane] = shared_base + (next_node * WARP_THREADS + lane) * 4;
     }
     __syncthreads();
 
-    uint32_t p = shared_base +
-                 static_cast<uint32_t>(lane * sizeof(uint32_t));
+    uint32_t p = shared_base + lane * 4;
 
-    // Warm up the dependent chains before timing
+    // Warm-up, not timed.
 #pragma unroll 1
     for (int i = 0; i < 2 * NUM_NODES; ++i) {
-        CHASE_ONE;
+        CHASE_ONE
     }
-
     __syncthreads();
 
-    const uint64_t baseline_start = read_clock64();
-    const uint64_t baseline_stop = read_clock64();
+    // Measure the cost of reading the clock.
+    const uint64_t b0 = read_clock64();
+    const uint64_t b1 = read_clock64();
 
+    // Timed loop: CHASE_LOADS loads, one after another.
     const uint64_t g0 = read_globaltimer();
-    const uint64_t start = read_clock64();
+    const uint64_t t0 = read_clock64();
 #pragma unroll 1
     for (int i = 0; i < CHASE_LOADS; i += UNROLL) {
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
-        CHASE_ONE;
+        CHASE_ONE CHASE_ONE CHASE_ONE CHASE_ONE
+        CHASE_ONE CHASE_ONE CHASE_ONE CHASE_ONE
+        CHASE_ONE CHASE_ONE CHASE_ONE CHASE_ONE
+        CHASE_ONE CHASE_ONE CHASE_ONE CHASE_ONE
     }
-    const uint64_t stop = read_clock64();
+    const uint64_t t1 = read_clock64();
     const uint64_t g1 = read_globaltimer();
-    if (lane == 0) {
-        clock_out[0] = stop - start;
-        clock_out[1] = g1 - g0;
-    }
 
-    out[lane] = stop - start;
-    out[WARP_THREADS + lane] = baseline_stop - baseline_start;
-    out[2 * WARP_THREADS + lane] = p;
+    if (lane == 0) {
+        out[0] = t1 - t0;
+        out[1] = b1 - b0;
+        out[2] = g1 - g0;
+    }
+    sink[lane] = p;   // use the result so the chain is not removed
 }
 
 int main(int argc, char** argv) {
+    // ---- Command line ----
     int reps = DEFAULT_REPS;
     std::string gpu_override;
     std::string out_dir = "hardware/runs";
-
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
-        if (arg == "--reps" && i + 1 < argc) {
-            reps = std::atoi(argv[++i]);
-        } else if (arg == "--gpu" && i + 1 < argc) {
-            gpu_override = argv[++i];
-        } else if (arg == "--out-dir" && i + 1 < argc) {
-            out_dir = argv[++i];
-        } else {
-            fprintf(stderr,
-                    "Usage: %s [--reps N] [--gpu NAME] [--out-dir DIR]\n",
-                    argv[0]);
+        if (arg == "--reps" && i + 1 < argc) reps = std::atoi(argv[++i]);
+        else if (arg == "--gpu" && i + 1 < argc) gpu_override = argv[++i];
+        else if (arg == "--out-dir" && i + 1 < argc) out_dir = argv[++i];
+        else {
+            fprintf(stderr, "Usage: %s [--reps N] [--gpu NAME] [--out-dir DIR]\n", argv[0]);
             return 1;
         }
     }
+    if (reps < 100) { fprintf(stderr, "--reps must be at least 100\n"); return 1; }
 
-    if (reps < 100) {
-        fprintf(stderr, "--reps must be at least 100\n");
-        return 1;
-    }
-
+    // ---- GPU info ----
     int device = 0;
     CUDA_CHECK(cudaGetDevice(&device));
-
     cudaDeviceProp prop{};
     CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
 
     const std::string gpu_name = prop.name;
-    const std::string gpu = gpu_override.empty()
-        ? short_gpu_name(gpu_name)
-        : gpu_override;
-    const std::string arch =
-        "sm_" + std::to_string(prop.major * 10 + prop.minor);
+    const std::string gpu = gpu_override.empty() ? short_gpu_name(gpu_name) : gpu_override;
+    const std::string arch = "sm_" + std::to_string(prop.major * 10 + prop.minor);
     const std::string architecture = architecture_name(prop.major, prop.minor);
 
-    unsigned long long* device_output = nullptr;
-    unsigned long long* device_clock = nullptr;  // lane 0's cycles and ns, for the SM clock
-    CUDA_CHECK(cudaMalloc(&device_clock, 2 * sizeof(unsigned long long)));
-    double sum_clock_cycles = 0.0, sum_clock_ns = 0.0;
-    CUDA_CHECK(cudaMalloc(
-        &device_output, 3 * WARP_THREADS * sizeof(unsigned long long)));
+    int shared_mem_per_sm = 0;
+    CUDA_CHECK(cudaDeviceGetAttribute(&shared_mem_per_sm, cudaDevAttrMaxSharedMemoryPerMultiprocessor, device));
+    const int max_warps_per_sm = prop.maxThreadsPerMultiProcessor / prop.warpSize;
 
-    std::vector<double> raw_cycles;
-    std::vector<double> clock_overhead_samples;
-    raw_cycles.reserve(reps);
-    clock_overhead_samples.reserve(reps);
+    int cuda_runtime = 0;
+    CUDA_CHECK(cudaRuntimeGetVersion(&cuda_runtime));
 
-    for (int rep = 0; rep < reps; ++rep) {
-        shared_chase_kernel<<<1, WARP_THREADS>>>(device_output, device_clock);
+    // ---- Memory ----
+    unsigned long long* d_out = nullptr;
+    uint32_t* d_sink = nullptr;
+    CUDA_CHECK(cudaMalloc(&d_out, 3 * sizeof(unsigned long long)));
+    CUDA_CHECK(cudaMalloc(&d_sink, WARP_THREADS * sizeof(uint32_t)));
+
+    // ---- Timed runs ----
+    std::vector<long long> raw_cycles, overhead_samples;
+    double total_cycles = 0.0, total_ns = 0.0;   // for the SM clock speed
+
+    for (int r = 0; r < reps; ++r) {
+        shared_chase_kernel<<<1, WARP_THREADS>>>(d_out, d_sink);
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
-        unsigned long long host_clock[2] = {0, 0};
-        CUDA_CHECK(cudaMemcpy(host_clock, device_clock, sizeof(host_clock),
-                              cudaMemcpyDeviceToHost));
-        if (host_clock[1] > 0) {
-            sum_clock_cycles += static_cast<double>(host_clock[0]);
-            sum_clock_ns += static_cast<double>(host_clock[1]);
+
+        unsigned long long h[3] = {0, 0, 0};
+        CUDA_CHECK(cudaMemcpy(h, d_out, sizeof(h), cudaMemcpyDeviceToHost));
+        raw_cycles.push_back((long long)h[0]);
+        overhead_samples.push_back((long long)h[1]);
+        if (h[2] > 0) {
+            total_cycles += (double)h[0];
+            total_ns += (double)h[2];
         }
-
-        std::array<unsigned long long, 3 * WARP_THREADS> host_output{};
-        CUDA_CHECK(cudaMemcpy(host_output.data(), device_output,
-                              sizeof(host_output), cudaMemcpyDeviceToHost));
-
-        std::vector<double> lane_cycles(WARP_THREADS);
-        std::vector<double> lane_overheads(WARP_THREADS);
-        for (int lane = 0; lane < WARP_THREADS; ++lane) {
-            lane_cycles[lane] = static_cast<double>(host_output[lane]);
-            lane_overheads[lane] =
-                static_cast<double>(host_output[WARP_THREADS + lane]);
-        }
-
-        raw_cycles.push_back(median_of(lane_cycles));
-        clock_overhead_samples.push_back(median_of(lane_overheads));
     }
 
-    const double clock_overhead = median_of(clock_overhead_samples);
-    std::vector<double> per_load_cycles;
-    per_load_cycles.reserve(reps);
-
-    for (double cycles : raw_cycles) {
-        per_load_cycles.push_back(
-            (cycles - clock_overhead) / CHASE_LOADS);
+    // ---- Results ----
+    // Subtract the clock overhead, then divide by the number of loads.
+    const double overhead = median_of(std::vector<double>(overhead_samples.begin(), overhead_samples.end()));
+    std::vector<double> net_cycles, per_load;
+    for (long long c : raw_cycles) {
+        net_cycles.push_back(c - overhead);
+        per_load.push_back((c - overhead) / CHASE_LOADS);
     }
-
-    const Stats stats = compute_stats(per_load_cycles);
+    const Stats stats = compute_stats(per_load);
     const double value = stats.median;
 
-    int runtime_version = 0;
-    CUDA_CHECK(cudaRuntimeGetVersion(&runtime_version));
+    fprintf(stderr, "Shared-memory load latency: %.3f cycles (std %.4f)\n", value, stats.std);
 
-    int shared_mem_per_sm = 0;
-    CUDA_CHECK(cudaDeviceGetAttribute(
-        &shared_mem_per_sm,
-        cudaDevAttrMaxSharedMemoryPerMultiprocessor,
-        device));
-
-    const int max_warps_per_sm =
-        prop.maxThreadsPerMultiProcessor / prop.warpSize;
-
+    // ---- Save JSON ----
     std::ostringstream json;
     json.setf(std::ios::fixed);
     json.precision(4);
-
     json << "{\n"
-         << "  \"schema_version\": \"" << SCHEMA_VERSION << "\",\n"
          << "  \"benchmark\": \"shared_memory_load.cu\",\n"
-         << "  \"benchmark_version\": \"" << BENCH_VERSION << "\",\n"
          << "  \"parameter\": \"" << PARAMETER << "\",\n"
          << "  \"value\": " << value << ",\n"
          << "  \"unit\": \"cycles\",\n"
@@ -231,37 +171,26 @@ int main(int argc, char** argv) {
          << "    \"shared_mem_per_sm_bytes\": " << shared_mem_per_sm << "\n"
          << "  },\n"
          << json_stats(stats)
-         // raw_cycles: clock64 delta per rep (median over the 32 lanes), overhead NOT subtracted.
+         << "  \"loads_per_rep\": " << CHASE_LOADS << ",\n"
          << "  \"raw_cycles\": " << json_array(raw_cycles) << ",\n"
-         // clock.sm_clock_ghz: total clock64 cycles / total globaltimer ns over all reps
-         << "  \"clock\": {\"sm_clock_ghz\": "
-         << (sum_clock_ns > 0.0 ? sum_clock_cycles / sum_clock_ns : 0.0) << "},\n"
-         << "  \"measurement\": {\n"
-         << "    \"method\": \"dependent conflict-free warp shared-memory load chain\",\n"
-         << "    \"load_instruction\": \"ld.shared.u32\",\n"
-         << "    \"timer\": \"clock64 (cycles), globaltimer (SM clock)\",\n"
-         << "    \"clock_overhead_cycles\": " << clock_overhead << ",\n"
-         << "    \"value_formula\": \"per_load = (raw_cycles[i] - clock_overhead_cycles) / loads_per_rep; value = median(per_load)\",\n"
-         << "    \"nodes_per_lane\": " << NUM_NODES << ",\n"
-         << "    \"loads_per_rep\": " << CHASE_LOADS << ",\n"
-         << "    \"threads_per_block\": " << WARP_THREADS << ",\n"
-         << "    \"reps\": " << reps << "\n"
-         << "  },\n"
-         << "  \"cuda_version\": \"" << cuda_version_string(runtime_version)
-         << "\",\n"
-         << "  \"driver_version\": \"" << json_escape(driver_version())
-         << "\",\n"
+         << "  \"overhead_samples_cycles\": " << json_array(overhead_samples) << ",\n"
+         << "  \"overhead_cycles\": " << overhead << ",\n"
+         << "  \"overhead_subtracted\": true,\n"
+         << "  \"net_cycles\": " << json_array(net_cycles) << ",\n"
+         << "  \"per_load_cycles\": " << json_array(per_load) << ",\n"
+         << "  \"clock\": {\"sm_clock_ghz\": " << (total_ns > 0.0 ? total_cycles / total_ns : 0.0) << "},\n"
+         << "  \"cuda_version\": \"" << cuda_version_string(cuda_runtime) << "\",\n"
+         << "  \"driver_version\": \"" << json_escape(driver_version()) << "\",\n"
          << "  \"timestamp\": \"" << utc_timestamp() << "\"\n"
          << "}\n";
 
-    const std::string result = json.str();
-    const std::string output_path = write_run_json(out_dir, PARAMETER, gpu, result);
+    const std::string output_path = write_run_json(out_dir, PARAMETER, gpu, json.str());
     if (output_path.empty()) return 1;
 
-    printf("%s", result.c_str());
-    fprintf(stderr, "Saved results to %s\n", output_path.c_str());
+    printf("%s", json.str().c_str());
+    fprintf(stderr, "Saved: %s\n", output_path.c_str());
 
-    CUDA_CHECK(cudaFree(device_output));
-    CUDA_CHECK(cudaFree(device_clock));
+    CUDA_CHECK(cudaFree(d_out));
+    CUDA_CHECK(cudaFree(d_sink));
     return 0;
 }
