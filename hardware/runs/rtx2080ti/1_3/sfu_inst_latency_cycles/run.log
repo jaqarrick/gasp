@@ -1,0 +1,19 @@
+$ nvcc -O3 -std=c++17 -arch=sm_75 /home/jpc465/gpu/gasp-gpu/hardware/microbenchmarks/gasp-bm/sfu_latency.cu -o /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx2080ti/1_3/build/sfu_latency
+$ ncu --clock-control base --cache-control none --metrics gpc__cycles_elapsed.max --log-file /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx2080ti/1_3/sfu_inst_latency_cycles/ncu.log /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx2080ti/1_3/build/sfu_latency
+Saved /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx2080ti/1_3/build/sfu_inst_latency_cycles.nvidia_geforce_rtx_2080_ti.run.json (15.203 cycles per SFU op)
+{
+  "benchmark": "sfu_latency.cu",
+  "parameter": "sfu_inst_latency_cycles",
+  "value": 15.2034,
+  "unit": "cycles",
+  "gpu": "nvidia_geforce_rtx_2080_ti",
+  "gpu_name": "NVIDIA GeForce RTX 2080 Ti",
+  "arch": "sm_75",
+  "num_sms": 68,
+  "clock": {"sm_clock_ghz": 1.3500},
+  "cuda_version": "12.4",
+  "nvcc_version": "12.4",
+  "driver_version": "595.104.02",
+  "git_commit": "533f4be",
+  "timestamp": "2026-11-16T15:47:56Z"
+}

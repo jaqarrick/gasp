@@ -1,0 +1,82 @@
+{
+  "schema_version": "1.0.0",
+  "benchmark": "hpmll/RegularUnits/l1_lat/l1_lat.cu",
+  "parameter": "l1_cache_hit_latency_cycles",
+  "value": 32.1186,
+  "unit": "cycles",
+  "gpu": "rtx2080ti",
+  "gpu_name": "NVIDIA GeForce RTX 2080 Ti",
+  "arch": "sm_75",
+  "stats": {
+    "median": 32.1186,
+    "mean": 32.1188,
+    "std": 0.0002,
+    "min": 32.1186,
+    "max": 32.1191
+  },
+  "clock": {
+    "sm_clock_ghz": 1.3338,
+    "max_sm_clock_ghz": 2.16
+  },
+  "candidates": {
+    "l1_lat": {
+      "benchmark": "hpmll/RegularUnits/l1_lat/l1_lat.cu",
+      "stats": {
+        "median": 32.1186,
+        "mean": 32.1188,
+        "std": 0.0002,
+        "min": 32.1186,
+        "max": 32.1191
+      },
+      "values": [
+        32.1186,
+        32.1186,
+        32.1186,
+        32.1191,
+        32.119
+      ],
+      "printed_values": [
+        32.1186,
+        32.1186,
+        32.1186,
+        32.1191,
+        32.119
+      ],
+      "printed_lines": [
+        "L1 Latency  =      32.1186",
+        "L1 Latency  =      32.1186",
+        "L1 Latency  =      32.1186",
+        "L1 Latency  =      32.1191",
+        "L1 Latency  =      32.1190"
+      ],
+      "sm_clock_ghz_samples": [
+        1.3337,
+        1.3338,
+        1.3339,
+        1.3338,
+        1.3332
+      ],
+      "conversion": "printed value (ld.global.ca pointer chase, 32 KB array, 256 passes)",
+      "hit_rates_pct": {
+        "l1tex__t_sector_hit_rate.pct": 99.91
+      },
+      "valid": true,
+      "invalid_reason": null,
+      "source_changes": {
+        "ITERS": {
+          "hpmll": 32768,
+          "used": 1048576
+        }
+      },
+      "notes": [
+        "built with ITERS 1048576 (hpmll: 32768) so the cold first pass is negligible"
+      ]
+    }
+  },
+  "reps": 5,
+  "hpmll_commit": "ded6f57",
+  "nvcc_version": "12.4",
+  "driver_version": "595.104.02",
+  "git_commit": "533f4be",
+  "timestamp": "2026-11-16T15:47:49Z"
+}

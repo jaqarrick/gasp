@@ -1,0 +1,167 @@
+{
+  "schema_version": "1.0.0",
+  "benchmark": "hpmll/RegularUnits/l1_bw_32f/l1_bw_32f.cu",
+  "parameter": "l1_sectors_per_cycle_per_sm",
+  "value": 1.9904,
+  "unit": "sectors/cycle/SM",
+  "gpu": "rtx2080ti",
+  "gpu_name": "NVIDIA GeForce RTX 2080 Ti",
+  "arch": "sm_75",
+  "stats": {
+    "median": 1.9904,
+    "mean": 1.9906,
+    "std": 0.0006,
+    "min": 1.99,
+    "max": 1.9916
+  },
+  "clock": {
+    "sm_clock_ghz": 1.3317,
+    "max_sm_clock_ghz": 2.16
+  },
+  "candidates": {
+    "l1_bw_32f": {
+      "benchmark": "hpmll/RegularUnits/l1_bw_32f/l1_bw_32f.cu",
+      "stats": {
+        "median": 1.9904,
+        "mean": 1.9906,
+        "std": 0.0006,
+        "min": 1.99,
+        "max": 1.9916
+      },
+      "values": [
+        1.99,
+        1.9904,
+        1.9905,
+        1.9903,
+        1.9916
+      ],
+      "printed_values": [
+        63.679348,
+        63.692886,
+        63.696754,
+        63.689018,
+        63.730629
+      ],
+      "printed_lines": [
+        "L1 bandwidth = 63.679348",
+        "L1 bandwidth = 63.692886",
+        "L1 bandwidth = 63.696754",
+        "L1 bandwidth = 63.689018",
+        "L1 bandwidth = 63.730629"
+      ],
+      "sm_clock_ghz_samples": [
+        1.331,
+        1.3317,
+        1.3317,
+        1.3296,
+        1.3318
+      ],
+      "conversion": "printed bytes per clock per SM / 32; the field takes the highest valid shape",
+      "hit_rates_pct": {
+        "l1tex__t_sector_hit_rate.pct": 95.65
+      },
+      "valid": true,
+      "invalid_reason": null,
+      "source_changes": {},
+      "notes": []
+    },
+    "l1_bw_64f": {
+      "benchmark": "hpmll/RegularUnits/l1_bw_64f/l1_bw_64f.cu",
+      "stats": {
+        "median": 0.4189,
+        "mean": 0.4189,
+        "std": 0.0,
+        "min": 0.4189,
+        "max": 0.419
+      },
+      "values": [
+        0.4189,
+        0.4189,
+        0.4189,
+        0.419,
+        0.419
+      ],
+      "printed_values": [
+        13.405772,
+        13.405086,
+        13.404272,
+        13.406586,
+        13.407657
+      ],
+      "printed_lines": [
+        "L1 bandwidth = 13.405772",
+        "L1 bandwidth = 13.405086",
+        "L1 bandwidth = 13.404272",
+        "L1 bandwidth = 13.406586",
+        "L1 bandwidth = 13.407657"
+      ],
+      "sm_clock_ghz_samples": [
+        1.3314,
+        1.3322,
+        1.3322,
+        1.3316,
+        1.3317
+      ],
+      "conversion": "printed bytes per clock per SM / 32; the field takes the highest valid shape",
+      "hit_rates_pct": {
+        "l1tex__t_sector_hit_rate.pct": 93.4
+      },
+      "valid": false,
+      "invalid_reason": "l1tex__t_sector_hit_rate.pct = 93.4% < 95% (the array must stay in L1)",
+      "source_changes": {},
+      "notes": []
+    },
+    "l1_bw_128": {
+      "benchmark": "hpmll/RegularUnits/l1_bw_128/l1_bw_128.cu",
+      "stats": {
+        "median": 2.7033,
+        "mean": 2.7032,
+        "std": 0.0036,
+        "min": 2.6989,
+        "max": 2.7069
+      },
+      "values": [
+        2.7066,
+        2.7003,
+        2.6989,
+        2.7033,
+        2.7069
+      ],
+      "printed_values": [
+        86.610187,
+        86.410342,
+        86.365193,
+        86.505242,
+        86.621813
+      ],
+      "printed_lines": [
+        "L1 bandwidth = 86.610187",
+        "L1 bandwidth = 86.410342",
+        "L1 bandwidth = 86.365193",
+        "L1 bandwidth = 86.505242",
+        "L1 bandwidth = 86.621813"
+      ],
+      "sm_clock_ghz_samples": [
+        1.3322,
+        1.3322,
+        1.3224,
+        1.3231,
+        1.3228
+      ],
+      "conversion": "printed bytes per clock per SM / 32; the field takes the highest valid shape",
+      "hit_rates_pct": {
+        "l1tex__t_sector_hit_rate.pct": 94.73
+      },
+      "valid": false,
+      "invalid_reason": "l1tex__t_sector_hit_rate.pct = 94.7% < 95% (the array must stay in L1)",
+      "source_changes": {},
+      "notes": []
+    }
+  },
+  "reps": 5,
+  "hpmll_commit": "ded6f57",
+  "nvcc_version": "12.4",
+  "driver_version": "595.104.02",
+  "git_commit": "533f4be",
+  "timestamp": "2026-11-16T15:47:49Z"
+}
