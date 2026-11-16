@@ -1,11 +1,31 @@
+/*
+    GPUPerf [Sim et al] describes a machine-dependent parameter Γ (gamma) which is a
+    unit-less fudge factor, that measures the cost of barrier synchronization.
+
+    The paper does not detail the approach they used to determine their value of 64,
+    but we are assuming it is measuring the variation of DRAM x memory ratio.
+
+    When threads in the warp do the same work (memory loads), the sync cost measures
+    the "jitter" effect of variations in DRAM latency. So, the approach to find this
+    "jitter" cost is to launch two similar kernels. The only difference is one of them
+    includes a barrier, the other does not.
+
+    Overall approach:
+    1. Create a large buffer in DRAM (must be larger than L2)
+    2. Each warp walks through its slice of the buffer (one cache line at a time)
+    3. Do some math (FFMA) between loads and store to shared memory.
+    4. At the end of the iteration, one kernel has a barrier, the other does not.
+
+    The variations across kernels are in number of loads, number of FFMA operations
+    num blocks, num warps, etc. The Gamma value should remain relatively consistent.
+*/
+
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -21,69 +41,100 @@ static const char* PARAMETER      = "sync_factor_cycles";
 static const char* SCHEMA_VERSION = "1.2.0";
 static const char* BENCH_VERSION  = "1.2.0";
 
-constexpr int WARP                 = 32;
-constexpr int LINE_BYTES           = WARP * 4;
-constexpr int WORKING_SET_L2_MULT  = 4;           // ring >= 4 x L2
-constexpr int DEFAULT_REPS         = 100;         // launches per variant per config (>=100)
-constexpr int DEFAULT_ITERS        = 256;         // barriers per warp per launch
-constexpr int DEFAULT_LOOP_OVERHEAD = 5;          // pointer IADD3 + IADD3.X, counter IADD3, ISETP, BRA
-constexpr double CV_WARN           = 0.25;        // warn if Γ varies more than this across configs
-// A config whose no-barrier variant streams at >= this fraction of the measured DRAM
-// bandwidth is bandwidth-bound: the barrier hides behind DRAM queueing, which is not
-// the latency-exposure effect GPUPerf's sync term models, so it is excluded from Γ.
+// use constexpr since these must be known at compile time
+constexpr int WARP = 32;
+constexpr int LINE_BYTES = WARP * 4; // 128 bytes is cache line size
+constexpr int WORKING_SET_L2_MULT = 4; // The ring buffer is at leat 4 times the size of the L2 cache
+constexpr int DEFAULT_REPS = 100; // Run the configuration 100 times and get average
+constexpr int DEFAULT_ITERS = 256; // Each launch does 256 iterations.
+constexpr int DEFAULT_LOOP_OVERHEAD = 5; // factor 'housekeeping' instrucitons
+constexpr double CV_WARN = 0.25; // if Gamma across configs varies more than 25% print a warning
+
 constexpr double DEFAULT_BW_FRAC   = 0.85;
 
-constexpr int LOADS[]        = {1, 4};
-constexpr int FFMAS[]        = {0, 8, 32, 128};
-constexpr int WARPS_PER_BLOCK[] = {4, 8, 16};
-constexpr int BLOCKS_PER_SM[]   = {1, 2, 4};
+constexpr int LOADS[]        = {1, 4}; // num global loads
+constexpr int FFMAS[]        = {0, 8, 32, 128}; // sweep 0 to 128 FFMAs
+constexpr int WARPS_PER_BLOCK[] = {4, 8, 16}; // warp varation
+constexpr int BLOCKS_PER_SM[]   = {1, 2, 4}; // block variation
 
-// M - global loads per iter
-// C - number of FFMAs per iteration
-// BAR should include barrier?
+/*
+The Kernel to be used:
+    M - global loads per iter
+    C - number of FFMAs per iteration
+    BAR should include barrier?
+    A template is used because we need compile-time parameters
+    for each iteration
+*/
 template <int M, int C, bool BAR>
-__global__ void sync_kernel(const float* __restrict__ buf, int iters, float k,
-                            long long* t_start, long long* t_end,
-                            unsigned long long* g_start, unsigned long long* g_end,
-                            int* smid, float* sink) {
-    extern __shared__ float smem[];
+__global__ void sync_kernel(
+    const float* __restrict__ buf, // restrict operative since buf is not overlapped with sink
+    int iters,
+    float k, // some arbitray value passed into FFMA operation
+    long long* t_start,
+    long long* t_end,
+    unsigned long long* g_start,
+    unsigned long long* g_end,
+    int* smid, // track SM
+    float* sink // where the FFMA result is stored to
+) {
+    extern __shared__ float smem[]; // each block gets shared mem; dynamically-sized
     const int tid  = threadIdx.x;
     const int lane = tid % WARP;
     const int wid  = blockIdx.x * (blockDim.x / WARP) + tid / WARP;
 
-    const char* p = reinterpret_cast<const char*>(buf)
-                  + static_cast<size_t>(wid) * iters * M * LINE_BYTES
-                  + lane * 4;
+    // we need to do pointer arithmetic in bytes, not floats
+    // so cast the buffer to a char* (1 byte).
+    // each warp gets a slice and within slice each thread reads from lane offset
+    const char* buf_ptr = reinterpret_cast<const char*>(buf);
+    size_t lane_offset = static_cast<size_t>(wid) * iters * M * LINE_BYTES + lane * 4;
+    const char* p = buf_ptr + lane_offset;
 
-    // Conflict-free shared slots: store m of thread tid goes to word m x blockDim + tid.
     uint32_t saddr[M];
+
+    /*
+        A subtle quirk. The st.shared.f32 instruction expects a shared-specific address
+        We can optimize by resolving the address ahead of time
+        See: https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/cpp-language-extensions.html#address-space-conversion-functions
+    */
     const uint32_t sbase = static_cast<uint32_t>(__cvta_generic_to_shared(smem));
-#pragma unroll
+#pragma unroll // calculate the shared address bases. Tell the compiler to unroll the loop, since all values known at compile time
     for (int m = 0; m < M; ++m) saddr[m] = sbase + (m * blockDim.x + tid) * 4;
 
     float acc[4] = {1.0f, 2.0f, 3.0f, 4.0f};
 
-    // Same start for every warp of the block, in both variants.
-    asm volatile("bar.sync 0;" ::: "memory");
-    // globaltimer outside the clock64 pair, so it does not add to the cycle span.
-    if (tid == 0) {
+    asm volatile("bar.sync 0;" ::: "memory"); // barrier before start
+    if (tid == 0) { // just have the first thread store the timestamps
         g_start[blockIdx.x] = read_globaltimer();
         t_start[blockIdx.x] = read_clock64();
     }
 
-#pragma unroll 1
+#pragma unroll 1 // do not unroll the outer loop
     for (int i = 0; i < iters; ++i) {
         float v[M];
-#pragma unroll
+#pragma unroll // unroll the inner loop
         for (int m = 0; m < M; ++m)
+
+            /*
+            ld.global -> load from global
+            .cg cache policy (cache at l2, bypass l1)
+            */
             asm volatile("ld.global.cg.f32 %0, [%1];"
                          : "=f"(v[m]) : "l"(p + m * LINE_BYTES) : "memory");
 #pragma unroll
+
         for (int c = 0; c < C; ++c)
+            /*
+            fma.rn.fm -> fuxed multiply / add rounded to 32-bit float
+            */
             asm volatile("fma.rn.f32 %0, %0, %1, %0;" : "+f"(acc[c % 4]) : "f"(k));
 #pragma unroll
         for (int m = 0; m < M; ++m)
+            /*
+                store the output of fma to shared memory (st.shared.f32)
+                :: separates inst from outputs
+            */
             asm volatile("st.shared.f32 [%0], %1;" :: "r"(saddr[m]), "f"(v[m]) : "memory");
+        // The barrier instruction that only gets run for the first BAR variation
         if (BAR) asm volatile("bar.sync 0;" ::: "memory");
         p += M * LINE_BYTES;
     }
@@ -94,13 +145,19 @@ __global__ void sync_kernel(const float* __restrict__ buf, int iters, float k,
         g_end[blockIdx.x] = read_globaltimer();
         smid[blockIdx.x]  = read_smid();
     }
-    // Keep the FFMA results observable.
     const float s = acc[0] + acc[1] + acc[2] + acc[3];
-    if (s == 12345.0f) *sink = s;
+    if (s == 12345.0f) *sink = s; // prevent dead code elimination
 }
 
-using KernelFn = void (*)(const float*, int, float, long long*, long long*,
-                          unsigned long long*, unsigned long long*, int*, float*);
+
+// Set up the two variations
+using KernelFn = void (*)(
+    const float*,
+    int,
+    float,
+    long long*,
+    long long*,
+unsigned long long*, unsigned long long*, int*, float*);
 
 template <int M, int C>
 static void kernels_for(KernelFn& no_bar, KernelFn& bar) {
@@ -108,6 +165,7 @@ static void kernels_for(KernelFn& no_bar, KernelFn& bar) {
     bar    = sync_kernel<M, C, true>;
 }
 
+// mapping (m, c) pair to pre-compiled kernel since we're using the template
 static bool lookup_kernels(int m, int c, KernelFn& no_bar, KernelFn& bar) {
 #define CASE(M_, C_) if (m == M_ && c == C_) { kernels_for<M_, C_>(no_bar, bar); return true; }
     CASE(1, 0) CASE(1, 8) CASE(1, 32) CASE(1, 128)
@@ -125,21 +183,30 @@ static double stddev_of(const std::vector<double>& v) {
 }
 
 struct LaunchResult {
-    double span;         // median over SMs of (last block end - first block start)
-    bool   co_resident;  // every SM ran exactly blocks_per_sm blocks
-    double clock_cycles; // sum over blocks of the block's clock64 span
-    double clock_ns;     // sum over blocks of the block's globaltimer span
+    double span; // median over SM
+    bool   co_resident; // did every SM run across GPU
+    double clock_cycles;
+    double clock_ns;
 };
 
-static LaunchResult run_once(KernelFn fn, int grid, int threads, size_t smem,
-                             const float* slice, int iters, int num_sms, int blocks_per_sm,
-                             long long* d_start, long long* d_end,
-                             unsigned long long* d_gstart, unsigned long long* d_gend,
-                             int* d_smid, float* d_sink,
-                             std::vector<long long>& h_start, std::vector<long long>& h_end,
-                             std::vector<unsigned long long>& h_gstart,
-                             std::vector<unsigned long long>& h_gend,
-                             std::vector<int>& h_smid) {
+static LaunchResult run_once(
+    KernelFn fn,
+    int grid,
+    int threads,
+    size_t smem,
+    const float* slice,
+    int iters,
+    int num_sms,
+    int blocks_per_sm,
+    long long* d_start,
+    long long* d_end,
+    unsigned long long* d_gstart,
+    unsigned long long* d_gend,
+    int* d_smid, float* d_sink,
+    std::vector<long long>& h_start, std::vector<long long>& h_end,
+    std::vector<unsigned long long>& h_gstart,
+    std::vector<unsigned long long>& h_gend,
+    std::vector<int>& h_smid) {
     fn<<<grid, threads, smem>>>(slice, iters, 0.0f, d_start, d_end, d_gstart, d_gend, d_smid, d_sink);
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
@@ -149,8 +216,6 @@ static LaunchResult run_once(KernelFn fn, int grid, int threads, size_t smem,
     CUDA_CHECK(cudaMemcpy(h_gend.data(), d_gend, grid * sizeof(unsigned long long), cudaMemcpyDeviceToHost));
     CUDA_CHECK(cudaMemcpy(h_smid.data(), d_smid, grid * sizeof(int), cudaMemcpyDeviceToHost));
 
-    // Each block's clock64 and globaltimer spans come from one SM, so their ratio is
-    // that SM's clock. Summed over blocks, globaltimer's ~1 us updates average out.
     double clock_cycles = 0.0, clock_ns = 0.0;
     for (int b = 0; b < grid; ++b) {
         clock_cycles += static_cast<double>(h_end[b] - h_start[b]);
@@ -179,11 +244,19 @@ struct ConfigResult {
     double mem_ratio;
     double t_no_bar, t_bar, t_no_bar_std, t_bar_std;
     double delta, f_sync, gamma;
-    double delta_per_iter;   // delta / iters: SM cycles each barrier round adds
-    double achieved_bw;      // no-barrier variant, bytes per SM cycle across the GPU
+    double delta_per_iter;
+    double achieved_bw;
     bool co_resident;
-    bool bw_bound;           // achieved_bw >= bw_frac x measured DRAM bandwidth
+    bool bw_bound;
 };
+
+
+void usage(char** argv){
+    printf("Usage: %s [--gpu NAME] [--out-dir DIR] [--reps N] [--iters N] "
+                "[--dram-latency CYCLES] [--dram-bandwidth BYTES_PER_CYCLE] "
+                "[--bw-frac F] [--loop-overhead N]\n", argv[0]
+    );
+}
 
 int main(int argc, char** argv) {
     std::string out_dir = "./hardware/runs";
@@ -191,8 +264,8 @@ int main(int argc, char** argv) {
     int reps = DEFAULT_REPS;
     int iters = DEFAULT_ITERS;
     int loop_overhead = DEFAULT_LOOP_OVERHEAD;
-    double dram_latency = 0.0;   // 0 = read from the dram_latency run
-    double dram_bw = 0.0;        // 0 = read from the dram_bandwidth run
+    double dram_latency = 0.0;
+    double dram_bw = 0.0;
     double bw_frac = DEFAULT_BW_FRAC;
     for (int i = 1; i < argc; ++i) {
         if (!strcmp(argv[i], "--out-dir") && i + 1 < argc) out_dir = argv[++i];
@@ -204,9 +277,7 @@ int main(int argc, char** argv) {
         else if (!strcmp(argv[i], "--bw-frac") && i + 1 < argc) bw_frac = atof(argv[++i]);
         else if (!strcmp(argv[i], "--loop-overhead") && i + 1 < argc) loop_overhead = atoi(argv[++i]);
         else {
-            fprintf(stderr, "Usage: %s [--gpu NAME] [--out-dir DIR] [--reps N] [--iters N] "
-                            "[--dram-latency CYCLES] [--dram-bandwidth BYTES_PER_CYCLE] "
-                            "[--bw-frac F] [--loop-overhead N]\n", argv[0]);
+
             return 1;
         }
     }
@@ -247,11 +318,8 @@ int main(int argc, char** argv) {
         }
     }
 
-    // Ring: at least 4x L2. Preferred: the largest launch twice over, so consecutive
-    // launches read disjoint slices. If that does not fit in free memory, the largest
-    // launch plus one L2 is enough: a launch that wraps to the start of the ring finds
-    // at most the previous launch's last L2's worth of lines cached, and it streams far
-    // more than L2 before reaching them, so its loads still miss L2.
+
+    // Ring buffer sizing
     const int max_m = *std::max_element(std::begin(LOADS), std::end(LOADS));
     const int max_w = *std::max_element(std::begin(WARPS_PER_BLOCK), std::end(WARPS_PER_BLOCK));
     const int max_b = *std::max_element(std::begin(BLOCKS_PER_SM), std::end(BLOCKS_PER_SM));
@@ -301,7 +369,7 @@ int main(int argc, char** argv) {
     std::vector<unsigned long long> h_gstart(max_grid), h_gend(max_grid);
     std::vector<int> h_smid(max_grid);
 
-    size_t cursor = 0;   // byte offset of the next launch's slice in the ring
+    size_t cursor = 0;
     auto next_slice = [&](size_t bytes) {
         if (cursor + bytes > ring_bytes) cursor = 0;
         const float* s = reinterpret_cast<const float*>(reinterpret_cast<char*>(d_ring) + cursor);
@@ -311,7 +379,6 @@ int main(int argc, char** argv) {
 
     std::vector<ConfigResult> results;
     std::vector<std::string> skipped;
-    // SM clock over the recorded launches: per-launch cycles / ns, and the totals.
     std::vector<double> clock_ghz;
     double sum_clock_cycles = 0.0, sum_clock_ns = 0.0;
     for (int m : LOADS)
@@ -335,7 +402,6 @@ int main(int argc, char** argv) {
         }
 
         const size_t launch_bytes = static_cast<size_t>(grid) * w * iters * m * LINE_BYTES;
-        // Warm-up (icache, clocks), not recorded.
         for (KernelFn fn : {k_no_bar, k_bar})
             run_once(fn, grid, threads, smem, next_slice(launch_bytes), iters, num_sms, b,
                      d_start, d_end, d_gstart, d_gend, d_smid, d_sink,
@@ -344,7 +410,6 @@ int main(int argc, char** argv) {
         std::vector<double> t_no_bar, t_bar;
         bool co_resident = true;
         for (int r = 0; r < reps; ++r) {
-            // Alternate the order so drift affects both variants alike.
             const bool bar_first = r % 2;
             for (int v = 0; v < 2; ++v) {
                 const bool is_bar = (v == 0) == bar_first;
@@ -374,8 +439,6 @@ int main(int argc, char** argv) {
         cr.f_sync = cr.delta / (static_cast<double>(iters) * cr.warps_per_sm);
         cr.gamma = cr.f_sync / (dram_latency * cr.mem_ratio);
         cr.delta_per_iter = cr.delta / iters;
-        // The span is per SM, but every SM streams at once, so launch bytes over the
-        // span is the GPU-wide rate in bytes per SM cycle, the same unit as dram_bw.
         cr.achieved_bw = static_cast<double>(launch_bytes) / cr.t_no_bar;
         cr.co_resident = co_resident;
         cr.bw_bound = cr.achieved_bw >= bw_frac * dram_bw;
@@ -387,11 +450,13 @@ int main(int argc, char** argv) {
                 label, cr.mem_ratio, cr.t_no_bar, cr.t_bar, cr.achieved_bw, cr.f_sync, cr.gamma, note);
     }
 
-    // ---- Γ over the usable configurations ----------------------------------
-    // Usable = every block co-resident and not bandwidth-bound.
+
+    // calculate the median result
     std::vector<double> gammas, deltas_per_iter;
     int bw_bound_count = 0;
-    double sxy = 0.0, sxx = 0.0;   // least squares through the origin: F_sync = Γ x (lat x ratio)
+    double sxy = 0.0;
+    double sxx = 0.0;
+
     for (const auto& r : results) {
         if (!r.co_resident) continue;
         if (r.bw_bound) { ++bw_bound_count; continue; }
@@ -415,8 +480,6 @@ int main(int argc, char** argv) {
     const double gamma_fit = sxy / sxx;
     const double cv = std::fabs(mean) > 0 ? stddev / std::fabs(mean) : INFINITY;
 
-    // SM clock the cycles were counted at. The cycle spans depend on it, so the profile
-    // needs runs at the clock the validation runs at: ncu locks base clock (README).
     if (clock_ghz.empty()) { fprintf(stderr, "ERROR: globaltimer did not advance\n"); return 1; }
     const double clock_ghz_all = sum_clock_cycles / sum_clock_ns;
     const double clock_min = *std::min_element(clock_ghz.begin(), clock_ghz.end());
@@ -431,7 +494,6 @@ int main(int argc, char** argv) {
                         "gamma does not fit them all. Check the per-configuration values against "
                         "memory ratio and warps per SM before using the median.\n", 100 * cv);
 
-    // ---- Build JSON --------------------------------------------------------
     std::string driver = driver_version();
     std::string commit = git_commit();
 
@@ -450,7 +512,6 @@ int main(int argc, char** argv) {
     j << "  \"arch\": \"" << arch << "\",\n";
     j << "  \"num_sms\": " << num_sms << ",\n";
     j << "  \"l2_cache_bytes\": " << prop.l2CacheSize << ",\n";
-    // stats are over the usable (co-resident, not bandwidth-bound) configurations' Γ, not over reps
     j << "  \"stats\": {\n";
     j << "    \"median\": " << median << ",\n";
     j << "    \"mean\": " << mean << ",\n";
@@ -463,14 +524,6 @@ int main(int argc, char** argv) {
     j << "    \"configs_bandwidth_bound\": " << bw_bound_count << ",\n";
     j << "    \"median_delta_per_iter_cycles\": " << median_delta_per_iter << "\n";
     j << "  },\n";
-    // per configuration:
-    //   t_no_bar_cycles, t_bar_cycles : median over reps of the per-SM span (median over SMs)
-    //   delta_cycles                  : t_bar - t_no_bar, measured O_sync per SM
-    //   delta_per_iter_cycles         : delta / iters, SM cycles each barrier round adds
-    //   f_sync_cycles                 : delta / (iters x warps_per_sm)
-    //   gamma                         : f_sync / (dram_latency x mem_ratio)
-    //   achieved_bw_bytes_per_cycle   : no-barrier launch bytes / t_no_bar
-    //   bandwidth_bound               : achieved_bw >= bw_frac x dram_bandwidth (excluded)
     j << "  \"configs\": [\n";
     for (size_t i = 0; i < results.size(); ++i) {
         const auto& r = results[i];
@@ -494,8 +547,6 @@ int main(int argc, char** argv) {
           << (i + 1 < results.size() ? "," : "") << "\n";
     }
     j << "  ],\n";
-    // clock: SM clock during the recorded launches. sm_clock_ghz = total clock64 cycles /
-    // total globaltimer ns over every block of every launch; min/max are per launch
     j << "  \"clock\": {\n";
     j << "    \"sm_clock_ghz\": " << clock_ghz_all << ",\n";
     j << "    \"sm_clock_ghz_min\": " << clock_min << ",\n";
@@ -525,7 +576,6 @@ int main(int argc, char** argv) {
     j << "  \"timestamp\": \"" << utc_timestamp() << "\"\n";
     j << "}\n";
 
-    // ---- Save to <out_dir>/{parameter}.{gpu}.run.json -----------------------
     const std::string out_path = write_run_json(out_dir, PARAMETER, gpu, j.str());
     if (out_path.empty()) return 1;
 
@@ -545,19 +595,3 @@ int main(int argc, char** argv) {
     CUDA_CHECK(cudaFree(d_sink));
     return 0;
 }
-
-// ---------------------------------------------------------------------------
-// SASS inspection checklist:
-//   cuobjdump -sass sync_cost.cubin
-// For each sync_kernel<M, C, BAR> instantiation, inside the timed loop:
-//   * M LDG.E (with .STRONG.GPU on Turing, from .cg) off one address register,
-//     at offsets 0x0, 0x80, 0x100, 0x180 (no IADD/LEA between them)
-//   * C FFMA, none of them reading an LDG destination
-//   * M STS, each storing an LDG destination
-//   * BAR.SYNC only in the BAR = true instances, after the STS
-//   * the loop overhead: count the instructions in the loop that are none of
-//     the above (expected 5: IADD3 + IADD3.X on the pointer, IADD3 on the
-//     counter, ISETP, BRA). If the count differs, rerun with --loop-overhead N,
-//     or the memory ratio, and so Γ, will be off.
-// Outside the loop, a BAR.SYNC and CS2R (clock) before the loop and after it.
-// ---------------------------------------------------------------------------
