@@ -1,12 +1,12 @@
-$ nvcc -O3 -std=c++17 -arch=sm_70 /home/sb10517/gasp/hardware/microbenchmarks/gasp-bm/bank_conflict.cu -o /home/sb10517/gasp/hardware/runs/titanv/1_2/build/bank_conflict
-$ ncu --clock-control base --cache-control none --metrics gpc__cycles_elapsed.max --log-file /home/sb10517/gasp/hardware/runs/titanv/1_2/bank_penalty_cycles/ncu.log /home/sb10517/gasp/hardware/runs/titanv/1_2/build/bank_conflict --gpu titanv --out-dir /home/sb10517/gasp/hardware/runs/titanv/1_2/bank_penalty_cycles
-Saved /home/sb10517/gasp/hardware/runs/titanv/1_2/build/sfu_inst_latency_cycles.titan_v.run.json (2.000 cycles per SFU op)
+$ nvcc -O3 -std=c++17 -arch=sm_70 /home/jpc465/gpu/gasp-gpu/hardware/microbenchmarks/gasp-bm/bank_conflict.cu -o /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_2/build/bank_conflict
+$ ncu --clock-control base --cache-control none --metrics gpc__cycles_elapsed.max --log-file /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_2/bank_penalty_cycles/ncu.log /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_2/build/bank_conflict --gpu titanv --out-dir /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_2/bank_penalty_cycles
+Saved /home/jpc465/gpu/gasp-gpu/hardware/runs/titanv/1_2/bank_penalty_cycles/bank_penalty_cycles.titanv.run.json (2.000 cycles per bank conflict)
 {
   "benchmark": "bank_conflict.cu",
   "parameter": "bank_penalty_cycles",
   "value": 1.9998,
   "unit": "cycles",
-  "gpu": "titan_v",
+  "gpu": "titanv",
   "gpu_name": "NVIDIA TITAN V",
   "arch": "sm_70",
   "num_sms": 80,
@@ -14,6 +14,6 @@ Saved /home/sb10517/gasp/hardware/runs/titanv/1_2/build/sfu_inst_latency_cycles.
   "cuda_version": "12.4",
   "nvcc_version": "12.4",
   "driver_version": "580.196.07",
-  "git_commit": "bcbc273",
-  "timestamp": "2026-11-16T14:34:29Z"
+  "git_commit": "02799b0",
+  "timestamp": "2026-11-16T15:28:21Z"
 }
