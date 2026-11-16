@@ -182,7 +182,7 @@ int main(int argc, char** argv) {
     }
 
     if (total_ns <= 0.0) { fprintf(stderr, "ERROR: globaltimer did not advance\n"); return 1; }
-.
+
     const double sm_clock_ghz = total_cycles / total_ns;
 
     // ---- Results ----
