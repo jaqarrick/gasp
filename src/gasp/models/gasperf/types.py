@@ -65,6 +65,8 @@ class ModelOutput:
     t_mem: float
     t_overlap: float
     t_exec: float
+    launch_overhead: float
+    t_gpu: float
     # shared loads + stores per SM x cycles each, and what it adds to T_comp
     shared_pipe_time: float = 0.0
     o_shmem: float = 0.0

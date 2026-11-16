@@ -193,7 +193,7 @@ Every run predicts each kernel with two models and shows one row per kernel per 
 
 - Speedups compare kernels under the same model: each kernel's speedup is against the reference kernel's T_GPU under that model.
 - Static analysis, the cache model and overrides run before the model, so both models get the same inputs. With `--run`, each kernel is profiled once.
-- Both models take `inputs.ModelInputs` (`src/gasp/models/inputs.py`) and have a `run()` that computes everything from ITILP (Eqs. 4–5) to T_exec (Eq. 1). Launch overhead is added after either one. `src/gasp/models/__init__.py` lists the models.
+- Both models take `inputs.ModelInputs` (`src/gasp/models/inputs.py`) and have a `run()` that computes everything from ITILP (Eqs. 4–5) to T_GPU. GPUPerf's T_GPU is its T_exec (Eq. 1); GASPerf adds launch overhead (`launch_overhead_base_cycles` + `launch_overhead_per_thread_cycles` × threads launched) to T_exec. `src/gasp/models/__init__.py` lists the models.
 
 ### Docker
 

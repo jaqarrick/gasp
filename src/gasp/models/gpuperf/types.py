@@ -100,10 +100,9 @@ class ModelOutput:
     t_mem: float
     t_overlap: float
     t_exec: float
-    # GASPerf's shared-memory pipe limit; always 0 for GPUPerf
+    t_gpu: float
+    launch_overhead: float = 0.0
     shared_pipe_time: float = 0.0
     o_shmem: float = 0.0
-    # GASPerf's L1 throughput time, and the L2 hit ratio it used; GPUPerf
-    # leaves them at 0 and None (its L2 hit ratio is the input's)
     l1_time: float = 0.0
     l2_hit_ratio: float | None = None

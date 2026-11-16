@@ -242,12 +242,6 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
     out = run(
         m, occ, l, h, working_set_per_sm, working_set_total, uncoalesced_count, logger
     )
-    t_exec = out.t_exec
-    # launch overhead fit by launch_overhead_bench.cu: base + per thread launched
-    threads = l.block_size * l.grid_size
-    launch_overhead = h.launch_overhead_base + h.launch_overhead_per_thread * threads
-    t_gpu = t_exec + launch_overhead
-
     logger.info("Prediction completed")
     return PredictionOutput(
         itilp=out.itilp,
@@ -270,9 +264,9 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         t_comp=out.t_comp,
         t_mem=out.t_mem,
         t_overlap=out.t_overlap,
-        t_exec=t_exec,
-        launch_overhead=launch_overhead,
-        t_gpu=t_gpu,
+        t_exec=out.t_exec,
+        launch_overhead=out.launch_overhead,
+        t_gpu=out.t_gpu,
         o_cfdiv=out.o_cfdiv,
         shared_pipe_time=out.shared_pipe_time,
         o_shmem=out.o_shmem,

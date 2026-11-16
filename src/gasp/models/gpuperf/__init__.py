@@ -195,4 +195,5 @@ def run(
         t_mem=model.t_mem,
         t_overlap=model.t_overlap,
         t_exec=t_exec,
+        t_gpu=t_exec,
     )

@@ -113,8 +113,14 @@ def prediction_input(mem_inst_count: int = 2, grid_size: int = 40) -> Prediction
     )
 
 
-def test_predict_t_gpu_adds_launch_overhead_to_eq_1():
-    p = predict(prediction_input(), logger=MagicMock())
+def gasperf_input(grid_size: int = 40) -> PredictionInput:
+    i = prediction_input(grid_size=grid_size)
+    i.model = "GASPerf"
+    return i
+
+
+def test_gasperf_t_gpu_adds_launch_overhead_to_eq_1():
+    p = predict(gasperf_input(), logger=MagicMock())
 
     assert p.t_exec == pytest.approx(p.t_comp + p.t_mem - p.t_overlap)
     overhead = LAUNCH_BASE + LAUNCH_PER_THREAD * 256 * 40
@@ -122,9 +128,16 @@ def test_predict_t_gpu_adds_launch_overhead_to_eq_1():
     assert p.t_gpu == pytest.approx(p.t_exec + overhead)
 
 
-def test_predict_launch_overhead_grows_with_threads():
-    small = predict(prediction_input(grid_size=40), logger=MagicMock())
-    large = predict(prediction_input(grid_size=80), logger=MagicMock())
+def test_gpuperf_has_no_launch_overhead():
+    p = predict(prediction_input(), logger=MagicMock())
+
+    assert p.launch_overhead == 0.0
+    assert p.t_gpu == p.t_exec
+
+
+def test_gasperf_launch_overhead_grows_with_threads():
+    small = predict(gasperf_input(grid_size=40), logger=MagicMock())
+    large = predict(gasperf_input(grid_size=80), logger=MagicMock())
 
     assert large.launch_overhead - small.launch_overhead == pytest.approx(
         LAUNCH_PER_THREAD * 256 * 40
@@ -596,7 +609,8 @@ def test_prediction_names_its_model():
 def test_gasperf_matches_gpuperf(build):
     """Holds for kernels without shared-memory accesses, whose L1 time is under
     T_mem and whose data fits in L2 either way. GASPerf reports its L1 time,
-    which GPUPerf leaves at 0."""
+    which GPUPerf leaves at 0, and adds launch overhead to T_GPU, which GPUPerf
+    doesn't."""
     gpuperf = build()
     gasperf = build()
     gasperf.model = "GASPerf"
@@ -604,7 +618,15 @@ def test_gasperf_matches_gpuperf(build):
     expected = predict(gpuperf, logger=MagicMock())
     got = predict(gasperf, logger=MagicMock())
     assert got.l1_time > 0
-    assert got == replace(expected, model="GASPerf", l1_time=got.l1_time)
+    assert got.launch_overhead > 0
+    assert got.t_gpu == pytest.approx(got.t_exec + got.launch_overhead)
+    assert got == replace(
+        expected,
+        model="GASPerf",
+        l1_time=got.l1_time,
+        launch_overhead=got.launch_overhead,
+        t_gpu=got.t_gpu,
+    )
 
 
 # ---------------------------------------------------------------------------

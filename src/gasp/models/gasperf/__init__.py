@@ -2,7 +2,7 @@
 # and is ours to change; GPUPerf stays as published. Edit freely.
 # Changes from GPUPerf: a shared-memory pipe limit in T_comp (O_shmem); an L1
 # throughput limit on T_mem; the L2 hit ratio against the blocks resident at the
-# same time. To try: ITMLP = MWP_peak_bw when compute-bound (CWP < MWP), below.
+# same time; launch overhead added to T_exec for T_GPU. To try: ITMLP = MWP_peak_bw when compute-bound (CWP < MWP), below.
 from gasp.common.constants import SECTORS_PER_LINE
 from gasp.logger import Logger
 from gasp.models.gpuperf.types import HardwareParameters, LaunchParameters
@@ -39,6 +39,12 @@ class GASPerf:
         self.t_overlap = self._get_t_overlap(self.t_mem, self.t_comp)
         t_exec = self.t_comp + self.t_mem - self.t_overlap
         return t_exec
+
+    def predict_launch_overhead_cycles(self):
+        """Launch overhead fit by launch_overhead_bench.cu: base + per thread
+        launched. Not in GPUPerf."""
+        threads = self.l.block_size * self.l.grid_size
+        return self.h.launch_overhead_base + self.h.launch_overhead_per_thread * threads
 
     def _get_t_comp(self):
         k = self.k
@@ -214,6 +220,12 @@ def run(
 
     model = GASPerf(k, o, l, h, logger)
     t_exec = model.predict_total_exec_time_cycles()
+    launch_overhead = model.predict_launch_overhead_cycles()
+    t_gpu = t_exec + launch_overhead
+    logger.trace(
+        "predict",
+        f"GASPerf T_GPU = T_exec {t_exec:.0f} + launch overhead {launch_overhead:.0f}",
+    )
     return ModelOutput(
         itilp=itilp,
         cwp=cwp,
@@ -226,6 +238,8 @@ def run(
         t_mem=model.t_mem,
         t_overlap=model.t_overlap,
         t_exec=t_exec,
+        launch_overhead=launch_overhead,
+        t_gpu=t_gpu,
         shared_pipe_time=model.shared_pipe_time,
         o_shmem=model.o_shmem,
         l1_time=model.l1_time,
