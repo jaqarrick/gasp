@@ -109,8 +109,11 @@ class GASPerf:
 
         # L1 throughput limit
         sectors_per_request = o.average_trans_warp * SECTORS_PER_LINE
+        # Adjustment - check for strided access pattern
+        lines_per_request = sectors_per_request if o.average_trans_warp > 1 else 1.0
         cycles_per_request = max(
-            h.l1_cycles_per_request, sectors_per_request / h.l1_sectors_per_cycle
+            h.l1_cycles_per_request,
+            lines_per_request * SECTORS_PER_LINE / h.l1_sectors_per_cycle,
         )
         self.l1_time = requests_per_sm * cycles_per_request
         return max(t_mem_latency, self.l1_time)

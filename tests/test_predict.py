@@ -732,11 +732,20 @@ def test_l1_limit_over_latency_time_sets_t_mem():
     assert gpuperf.l1_time == 0
 
 
-def test_l1_wide_requests_are_charged_their_sectors():
-    # 4 lines per request = 16 sectors at 2 per cycle = 8 cycles, over the
-    # fixed 2.48 a request costs
+def test_l1_scattered_requests_are_charged_a_line_per_sector():
+    # 16 sectors per request, more than one line holds, so taken as 16 lines;
+    # a line costs 4 sectors at 2 per cycle = 2 cycles, 32 per request
     base = l1_input(cycles_per_request=2.48)
     base.overrides = ModelOverrides(average_trans_warp=4.0)
+    p = predict(base, logger=MagicMock())
+
+    assert p.l1_time == pytest.approx(64 * 32.0)
+
+
+def test_l1_single_line_request_costs_one_line():
+    # at most 4 sectors is one line: 4 sectors at 0.5 per cycle = 8 cycles
+    base = l1_input(cycles_per_request=2.48, sectors_per_cycle=0.5)
+    base.overrides = ModelOverrides(average_trans_warp=1.0)
     p = predict(base, logger=MagicMock())
 
     assert p.l1_time == pytest.approx(64 * 8.0)
