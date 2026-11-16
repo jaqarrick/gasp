@@ -46,6 +46,7 @@ def instr(
     offset=None,
     special=(),
     target=None,
+    fp64=False,
 ) -> SASSInstruction:
     return SASSInstruction(
         opcode=opcode,
@@ -58,6 +59,7 @@ def instr(
         address_offset=offset,
         special_registers=set(special),
         branch_target=target,
+        uses_fp64_pipe=fp64,
     )
 
 
@@ -429,6 +431,7 @@ WIDTH_CASES = [
             OpCategory.FP64,
             src={"R2", "R3", "R6", "R7"},
             dst={"R4", "R5"},
+            fp64=True,
         ),
         id="fp64-pairs",
     ),
@@ -439,12 +442,19 @@ WIDTH_CASES = [
             OpCategory.FP64,
             src={"R2", "R3", "R6", "R7"},
             dst={"R4", "R5"},
+            fp64=True,
         ),
         id="fp64-constant-operand",
     ),
     pytest.param(
         "DSETP.GT.AND P0, PT, R2, R4, PT",
-        instr("DSETP", OpCategory.FP64, src={"R2", "R3", "R4", "R5"}, dst={"P0"}),
+        instr(
+            "DSETP",
+            OpCategory.FP64,
+            src={"R2", "R3", "R4", "R5"},
+            dst={"P0"},
+            fp64=True,
+        ),
         id="fp64-setp-predicate-not-widened",
     ),
     pytest.param(
@@ -454,17 +464,17 @@ WIDTH_CASES = [
     ),
     pytest.param(
         "F2F.F64.F32 R2, R0",
-        instr("F2F", OpCategory.CONVERSION, src={"R0"}, dst={"R2", "R3"}),
+        instr("F2F", OpCategory.CONVERSION, src={"R0"}, dst={"R2", "R3"}, fp64=True),
         id="f2f-wide-dest",
     ),
     pytest.param(
         "F2F.F32.F64 R0, R2",
-        instr("F2F", OpCategory.CONVERSION, src={"R2", "R3"}, dst={"R0"}),
+        instr("F2F", OpCategory.CONVERSION, src={"R2", "R3"}, dst={"R0"}, fp64=True),
         id="f2f-wide-source",
     ),
     pytest.param(
         "F2I.F64.TRUNC R0, R2",
-        instr("F2I", OpCategory.CONVERSION, src={"R2", "R3"}, dst={"R0"}),
+        instr("F2I", OpCategory.CONVERSION, src={"R2", "R3"}, dst={"R0"}, fp64=True),
         id="f2i-single-type-wide-source",
     ),
     pytest.param(
@@ -474,12 +484,18 @@ WIDTH_CASES = [
     ),
     pytest.param(
         "F2I.S64.F64.TRUNC R2, R4",
-        instr("F2I", OpCategory.CONVERSION, src={"R4", "R5"}, dst={"R2", "R3"}),
+        instr(
+            "F2I",
+            OpCategory.CONVERSION,
+            src={"R4", "R5"},
+            dst={"R2", "R3"},
+            fp64=True,
+        ),
         id="f2i-two-types",
     ),
     pytest.param(
         "I2F.F64 R2, R0",
-        instr("I2F", OpCategory.CONVERSION, src={"R0"}, dst={"R2", "R3"}),
+        instr("I2F", OpCategory.CONVERSION, src={"R0"}, dst={"R2", "R3"}, fp64=True),
         id="i2f-single-type-wide-dest",
     ),
     pytest.param(
@@ -489,12 +505,24 @@ WIDTH_CASES = [
     ),
     pytest.param(
         "I2F.F64.S64 R2, R4",
-        instr("I2F", OpCategory.CONVERSION, src={"R4", "R5"}, dst={"R2", "R3"}),
+        instr(
+            "I2F",
+            OpCategory.CONVERSION,
+            src={"R4", "R5"},
+            dst={"R2", "R3"},
+            fp64=True,
+        ),
         id="i2f-two-types",
     ),
     pytest.param(
         "FRND.F64.TRUNC R2, R4",
-        instr("FRND", OpCategory.CONVERSION, src={"R4", "R5"}, dst={"R2", "R3"}),
+        instr(
+            "FRND",
+            OpCategory.CONVERSION,
+            src={"R4", "R5"},
+            dst={"R2", "R3"},
+            fp64=True,
+        ),
         id="frnd-f64",
     ),
     pytest.param(

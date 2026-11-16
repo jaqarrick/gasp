@@ -37,6 +37,7 @@ class DependencyOutput:
     # shared-memory loads and stores, weighted by execution frequency
     shared_load_inst_count: int = 0
     shared_store_inst_count: int = 0
+    fp64_inst_count: int = 0
 
 
 @dataclass
@@ -330,6 +331,7 @@ def analyze(
     sfu_latency = 0.0
     shared_load_inst_count = 0
     shared_store_inst_count = 0
+    fp64_inst_count = 0
     sync_inst_count = 0
     global_bytes_per_thread = 0
     num_address_groups = 0
@@ -394,6 +396,8 @@ def analyze(
                 shared_load_inst_count += node_iter_count
             if inst.category is OpCategory.SHARED_STORE:
                 shared_store_inst_count += node_iter_count
+            if inst.uses_fp64_pipe:
+                fp64_inst_count += node_iter_count
             if inst.category is OpCategory.BARRIER:
                 sync_inst_count += node_iter_count
 
@@ -434,4 +438,5 @@ def analyze(
         sfu_latency=sfu_latency,
         shared_load_inst_count=shared_load_inst_count,
         shared_store_inst_count=shared_store_inst_count,
+        fp64_inst_count=fp64_inst_count,
     )

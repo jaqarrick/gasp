@@ -24,9 +24,7 @@ class ModelInputs:
     bank_conflict_count: float
     l1_hit_ratio: float
     l2_hit_ratio: float
-    # GASPerf's shared-memory pipe limit; GPUPerf ignores them
     shared_load_inst_count: float = 0.0
     shared_store_inst_count: float = 0.0
-    # GASPerf's L2 hit ratio (of L1 misses) against the blocks resident at the
-    # same time, not the whole kernel; None means use l2_hit_ratio
+    fp64_inst_count: float = 0.0
     l2_hit_ratio_concurrent: float | None = None

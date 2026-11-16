@@ -35,6 +35,7 @@ INSTS_EXECUTED = "smsp__inst_executed.sum"
 GLOBAL_LOADS_EXECUTED = "smsp__inst_executed_op_global_ld.sum"
 GLOBAL_STORES_EXECUTED = "smsp__inst_executed_op_global_st.sum"
 SFU_INSTS_EXECUTED = "smsp__inst_executed_pipe_xu.sum"
+FP64_INSTS_EXECUTED = "smsp__inst_executed_pipe_fp64.sum"
 PROFILED_METRICS: tuple[str, ...] = (
     L1_HIT_RATE_PCT,
     L2_READ_HITS,
@@ -47,6 +48,7 @@ PROFILED_METRICS: tuple[str, ...] = (
     GLOBAL_LOADS_EXECUTED,
     GLOBAL_STORES_EXECUTED,
     SFU_INSTS_EXECUTED,
+    FP64_INSTS_EXECUTED,
 )
 
 
@@ -70,6 +72,7 @@ class ModelOverrides:
     total_inst_count: float | None = None
     mem_inst_count: float | None = None
     sfu_inst_count: float | None = None
+    fp64_inst_count: float | None = None
 
 
 def parse_overrides(values: list[str]) -> dict[str, str]:
@@ -157,11 +160,15 @@ def _counts(metrics: dict[str, float], total_warps: int) -> dict[str, float]:
     global_accesses = _metric(metrics, GLOBAL_LOADS_EXECUTED, "counts") + _metric(
         metrics, GLOBAL_STORES_EXECUTED, "counts"
     )
-    return {
+    values = {
         "total_inst_count": _metric(metrics, INSTS_EXECUTED, "counts") / total_warps,
         "mem_inst_count": global_accesses / total_warps,
         "sfu_inst_count": _metric(metrics, SFU_INSTS_EXECUTED, "counts") / total_warps,
     }
+    # optional, so older metrics files still work; without it the static count stays
+    if FP64_INSTS_EXECUTED in metrics:
+        values["fp64_inst_count"] = metrics[FP64_INSTS_EXECUTED] / total_warps
+    return values
 
 
 def profiled_values(metrics: dict[str, float], total_warps: int) -> dict[str, float]:

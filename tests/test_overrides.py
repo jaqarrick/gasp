@@ -3,6 +3,7 @@
 import pytest
 
 from gasp.overrides import (
+    FP64_INSTS_EXECUTED,
     GLOBAL_LOAD_REQUESTS,
     GLOBAL_LOAD_SECTORS,
     GLOBAL_LOADS_EXECUTED,
@@ -42,6 +43,7 @@ def metrics(**changes: float) -> dict[str, float]:
         GLOBAL_LOADS_EXECUTED: 200.0,
         GLOBAL_STORES_EXECUTED: 100.0,
         SFU_INSTS_EXECUTED: 50.0,
+        FP64_INSTS_EXECUTED: 200.0,
     }
     return {**values, **changes}
 
@@ -165,8 +167,22 @@ def test_profiled_counts_are_per_warp():
     o = build_overrides({"counts": "profiled"}, metrics(), TOTAL_WARPS)
 
     assert o == ModelOverrides(
-        total_inst_count=12.5, mem_inst_count=3.0, sfu_inst_count=0.5
+        total_inst_count=12.5,
+        mem_inst_count=3.0,
+        sfu_inst_count=0.5,
+        fp64_inst_count=2.0,
     )
+
+
+def test_profiled_counts_without_fp64_metric_keep_static_fp64():
+    # metrics files saved before the FP64 metric was collected
+    m = metrics()
+    del m[FP64_INSTS_EXECUTED]
+    o = build_overrides({"counts": "profiled"}, m, TOTAL_WARPS)
+
+    assert o.total_inst_count == 12.5
+    assert o.fp64_inst_count is None
+    assert "fp64_inst_count" not in profiled_values(m, TOTAL_WARPS)
 
 
 def test_crude_needs_no_metrics():

@@ -153,6 +153,11 @@ class SASSParser(ABC):
                     address_base_register, address_offset = self._split_address(inner)
                     break
 
+        modifiers = raw_opcode.upper().split(".")[1:]
+        uses_fp64_pipe = op_category == OpCategory.FP64 or (
+            base_opcode in CONVERSION_OPCODES and "F64" in modifiers
+        )
+
         dest_registers.update(dst)
         src_registers.update(src)
 
@@ -167,6 +172,7 @@ class SASSParser(ABC):
             address_offset=address_offset,
             special_registers=special_registers,
             branch_target=branch_target,
+            uses_fp64_pipe=uses_fp64_pipe,
         )
 
     def _split_address(self, inner: str) -> tuple[str | None, int]:

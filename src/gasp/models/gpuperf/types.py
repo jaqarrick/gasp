@@ -52,6 +52,7 @@ class HardwareParameters:
     warp_size: int  # e.g. 32
     simd_width: int
     sfu_width: int
+    fp64_width: int
     departure_delay: float
     # Γ, dimensionless. GPUPerf used 64 "based on microarchitecture simulations";
     # hardware/microbenchmarks/sync_cost.cu measures it per GPU
@@ -104,5 +105,7 @@ class ModelOutput:
     launch_overhead: float = 0.0
     shared_pipe_time: float = 0.0
     o_shmem: float = 0.0
+    fp64_pipe_time: float = 0.0
+    o_fp64: float = 0.0
     l1_time: float = 0.0
     l2_hit_ratio: float | None = None

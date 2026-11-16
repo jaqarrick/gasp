@@ -80,6 +80,8 @@ class PredictionOutput:
     o_cfdiv: float = 0.0
     shared_pipe_time: float = 0.0
     o_shmem: float = 0.0
+    fp64_pipe_time: float = 0.0
+    o_fp64: float = 0.0
     l1_time: float = 0.0
     model: str = DEFAULT_MODEL
     # the model inputs from static analysis
@@ -228,6 +230,7 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         l2_hit_ratio=l2_hit_ratio,
         shared_load_inst_count=d.shared_load_inst_count,
         shared_store_inst_count=d.shared_store_inst_count,
+        fp64_inst_count=d.fp64_inst_count,
         l2_hit_ratio_concurrent=l2_hit_ratio_concurrent,
     )
 
@@ -270,6 +273,8 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         o_cfdiv=out.o_cfdiv,
         shared_pipe_time=out.shared_pipe_time,
         o_shmem=out.o_shmem,
+        fp64_pipe_time=out.fp64_pipe_time,
+        o_fp64=out.o_fp64,
         l1_time=out.l1_time,
         model=input.model,
         static_inputs=static,

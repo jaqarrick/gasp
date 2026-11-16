@@ -34,13 +34,14 @@ def logger():
     return MagicMock(spec=Logger)
 
 
-def instr(opcode, category, src=(), dst=()) -> SASSInstruction:
+def instr(opcode, category, src=(), dst=(), fp64=False) -> SASSInstruction:
     return SASSInstruction(
         opcode=opcode,
         category=category,
         predicate=None,
         src_registers=set(src),
         dest_registers=set(dst),
+        uses_fp64_pipe=fp64,
     )
 
 
@@ -428,6 +429,8 @@ def test_category_counts(logger):
     assert out.sfu_inst_count == 1
     assert out.sync_inst_count == 1
     assert out.sfu_latency == SFU_LAT
+    # no FP64-pipe instructions, so nothing for the FP64 floor to charge
+    assert out.fp64_inst_count == 0
 
 
 def test_counts_and_latency_weighted_by_iterations(logger):
@@ -460,6 +463,32 @@ def test_shared_counts_weighted_by_iterations(logger):
     out = analyze(cfg, insts, loop_iterations=5, latency=LATENCY, logger=logger)
     assert out.shared_load_inst_count == 2 * 5
     assert out.shared_store_inst_count == 1
+
+
+def test_fp64_pipe_counts_weighted_by_iterations(logger):
+    # mm_double's loop body: the F2F that widens the product to double runs on
+    # the FP64 pipe too, so it counts with the DADD; the FP32 FMUL does not
+    nodes = ["entry", "body"]
+    cfg = make_cfg(nodes, [("entry", "body"), ("body", "body")])
+    insts = {
+        "entry": [ffma("R0")],
+        "body": [
+            ldg("R4", "R2"),
+            ldg("R5", "R6"),
+            instr("FMUL", OpCategory.FP32, ["R4", "R5"], ["R7"]),
+            instr("F2F", OpCategory.CONVERSION, ["R7"], ["R8", "R9"], fp64=True),
+            instr(
+                "DADD",
+                OpCategory.FP64,
+                ["R8", "R9", "R10", "R11"],
+                ["R10", "R11"],
+                fp64=True,
+            ),
+        ],
+    }
+    out = analyze(cfg, insts, loop_iterations=5, latency=LATENCY, logger=logger)
+    assert out.fp64_inst_count == 2 * 5
+    assert out.total_inst_count == 1 + 5 * 5
 
 
 def test_kernel_ilp_weighted_toward_loop(logger):
