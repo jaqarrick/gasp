@@ -1,106 +1,74 @@
-// Shared-memory store latency microbenchmark.
+// shared_memory_store.cu
+// Measures shared_mem_store_latency_cycles: how many cycles a conflict-free
+// warp store to shared memory adds before a dependent instruction can go on.
 //
-// Measures shared_mem_store_latency_cycles: the cycles a conflict-free warp
-// shared-memory store adds before a dependent instruction can proceed.
+// A store has no result register, so it cannot form a chain on its own. Each
+// step stores p into its own slot and loads it back:
+//     st.volatile.shared.u32 [p], p;   p = ld.volatile.shared.u32 [p];
+// The load must see the store, and the next step needs the loaded value, so a
+// step costs store + load. The same kernel also times a load-only chain over the
+// same slots. Store latency = (store+load time) - (load-only time), per step.
+// Both chains use the same addresses and loop shape, so the clock and loop
+// overhead cancel.
 //
-// A store has no register result, so it cannot be chained on its own. Each
-// step of the timed chain stores p into its own slot and then loads it back:
-//     st.volatile.shared.u32 [p], p;
-//     p = ld.volatile.shared.u32 [p];
-// The load must see the store, and the next store's address and data depend
-// on the load, so the critical path per step is store + load. The same kernel
-// also times a load-only chain over the same slots:
-//     p = ld.volatile.shared.u32 [p];
-// and the store latency is the difference per step. Both chains share the
-// addresses, the unroll and the loop shape, so clock and loop overhead cancel.
+// The load-only time is checked against the shared_memory_load run, if its
+// JSON is in the out folder.
 //
-// The load-only value is cross-checked against the shared_memory_load run
-// (<out-dir>/shared_mem_load_latency_cycles.<gpu>.run.json) if it exists.
-//
-// Build: nvcc -O3 -std=c++17 -arch=sm_XX shared_memory_store.cu -o shared_memory_store
-// Run:   ./shared_memory_store [--reps N] [--gpu NAME] [--out-dir DIR]
-//        Writes <out-dir>/shared_mem_store_latency_cycles.<gpu>.run.json
-
-#include <algorithm>
-#include <array>
-#include <cctype>
-#include <cmath>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <ctime>
-#include <filesystem>
-#include <fstream>
-#include <numeric>
-#include <sstream>
-#include <string>
-#include <vector>
+// Run: ./shared_memory_store [--reps N] [--gpu NAME] [--out-dir DIR]
 
 #include <cuda_runtime.h>
 #include "common.h"
 
 constexpr int WARP_THREADS = 32;
-constexpr int CHAIN_STEPS = 1024;
-constexpr int UNROLL = 16;
-constexpr int PASSES = 2;  // pass 0 warms the instruction cache; last pass is kept
+constexpr int CHAIN_STEPS = 1024;   // steps in each timed chain
+constexpr int UNROLL = 16;          // steps per loop iteration
+constexpr int PASSES = 2;           // the first pass warms the instruction cache; the last one is kept
 constexpr int WARMUP_STEPS = 64;
 constexpr int DEFAULT_REPS = 200;
 constexpr double REFERENCE_TOLERANCE_CYCLES = 2.0;
 
-static_assert(CHAIN_STEPS % UNROLL == 0,
-              "CHAIN_STEPS must be a multiple of UNROLL");
+static_assert(CHAIN_STEPS % UNROLL == 0, "CHAIN_STEPS must be a multiple of UNROLL");
 static_assert(UNROLL == 16, "the unrolled bodies below have 16 steps");
 
 static const char* PARAMETER = "shared_mem_store_latency_cycles";
 static const char* LOAD_PARAMETER = "shared_mem_load_latency_cycles";
-static const char* SCHEMA_VERSION = "1.1.0";
-static const char* BENCH_VERSION = "1.1.0";
 
+// "asm volatile" stops the compiler from removing, merging or reordering these.
 __device__ __forceinline__ uint32_t load_shared(uint32_t address) {
     uint32_t value;
-    asm volatile(
-        "ld.volatile.shared.u32 %0, [%1];"
-        : "=r"(value)
-        : "r"(address)
-        : "memory");
+    asm volatile("ld.volatile.shared.u32 %0, [%1];" : "=r"(value) : "r"(address) : "memory");
     return value;
 }
 
 __device__ __forceinline__ void store_shared(uint32_t address, uint32_t value) {
-    asm volatile(
-        "st.volatile.shared.u32 [%0], %1;"
-        :
-        : "r"(address), "r"(value)
-        : "memory");
+    asm volatile("st.volatile.shared.u32 [%0], %1;" : : "r"(address), "r"(value) : "memory");
 }
 
 // Store p into slot p, then load it back. The slot holds its own address, so
-// the load returns p and the chain stays on the same conflict-free slot.
+// the load returns p and the chain stays on the same slot.
 #define STORE_STEP store_shared(p, p); p = load_shared(p)
 #define LOAD_STEP p = load_shared(p)
 
-#define REPEAT_16(step)                                                        \
-    step; step; step; step; step; step; step; step;                           \
+#define REPEAT_16(step)                                  \
+    step; step; step; step; step; step; step; step;      \
     step; step; step; step; step; step; step; step
 
-// out[0*32 + lane] = cycles for CHAIN_STEPS store+load steps (clock overhead included)
-// out[1*32 + lane] = cycles for CHAIN_STEPS load-only steps (clock overhead included)
-// out[2*32 + lane] = clock overhead (two back-to-back clock reads)
-// out[3*32 + lane] = final p, so every step has an observable result
-// clock_out[0..1] = lane 0's clock64 cycles and globaltimer ns around the timed region
-__global__ void shared_store_latency_kernel(unsigned long long* out, unsigned long long* clock_out) {
+// out[0] = cycles for the store+load chain (includes the cost of reading the clock)
+// out[1] = cycles for the load-only chain (includes the cost of reading the clock)
+// out[2] = cost of reading the clock (two clock reads back to back)
+// out[3] = nanoseconds for the store+load chain (used to get the SM clock speed)
+__global__ void shared_store_latency_kernel(unsigned long long* out, uint32_t* sink) {
     __shared__ uint32_t slots[WARP_THREADS];
 
     const int lane = threadIdx.x;
-    // Lane l uses slot l: the 32 lanes hit 32 different banks.
-    const uint32_t self = static_cast<uint32_t>(
-        __cvta_generic_to_shared(&slots[lane]));
+    // Lane L uses slot L, so the 32 lanes are in 32 different banks.
+    const uint32_t self = (uint32_t)__cvta_generic_to_shared(&slots[lane]);
     slots[lane] = self;
     __syncthreads();
 
     uint32_t p = self;
 
-    // Warm up both paths before timing.
+    // Warm-up, not timed.
 #pragma unroll 1
     for (int i = 0; i < WARMUP_STEPS; ++i) {
         STORE_STEP;
@@ -108,12 +76,12 @@ __global__ void shared_store_latency_kernel(unsigned long long* out, unsigned lo
     }
     __syncthreads();
 
-    uint64_t store_start = 0, store_stop = 0;
+    uint64_t store_start = 0, store_stop = 0, load_start = 0, load_stop = 0;
     uint64_t g0 = 0, g1 = 0;
-    uint64_t load_start = 0, load_stop = 0;
 
 #pragma unroll 1
     for (int pass = 0; pass < PASSES; ++pass) {
+        // Store+load chain.
         g0 = read_globaltimer();
         store_start = read_clock64();
 #pragma unroll 1
@@ -123,6 +91,7 @@ __global__ void shared_store_latency_kernel(unsigned long long* out, unsigned lo
         store_stop = read_clock64();
         g1 = read_globaltimer();
 
+        // Load-only chain.
         load_start = read_clock64();
 #pragma unroll 1
         for (int i = 0; i < CHAIN_STEPS; i += UNROLL) {
@@ -131,173 +100,121 @@ __global__ void shared_store_latency_kernel(unsigned long long* out, unsigned lo
         load_stop = read_clock64();
     }
 
-    const uint64_t baseline_start = read_clock64();
-    const uint64_t baseline_stop = read_clock64();
+    // Measure the cost of reading the clock.
+    const uint64_t b0 = read_clock64();
+    const uint64_t b1 = read_clock64();
 
     if (lane == 0) {
-        clock_out[0] = store_stop - store_start;
-        clock_out[1] = g1 - g0;
+        out[0] = store_stop - store_start;
+        out[1] = load_stop - load_start;
+        out[2] = b1 - b0;
+        out[3] = g1 - g0;
     }
-    out[lane] = store_stop - store_start;
-    out[WARP_THREADS + lane] = load_stop - load_start;
-    out[2 * WARP_THREADS + lane] = baseline_stop - baseline_start;
-    out[3 * WARP_THREADS + lane] = p;
+    sink[lane] = p;   // use the result so the chains are not removed
 }
 
 int main(int argc, char** argv) {
+    // ---- Command line ----
     int reps = DEFAULT_REPS;
     std::string gpu_override;
     std::string out_dir = "hardware/runs";
-
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
-        if (arg == "--reps" && i + 1 < argc) {
-            reps = std::atoi(argv[++i]);
-        } else if (arg == "--gpu" && i + 1 < argc) {
-            gpu_override = argv[++i];
-        } else if (arg == "--out-dir" && i + 1 < argc) {
-            out_dir = argv[++i];
-        } else {
-            fprintf(stderr,
-                    "Usage: %s [--reps N] [--gpu NAME] [--out-dir DIR]\n",
-                    argv[0]);
+        if (arg == "--reps" && i + 1 < argc) reps = std::atoi(argv[++i]);
+        else if (arg == "--gpu" && i + 1 < argc) gpu_override = argv[++i];
+        else if (arg == "--out-dir" && i + 1 < argc) out_dir = argv[++i];
+        else {
+            fprintf(stderr, "Usage: %s [--reps N] [--gpu NAME] [--out-dir DIR]\n", argv[0]);
             return 1;
         }
     }
+    if (reps < 100) { fprintf(stderr, "--reps must be at least 100\n"); return 1; }
 
-    if (reps < 100) {
-        fprintf(stderr, "--reps must be at least 100\n");
-        return 1;
-    }
-
+    // ---- GPU info ----
     int device = 0;
     CUDA_CHECK(cudaGetDevice(&device));
-
     cudaDeviceProp prop{};
     CUDA_CHECK(cudaGetDeviceProperties(&prop, device));
 
     const std::string gpu_name = prop.name;
-    const std::string gpu = gpu_override.empty()
-        ? short_gpu_name(gpu_name)
-        : gpu_override;
-    const std::string arch =
-        "sm_" + std::to_string(prop.major * 10 + prop.minor);
+    const std::string gpu = gpu_override.empty() ? short_gpu_name(gpu_name) : gpu_override;
+    const std::string arch = "sm_" + std::to_string(prop.major * 10 + prop.minor);
     const std::string architecture = architecture_name(prop.major, prop.minor);
 
-    constexpr int OUT_WORDS = 4 * WARP_THREADS;
-    unsigned long long* device_output = nullptr;
-    unsigned long long* device_clock = nullptr;  // lane 0's cycles and ns, for the SM clock
-    CUDA_CHECK(cudaMalloc(&device_clock, 2 * sizeof(unsigned long long)));
-    double sum_clock_cycles = 0.0, sum_clock_ns = 0.0;
-    CUDA_CHECK(cudaMalloc(&device_output,
-                          OUT_WORDS * sizeof(unsigned long long)));
+    int shared_mem_per_sm = 0;
+    CUDA_CHECK(cudaDeviceGetAttribute(&shared_mem_per_sm, cudaDevAttrMaxSharedMemoryPerMultiprocessor, device));
+    const int max_warps_per_sm = prop.maxThreadsPerMultiProcessor / prop.warpSize;
 
-    std::vector<double> raw_store_chain_cycles;
-    std::vector<double> raw_load_only_cycles;
-    std::vector<double> clock_overhead_samples;
-    raw_store_chain_cycles.reserve(reps);
-    raw_load_only_cycles.reserve(reps);
-    clock_overhead_samples.reserve(reps);
+    int cuda_runtime = 0, driver_api = 0;
+    CUDA_CHECK(cudaRuntimeGetVersion(&cuda_runtime));
+    CUDA_CHECK(cudaDriverGetVersion(&driver_api));
 
-    for (int rep = 0; rep < reps; ++rep) {
-        shared_store_latency_kernel<<<1, WARP_THREADS>>>(device_output, device_clock);
+    // ---- Memory ----
+    unsigned long long* d_out = nullptr;
+    uint32_t* d_sink = nullptr;
+    CUDA_CHECK(cudaMalloc(&d_out, 4 * sizeof(unsigned long long)));
+    CUDA_CHECK(cudaMalloc(&d_sink, WARP_THREADS * sizeof(uint32_t)));
+
+    // ---- Timed runs ----
+    std::vector<long long> raw_store_chain, raw_load_only, overhead_samples;
+    double total_cycles = 0.0, total_ns = 0.0;   // for the SM clock speed
+
+    for (int r = 0; r < reps; ++r) {
+        shared_store_latency_kernel<<<1, WARP_THREADS>>>(d_out, d_sink);
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
-        unsigned long long host_clock[2] = {0, 0};
-        CUDA_CHECK(cudaMemcpy(host_clock, device_clock, sizeof(host_clock),
-                              cudaMemcpyDeviceToHost));
-        if (host_clock[1] > 0) {
-            sum_clock_cycles += static_cast<double>(host_clock[0]);
-            sum_clock_ns += static_cast<double>(host_clock[1]);
+
+        unsigned long long h[4] = {0, 0, 0, 0};
+        CUDA_CHECK(cudaMemcpy(h, d_out, sizeof(h), cudaMemcpyDeviceToHost));
+        raw_store_chain.push_back((long long)h[0]);
+        raw_load_only.push_back((long long)h[1]);
+        overhead_samples.push_back((long long)h[2]);
+        if (h[3] > 0) {
+            total_cycles += (double)h[0];
+            total_ns += (double)h[3];
         }
-
-        std::array<unsigned long long, OUT_WORDS> host_output{};
-        CUDA_CHECK(cudaMemcpy(host_output.data(), device_output,
-                              sizeof(host_output), cudaMemcpyDeviceToHost));
-
-        std::vector<double> lane_store(WARP_THREADS);
-        std::vector<double> lane_load(WARP_THREADS);
-        std::vector<double> lane_overhead(WARP_THREADS);
-        for (int lane = 0; lane < WARP_THREADS; ++lane) {
-            lane_store[lane] = static_cast<double>(host_output[lane]);
-            lane_load[lane] =
-                static_cast<double>(host_output[WARP_THREADS + lane]);
-            lane_overhead[lane] =
-                static_cast<double>(host_output[2 * WARP_THREADS + lane]);
-        }
-
-        raw_store_chain_cycles.push_back(median_of(lane_store));
-        raw_load_only_cycles.push_back(median_of(lane_load));
-        clock_overhead_samples.push_back(median_of(lane_overhead));
     }
 
-    const double clock_overhead = median_of(clock_overhead_samples);
-
-    std::vector<double> per_store_cycles;
-    std::vector<double> per_step_store_plus_load;
-    std::vector<double> per_step_load_only;
-    per_store_cycles.reserve(reps);
-    per_step_store_plus_load.reserve(reps);
-    per_step_load_only.reserve(reps);
-
-    for (int rep = 0; rep < reps; ++rep) {
-        const double store_plus_load =
-            (raw_store_chain_cycles[rep] - clock_overhead) / CHAIN_STEPS;
-        const double load_only =
-            (raw_load_only_cycles[rep] - clock_overhead) / CHAIN_STEPS;
-        per_step_store_plus_load.push_back(store_plus_load);
-        per_step_load_only.push_back(load_only);
-        per_store_cycles.push_back(store_plus_load - load_only);
+    // ---- Results ----
+    // Subtract the clock overhead from each chain, divide by the number of steps,
+    // then store latency = (store+load per step) - (load-only per step).
+    const double overhead = median_of(std::vector<double>(overhead_samples.begin(), overhead_samples.end()));
+    std::vector<double> per_store_plus_load, per_load_only, per_store;
+    for (int r = 0; r < reps; ++r) {
+        const double both = (raw_store_chain[r] - overhead) / CHAIN_STEPS;
+        const double load = (raw_load_only[r] - overhead) / CHAIN_STEPS;
+        per_store_plus_load.push_back(both);
+        per_load_only.push_back(load);
+        per_store.push_back(both - load);
     }
 
-    const Stats stats = compute_stats(per_store_cycles);
+    const Stats stats = compute_stats(per_store);
     const double value = stats.median;
-    const double store_plus_load_cycles = median_of(per_step_store_plus_load);
-    const double load_only_cycles = median_of(per_step_load_only);
+    const double store_plus_load_cycles = median_of(per_store_plus_load);
+    const double load_only_cycles = median_of(per_load_only);
 
-    // Cross-check the in-kernel load-only chain against the load benchmark.
-    namespace fs = std::filesystem;
-    const fs::path reference_path =
-        fs::path(out_dir) /
-        (std::string(LOAD_PARAMETER) + "." + gpu + ".run.json");
-    const double load_reference = read_run_value(reference_path.string());
+    fprintf(stderr, "Shared-memory store latency: %.3f cycles (std %.4f)\n", value, stats.std);
+
+    // Check the load-only chain against the shared_memory_load run, if it exists.
+    const std::string reference_path =
+        (std::filesystem::path(out_dir) / (std::string(LOAD_PARAMETER) + "." + gpu + ".run.json")).string();
+    const double load_reference = read_run_value(reference_path);
     const bool has_reference = load_reference > 0.0;
     if (!has_reference) {
-        fprintf(stderr,
-                "No load-latency reference at %s (run shared_memory_load "
-                "first to cross-check); using the in-kernel baseline only\n",
-                reference_path.string().c_str());
-    } else if (std::fabs(load_only_cycles - load_reference) >
-               REFERENCE_TOLERANCE_CYCLES) {
-        fprintf(stderr,
-                "Warning: in-kernel load-only chain is %.2f cycles/step but "
-                "%s reports %.2f; the subtraction baseline may be off\n",
-                load_only_cycles, reference_path.string().c_str(),
-                load_reference);
+        fprintf(stderr, "No load-latency run at %s, so no cross-check "
+                        "(run shared_memory_load first)\n", reference_path.c_str());
+    } else if (std::fabs(load_only_cycles - load_reference) > REFERENCE_TOLERANCE_CYCLES) {
+        fprintf(stderr, "WARNING: the load-only chain gives %.2f cycles per step but %s says %.2f. "
+                        "The subtraction baseline may be off.\n",
+                load_only_cycles, reference_path.c_str(), load_reference);
     }
 
-    int runtime_version = 0;
-    int driver_api_version = 0;
-    CUDA_CHECK(cudaRuntimeGetVersion(&runtime_version));
-    CUDA_CHECK(cudaDriverGetVersion(&driver_api_version));
-
-    int shared_mem_per_sm = 0;
-    CUDA_CHECK(cudaDeviceGetAttribute(
-        &shared_mem_per_sm,
-        cudaDevAttrMaxSharedMemoryPerMultiprocessor,
-        device));
-
-    const int max_warps_per_sm =
-        prop.maxThreadsPerMultiProcessor / prop.warpSize;
-
+    // ---- Save JSON ----
     std::ostringstream json;
     json.setf(std::ios::fixed);
     json.precision(4);
-
     json << "{\n"
-         << "  \"schema_version\": \"" << SCHEMA_VERSION << "\",\n"
          << "  \"benchmark\": \"shared_memory_store.cu\",\n"
-         << "  \"benchmark_version\": \"" << BENCH_VERSION << "\",\n"
          << "  \"parameter\": \"" << PARAMETER << "\",\n"
          << "  \"value\": " << value << ",\n"
          << "  \"unit\": \"cycles\",\n"
@@ -312,76 +229,43 @@ int main(int argc, char** argv) {
          << "    \"shared_mem_per_sm_bytes\": " << shared_mem_per_sm << "\n"
          << "  },\n"
          << json_stats(stats)
+         << "  \"steps_per_rep\": " << CHAIN_STEPS << ",\n"
          << "  \"store_plus_load_cycles\": " << store_plus_load_cycles << ",\n"
          << "  \"load_only_cycles\": " << load_only_cycles << ",\n"
          << "  \"load_latency_reference_cycles\": ";
-    if (has_reference) {
-        json << load_reference;
-    } else {
-        json << "null";
-    }
-    json << ",\n";
-
-    // Raw clock64 deltas per rep (median over the 32 lanes), overhead NOT subtracted.
-    json << "  \"raw_store_chain_cycles\": ";
-    json << json_array(raw_store_chain_cycles);
-    json << ",\n  \"raw_load_only_cycles\": ";
-    json << json_array(raw_load_only_cycles);
-    json << ",\n  \"per_store_cycles\": ";
-    json << json_array(per_store_cycles);
-
+    if (has_reference) json << load_reference;
+    else json << "null";
     json << ",\n"
-         // clock.sm_clock_ghz: total clock64 cycles / total globaltimer ns over all reps
-         << "  \"clock\": {\"sm_clock_ghz\": "
-         << (sum_clock_ns > 0.0 ? sum_clock_cycles / sum_clock_ns : 0.0) << "},\n"
-         << "  \"measurement\": {\n"
-         << "    \"method\": \"dependent st.shared->ld.shared chain minus ld.shared-only chain\",\n"
-         << "    \"store_instruction\": \"st.volatile.shared.u32\",\n"
-         << "    \"load_instruction\": \"ld.volatile.shared.u32\",\n"
-         << "    \"timer\": \"clock64 (cycles), globaltimer (SM clock)\",\n"
-         << "    \"clock_overhead_cycles\": " << clock_overhead << ",\n"
-         << "    \"value_formula\": \"per_store = (raw_store_chain_cycles[i] - raw_load_only_cycles[i]) / steps_per_rep; value = median(per_store)\",\n"
-         << "    \"load_reference_file\": \""
-         << json_escape(reference_path.string()) << "\",\n"
-         << "    \"steps_per_rep\": " << CHAIN_STEPS << ",\n"
-         << "    \"unroll\": " << UNROLL << ",\n"
-         << "    \"threads_per_block\": " << WARP_THREADS << ",\n"
-         << "    \"reps\": " << reps << "\n"
-         << "  },\n"
-         << "  \"cuda_version\": \"" << cuda_version_string(runtime_version)
-         << "\",\n"
-         << "  \"driver_api_version\": \""
-         << cuda_version_string(driver_api_version) << "\",\n"
-         << "  \"driver_version\": \"" << json_escape(driver_version())
-         << "\",\n"
+         << "  \"raw_store_chain_cycles\": " << json_array(raw_store_chain) << ",\n"
+         << "  \"raw_load_only_cycles\": " << json_array(raw_load_only) << ",\n"
+         << "  \"overhead_samples_cycles\": " << json_array(overhead_samples) << ",\n"
+         << "  \"overhead_cycles\": " << overhead << ",\n"
+         << "  \"overhead_subtracted\": true,\n"
+         << "  \"per_store_cycles\": " << json_array(per_store) << ",\n"
+         << "  \"clock\": {\"sm_clock_ghz\": " << (total_ns > 0.0 ? total_cycles / total_ns : 0.0) << "},\n"
+         << "  \"cuda_version\": \"" << cuda_version_string(cuda_runtime) << "\",\n"
+         << "  \"driver_api_version\": \"" << cuda_version_string(driver_api) << "\",\n"
+         << "  \"driver_version\": \"" << json_escape(driver_version()) << "\",\n"
          << "  \"timestamp\": \"" << utc_timestamp() << "\"\n"
          << "}\n";
 
-    const std::string result = json.str();
-    const std::string output_path = write_run_json(out_dir, PARAMETER, gpu, result);
+    const std::string output_path = write_run_json(out_dir, PARAMETER, gpu, json.str());
     if (output_path.empty()) return 1;
 
-    printf("%s", result.c_str());
-    fprintf(stderr, "Saved results to %s\n", output_path.c_str());
+    printf("%s", json.str().c_str());
+    fprintf(stderr, "Saved: %s\n", output_path.c_str());
 
-    CUDA_CHECK(cudaFree(device_output));
-    CUDA_CHECK(cudaFree(device_clock));
+    CUDA_CHECK(cudaFree(d_out));
+    CUDA_CHECK(cudaFree(d_sink));
     return 0;
 }
 
-// ---------------------------------------------------------------------------
-// SASS inspection checklist:
-//   cuobjdump --dump-sass shared_memory_store
+// SASS check: cuobjdump -sass shared_memory_store.cubin
 // In shared_store_latency_kernel:
-//   * Store-chain timed loop: 16 pairs of `STS [Rp], Rp` followed by
-//     `LDS Rp, [Rp]`, the same register for address, data and result, with
-//     no ALU instructions between the pairs.
-//   * Load-only timed loop: 16 dependent `LDS Rp, [Rp]`.
-//   * Both loops have the same loop overhead (counter IADD3, ISETP, BRA), so
-//     it cancels in the difference.
-//   * CS2R (clock) right before and right after each timed loop, and a
-//     globaltimer read (SR_GLOBALTIMER) just outside the store loop's pair.
-// If ptxas drops the LDS after the STS (store-to-load forwarding in the
-// compiler) or adds instructions to only one loop, the result is not a store
-// latency.
-// ---------------------------------------------------------------------------
+//   - Store+load loop: 16 pairs of "STS [Rp], Rp" then "LDS Rp, [Rp]", with no
+//     other instructions between the pairs.
+//   - Load-only loop: 16 chained "LDS Rp, [Rp]".
+//   - Both loops have the same loop overhead (counter, compare, branch), so it
+//     cancels in the difference.
+// If the compiler dropped the LDS after an STS, or added instructions to only
+// one loop, the result is not a store latency.
