@@ -31,6 +31,7 @@ class HardwareProfile:
     warp_size: int
     simd_width: int
     sfu_width: int
+    fp64_width: int
     sms_per_gpu: int
     max_warps_per_sm: int
     max_blocks_per_sm: int

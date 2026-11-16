@@ -18,6 +18,7 @@ class KernelParameters:
     bank_conflict_count: float
     shared_load_inst_count: float
     shared_store_inst_count: float
+    fp64_inst_count: float
     ilp: float
     mlp: float
     average_inst_latency: float
@@ -70,6 +71,9 @@ class ModelOutput:
     # shared loads + stores per SM x cycles each, and what it adds to T_comp
     shared_pipe_time: float = 0.0
     o_shmem: float = 0.0
+    # FP64-pipe insts per SM x warp_size / fp64_width, and what it adds beyond O_shmem
+    fp64_pipe_time: float = 0.0
+    o_fp64: float = 0.0
     # global requests per SM x L1 cycles each; T_mem is at least this
     l1_time: float = 0.0
     # the L2 hit ratio GASPerf used (the concurrent-blocks one)

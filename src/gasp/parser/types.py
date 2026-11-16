@@ -49,3 +49,6 @@ class SASSInstruction:
     special_registers: set[str] = field(default_factory=set)
     # label of BRA, BRX or BSSY, e.g. .L_x_21 from BSSY B0, `(.L_x_21)
     branch_target: str | None = None
+    # runs on the FP64 pipe: FP64 arithmetic, and conversions with an F64 side
+    # e.g. F2F.F64.F32, I2F.F64, F2I.F64.TRUNC
+    uses_fp64_pipe: bool = False

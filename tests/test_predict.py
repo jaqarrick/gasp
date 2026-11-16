@@ -56,6 +56,8 @@ def test_average_trans_warp_no_memory_accesses():
 LAUNCH_BASE = 1000
 LAUNCH_PER_THREAD = 0.01
 SHARED_THROUGHPUT = 2.0
+# consumer-card FP64: a warp instruction holds the pipe 32 / 2 = 16 cycles
+FP64_WIDTH = 2
 L1_CYCLES_PER_REQUEST = 0.1
 L1_SECTORS_PER_CYCLE = 64.0
 
@@ -85,6 +87,7 @@ def prediction_input(mem_inst_count: int = 2, grid_size: int = 40) -> Prediction
             warp_size=32,
             simd_width=32,
             sfu_width=16,
+            fp64_width=FP64_WIDTH,
             departure_delay=6,
             sync_factor=24,
             dram_latency=300,
@@ -688,6 +691,76 @@ def test_gpuperf_ignores_shared_counts():
     p = predict(shared_input(loads=8, stores=1, model="GPUPerf"), logger=MagicMock())
 
     assert (p.shared_pipe_time, p.o_shmem) == (0, 0)
+
+
+# ---------------------------------------------------------------------------
+# GASPerf: FP64 pipe limit in T_comp
+# ---------------------------------------------------------------------------
+
+ISSUE_TIME = 10 * 320 / 10  # the fixture's W_parallel: 10 insts x 32 warps/SM
+
+
+def fp64_input(
+    fp64: int, model: str = "GASPerf", fp64_width: int = FP64_WIDTH, loads: int = 0
+) -> PredictionInput:
+    base = shared_input(loads=loads, model=model)
+    base.dependency = replace(base.dependency, fp64_inst_count=fp64)
+    base.hardware = replace(base.hardware, fp64_width=fp64_width)
+    return base
+
+
+def test_no_fp64_adds_nothing():
+    p = predict(fp64_input(0), logger=MagicMock())
+
+    assert (p.fp64_pipe_time, p.o_fp64) == (0, 0)
+    assert p.t_comp == pytest.approx(ISSUE_TIME)
+
+
+def test_fp64_pipe_under_issue_time_adds_nothing():
+    # 4 per warp x 32 warps/SM x 32 / 32 lanes = 128, under issue time 320
+    p = predict(fp64_input(4, fp64_width=32), logger=MagicMock())
+
+    assert p.fp64_pipe_time == pytest.approx(4 * 32 * 1)
+    assert p.o_fp64 == 0
+    assert p.t_comp == pytest.approx(ISSUE_TIME)
+
+
+def test_fp64_pipe_over_issue_time_sets_t_comp():
+    # 1 per warp x 32 warps/SM x 32 / 2 lanes = 512 cycles, issue time 320
+    p = predict(fp64_input(1), logger=MagicMock())
+    gpuperf = predict(fp64_input(1, model="GPUPerf"), logger=MagicMock())
+
+    assert p.fp64_pipe_time == pytest.approx(1 * 32 * 16)
+    assert p.o_fp64 == pytest.approx(p.fp64_pipe_time - ISSUE_TIME)
+    # no other serial overheads here, so T_comp is the pipe time
+    assert p.t_comp == pytest.approx(p.fp64_pipe_time)
+    assert gpuperf.t_comp == pytest.approx(ISSUE_TIME)
+
+
+def test_fp64_and_shared_pipes_floor_at_the_busier_one():
+    # shared 9 x 32 x 2 = 576, FP64 2 x 32 x 16 = 1024: the pipes overlap, so
+    # T_comp is 1024, not 320 + (576 - 320) + (1024 - 320)
+    p = predict(fp64_input(2, loads=9), logger=MagicMock())
+
+    assert p.shared_pipe_time == pytest.approx(576)
+    assert p.fp64_pipe_time == pytest.approx(1024)
+    assert p.o_shmem == pytest.approx(576 - ISSUE_TIME)
+    assert p.o_fp64 == pytest.approx(1024 - 576)
+    assert p.t_comp == pytest.approx(1024)
+
+
+def test_fp64_under_the_shared_pipe_adds_nothing():
+    # FP64 512 sits under the shared pipe's 576
+    p = predict(fp64_input(1, loads=9), logger=MagicMock())
+
+    assert p.o_fp64 == 0
+    assert p.t_comp == pytest.approx(576)
+
+
+def test_gpuperf_ignores_fp64_counts():
+    p = predict(fp64_input(2, model="GPUPerf"), logger=MagicMock())
+
+    assert (p.fp64_pipe_time, p.o_fp64) == (0, 0)
 
 
 # ---------------------------------------------------------------------------

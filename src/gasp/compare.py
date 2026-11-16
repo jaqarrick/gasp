@@ -97,6 +97,7 @@ _INPUT_QUANTITIES: tuple[tuple[str, str, str], ...] = (
     ("Instructions / warp", "total_inst_count", ".1f"),
     ("Global mem instructions / warp", "mem_inst_count", ".1f"),
     ("SFU instructions / warp", "sfu_inst_count", ".1f"),
+    ("FP64-pipe instructions / warp", "fp64_inst_count", ".1f"),
 )
 
 

@@ -1,6 +1,7 @@
 # GASPerf: our performance model. It starts as a copy of GPUPerf (gasp.models.gpuperf)
 # and is ours to change; GPUPerf stays as published. Edit freely.
-# Changes from GPUPerf: a shared-memory pipe limit in T_comp (O_shmem); an L1
+# Changes from GPUPerf: shared-memory and FP64 pipe limits in T_comp (O_shmem,
+# O_fp64: one floor at the busier pipe's time); an L1
 # throughput limit on T_mem; the L2 hit ratio against the blocks resident at the
 # same time; launch overhead added to T_exec for T_GPU. To try: ITMLP = MWP_peak_bw when compute-bound (CWP < MWP), below.
 from gasp.common.constants import SECTORS_PER_LINE
@@ -87,15 +88,25 @@ class GASPerf:
         self.shared_pipe_time = (
             (shared_insts * o.total_warps) / o.active_sms
         ) * h.shared_mem_throughput
-        o_shmem = max(0.0, self.shared_pipe_time - (w_parallel + o_cfdiv))
-        self.o_shmem = o_shmem
+        # FP64 pipe limit
+        self.fp64_pipe_time = ((k.fp64_inst_count * o.total_warps) / o.active_sms) * (
+            h.warp_size / h.fp64_width
+        )
+        # the pipes run side by side, so only the busiest one can set T_comp
+        issue_time = w_parallel + o_cfdiv
+        busiest_pipe_time = max(self.shared_pipe_time, self.fp64_pipe_time)
+        o_pipe = max(0.0, busiest_pipe_time - issue_time)
+        # reported split: O_shmem as without the FP64 limit, O_fp64 the rest
+        # tbd do we want max or the sum?
+        self.o_shmem = max(0.0, self.shared_pipe_time - issue_time)
+        self.o_fp64 = o_pipe - self.o_shmem
         # Pico's count is per warp (extra shared accesses, N - 1 for an N-way
         # conflict), so it scales by warps per SM like the other W_serial terms.
         o_bank = (
             (k.bank_conflict_count * o.total_warps) / o.active_sms
         ) * h.bank_penalty
 
-        w_serial = o_sync + o_sfu + o_cfdiv + o_bank + o_shmem
+        w_serial = o_sync + o_sfu + o_cfdiv + o_bank + o_pipe
 
         return w_parallel + w_serial
 
@@ -196,6 +207,7 @@ def run(
         bank_conflict_count=m.bank_conflict_count,
         shared_load_inst_count=m.shared_load_inst_count,
         shared_store_inst_count=m.shared_store_inst_count,
+        fp64_inst_count=m.fp64_inst_count,
         ilp=m.ilp,
         mlp=m.mlp,
         average_inst_latency=m.average_inst_latency,
@@ -245,6 +257,8 @@ def run(
         t_gpu=t_gpu,
         shared_pipe_time=model.shared_pipe_time,
         o_shmem=model.o_shmem,
+        fp64_pipe_time=model.fp64_pipe_time,
+        o_fp64=model.o_fp64,
         l1_time=model.l1_time,
         l2_hit_ratio=l2_hit_ratio,
     )

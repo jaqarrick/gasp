@@ -43,6 +43,7 @@ VALID_PROFILE = {
         "warp_size": 32,
         "simd_width": 32,
         "sfu_width": 16,
+        "fp64_width": 32,
         "sms_per_gpu": 108,
         "max_warps_per_sm": 64,
         "max_blocks_per_sm": 32,

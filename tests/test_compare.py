@@ -215,6 +215,21 @@ def test_input_comparisons_rows():
     ]
 
 
+def test_input_comparisons_fp64_row_when_ncu_has_it():
+    # optional metric: the row only appears when the metrics have it
+    p = dataclasses.replace(
+        static_prediction(),
+        static_inputs=dataclasses.replace(
+            static_prediction().static_inputs, fp64_inst_count=2.0
+        ),
+    )
+    ncu = {**NCU, "smsp__inst_executed_pipe_fp64.sum": 100.0}
+    rows = {row[0]: row[1:] for row in input_comparisons(p, ncu)}
+
+    assert rows["FP64-pipe instructions / warp"] == ["2.0", "1.0", "+1.0", "+100.0%"]
+    assert "FP64-pipe instructions / warp" not in comparison_rows(p)
+
+
 def test_input_comparisons_measured_zero_has_no_relative_error():
     rows = comparison_rows(static_prediction())
 
