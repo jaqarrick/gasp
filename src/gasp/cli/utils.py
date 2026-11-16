@@ -17,7 +17,7 @@ GPU_PROFILES = {
     "v100": PROFILES_DIR / "v100.placeholder.json",
     "rtx2080ti": PROFILES_DIR / "rtx2080ti.json",
     "titanv": PROFILES_DIR / "titanv.json",
-    "rtx4070": PROFILES_DIR / "rtx4070.placeholder.json",
+    "rtx4070": PROFILES_DIR / "rtx4070.json",
 }
 
 
