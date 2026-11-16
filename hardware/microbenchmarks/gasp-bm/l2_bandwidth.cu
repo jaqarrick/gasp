@@ -1,137 +1,114 @@
-// l2_bandwidth.cu: bytes per SM cycle the L2 serves when every load is an L2
-// hit, whole GPU. Same unit and timing as dram_bandwidth.cu, so the two values
-// compare directly.
+// l2_bandwidth.cu
+// Measures l2_bandwidth_bytes_per_cycle: bytes per SM cycle the whole GPU
+// reads from L2. Same unit as dram_bandwidth.cu.
 //
-// The working set is a fraction of L2, so after a warm pass nothing comes from
-// DRAM. Two guards keep L1 from serving the loads (the L1s together are close
-// to L2 in size):
-//   * loads are ld.global.cg (cache at L2 and below, not L1);
-//   * every block sweeps the whole working set, from its own starting row, so
-//     one SM's traffic is far larger than its L1 even if .cg were ignored.
-// Each thread issues UNROLL independent 16-byte loads per group; a warp reads
-// 512 contiguous bytes. Addresses never depend on loaded data.
+// The buffer is a fraction of L2, so after warm-up every load is an L2 hit.
+// Loads use ld.global.cg (skip L1), and every block reads the whole buffer.
+// value = bytes read / (kernel time in ns x SM clock in GHz)
 //
-//     value = bytes_read / (kernel_span_ns x sm_clock_GHz)
+// Sweep: buffer of 20-50% of L2 (rate should stay flat) and block counts up
+// to the occupancy limit (rate should stop rising). The JSON records both
+// checks as working_sets_agree and saturated.
 //
-// kernel_span_ns = latest block end - earliest block start (globaltimer), and
-// the SM clock is clock64 / globaltimer in the same kernel.
-//
-// Sweep: working set 20, 30, 40, 50% of L2 (the rate should be flat; a drop at
-// the top means evictions), and the number of blocks from a quarter of the SMs
-// up to the occupancy limit (the rate should stop rising; if it keeps scaling
-// with blocks the limit is per SM, not whole-GPU). Design:
-// .local/l2_bandwidth.md (handoff I48).
-//
-// The profile value is the median at 40% of L2 with the most blocks. The JSON
-// says whether the neighbouring working sets agree within 5% and whether the
-// two highest block counts do.
-//
-// Usage: l2_bandwidth [--gpu NAME] [--out-dir DIR] [--reps N] [--passes N]
+// Run: ./l2_bandwidth [--gpu NAME] [--out-dir DIR] [--reps N] [--passes N]
 //                     [--l2-cache-size KB]
-// Run under ncu with --cache-control none (run_all.py does), or ncu flushes L2
-// between launches. Check under ncu: L1 hit rate near 0, L2 hit rate near 100%,
-// DRAM throughput near zero, and a value above the DRAM bandwidth.
+// Under ncu, use --cache-control none, or ncu flushes L2 between launches.
 
-#include <algorithm>
-#include <cctype>
 #include <chrono>
-#include <cmath>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <filesystem>
-#include <sstream>
-#include <string>
-#include <vector>
 
 #include <cuda_runtime.h>
 #include "common.h"
 
 static const char* PARAMETER = "l2_bandwidth_bytes_per_cycle";
-static const char* SCHEMA_VERSION = "1.1.0";
-static const char* BENCH_VERSION = "1.0.0";
 
-constexpr int THREADS = 256;            // threads per block
-constexpr int UNROLL = 4;               // independent 16-byte loads in flight per thread
-constexpr int VEC_BYTES = 16;           // one uint4 per load
-constexpr int ROW_BYTES = THREADS * VEC_BYTES;  // what a block reads per row
-constexpr int WARMUP_LAUNCHES = 5;      // minimum untimed launches
-constexpr double WARMUP_MS = 2000.0;    // keep the GPU busy so the SM clock settles
-constexpr int CONFIG_WARMUP_LAUNCHES = 3;  // untimed, per configuration: fills L2
+constexpr int THREADS = 256;                    // threads per block
+constexpr int UNROLL = 4;                       // independent 16-byte loads in flight per thread
+constexpr int VEC_BYTES = 16;                   // one uint4 per load
+constexpr int ROW_BYTES = THREADS * VEC_BYTES;  // bytes a block reads per row
+constexpr int WARMUP_LAUNCHES = 5;              // untimed launches, at least
+constexpr double WARMUP_MS = 2000.0;            // keep the GPU busy so the SM clock settles
+constexpr int CONFIG_WARMUP_LAUNCHES = 3;       // untimed launches per config (fills L2)
 constexpr int DEFAULT_REPS = 100;
-constexpr int DEFAULT_PASSES = 4;       // sweeps of the working set per block
-constexpr int MIN_TOTAL_PASSES = 100;   // bytes per launch >= this many working sets
-constexpr int PROFILE_PCT = 40;         // the working set the profile value is read at
-constexpr int MAX_PCT = 60;             // above this, evictions are likely
+constexpr int DEFAULT_PASSES = 4;               // times each block reads the whole buffer
+constexpr int MIN_TOTAL_PASSES = 100;           // total reads per launch, in buffers
+constexpr int PROFILE_PCT = 40;                 // buffer size (% of L2) used for the result
 constexpr double AGREE_TOLERANCE = 0.05;
 constexpr uint64_t DATA_SEED = 0x2545F4914F6CDD1DULL;
 
-// ts[4*block + {0,1,2,3}] = {timer_start_ns, timer_end_ns, clock_start, clock_end}
-// rows is a multiple of UNROLL, and so is every block's starting row, so a
-// group of UNROLL rows never wraps.
+// ts[4*block + 0..3] = {start ns, end ns, start clock, end clock}
+// "rows" and every block's start row are multiples of UNROLL, so a group of
+// UNROLL rows never wraps around the end of the buffer.
 __global__ void __launch_bounds__(THREADS)
-l2_read_kernel(const uint4* __restrict__ buf, uint32_t rows, uint32_t passes,
-               uint64_t* ts, uint32_t* sink) {
-    const uint32_t start = static_cast<uint32_t>(
-        static_cast<uint64_t>(blockIdx.x) * rows / gridDim.x / UNROLL * UNROLL);
+l2_read_kernel(const uint4* buf, uint32_t rows, uint32_t passes, uint64_t* ts, uint32_t* sink) {
+    // Each block starts at a different row.
+    const uint32_t start = (uint64_t)blockIdx.x * rows / gridDim.x / UNROLL * UNROLL;
 
     uint64_t c0 = 0, t0 = 0;
     if (threadIdx.x == 0) { c0 = read_clock64(); t0 = read_globaltimer(); }
 
-    uint32_t acc = 0;
+    uint32_t sum = 0;
     for (uint32_t pass = 0; pass < passes; ++pass) {
         uint32_t row = start;
         for (uint32_t done = 0; done < rows; done += UNROLL) {
             uint4 v[UNROLL];
+
+            // Send UNROLL independent loads. "asm volatile" stops the compiler
+            // from removing or merging them.
 #pragma unroll
             for (int k = 0; k < UNROLL; ++k) {
-                const uint4* addr =
-                    buf + static_cast<size_t>(row + k) * THREADS + threadIdx.x;
-                // volatile PTX: the compiler cannot delete or merge these loads
+                const uint4* addr = buf + (size_t)(row + k) * THREADS + threadIdx.x;
                 asm volatile("ld.global.cg.v4.u32 {%0, %1, %2, %3}, [%4];"
                              : "=r"(v[k].x), "=r"(v[k].y), "=r"(v[k].z), "=r"(v[k].w)
                              : "l"(addr));
             }
+            // Use the results so the loads are not dead code.
 #pragma unroll
-            for (int k = 0; k < UNROLL; ++k) acc ^= v[k].x ^ v[k].y ^ v[k].z ^ v[k].w;
+            for (int k = 0; k < UNROLL; ++k) sum ^= v[k].x ^ v[k].y ^ v[k].z ^ v[k].w;
+
             row += UNROLL;
             if (row >= rows) row = 0;
         }
     }
 
-    __syncthreads();  // the block ends when its slowest thread ends
+    __syncthreads();   // the block ends when its slowest thread ends
     if (threadIdx.x == 0) {
         ts[4 * blockIdx.x + 0] = t0;
         ts[4 * blockIdx.x + 1] = read_globaltimer();
         ts[4 * blockIdx.x + 2] = c0;
         ts[4 * blockIdx.x + 3] = read_clock64();
     }
-    sink[static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x] = acc;
+    sink[blockIdx.x * blockDim.x + threadIdx.x] = sum;
 }
 
 struct Result {
-    int pct;                 // working set, % of L2
-    size_t working_set_bytes;
+    int pct;                 // buffer size, % of L2
+    size_t buffer_bytes;
     int blocks;
     uint32_t passes;
     double bytes_per_cycle;  // median over reps
     double gb_per_s;
     double sm_clock_ghz;
-    double spread;           // (max - min) / median of the per-rep values
+    double spread;           // (max - min) / median over reps
 };
 
+// True if a and b are within AGREE_TOLERANCE of each other.
 static bool agree(double a, double b) {
     return std::fabs(a - b) <= AGREE_TOLERANCE * std::max(a, b);
 }
 
+static const Result* find(const std::vector<Result>& results, int pct, int blocks) {
+    for (const Result& r : results)
+        if (r.pct == pct && r.blocks == blocks) return &r;
+    return nullptr;
+}
+
 int main(int argc, char** argv) {
+    // ---- Command line ----
     std::string out_dir = "./hardware/runs";
     std::string gpu_override;
     int reps = DEFAULT_REPS;
     int passes_arg = DEFAULT_PASSES;
-    long l2_cache_kb = 0;  // 0 = the size the GPU reports
+    long l2_cache_kb = 0;   // 0 = use the size the GPU reports
     for (int i = 1; i < argc; ++i) {
         if (!strcmp(argv[i], "--out-dir") && i + 1 < argc) out_dir = argv[++i];
         else if (!strcmp(argv[i], "--gpu") && i + 1 < argc) gpu_override = argv[++i];
@@ -148,169 +125,169 @@ int main(int argc, char** argv) {
     if (passes_arg < 1) { fprintf(stderr, "--passes must be at least 1\n"); return 1; }
     if (l2_cache_kb < 0) { fprintf(stderr, "--l2-cache-size must be positive (KB)\n"); return 1; }
 
+    // ---- GPU info ----
     cudaDeviceProp prop;
     CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
     const std::string gpu_name = prop.name;
     const std::string gpu = gpu_override.empty() ? short_gpu_name(gpu_name) : gpu_override;
     const std::string arch = "sm_" + std::to_string(prop.major * 10 + prop.minor);
     const int sms = prop.multiProcessorCount;
-    const size_t l2_bytes = l2_cache_kb ? static_cast<size_t>(l2_cache_kb) * 1024
-                                        : static_cast<size_t>(prop.l2CacheSize);
+
+    // L2 size to use: the one the user gave, or the one the GPU reports.
+    const size_t l2_bytes = l2_cache_kb ? (size_t)l2_cache_kb * 1024 : (size_t)prop.l2CacheSize;
     if (l2_bytes == 0) {
         fprintf(stderr, "the GPU reports no L2 size; pass --l2-cache-size KB\n");
         return 1;
     }
 
     int blocks_per_sm = 0;
-    CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-        &blocks_per_sm, l2_read_kernel, THREADS, 0));
+    CUDA_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&blocks_per_sm, l2_read_kernel, THREADS, 0));
     if (blocks_per_sm < 1) { fprintf(stderr, "kernel cannot launch on this GPU\n"); return 1; }
 
-    // blocks: a quarter and a half of the SMs, then 1, 2, 4... blocks per SM
+    // Block counts to test: a quarter and a half of the SMs, then 1, 2, 4...
+    // blocks per SM up to the occupancy limit.
     std::vector<int> block_counts;
-    for (int divisor : {4, 2}) {
-        if (sms / divisor >= 1) block_counts.push_back(sms / divisor);
-    }
+    if (sms / 4 >= 1) block_counts.push_back(sms / 4);
+    if (sms / 2 >= 1) block_counts.push_back(sms / 2);
     for (int b = 1; b <= blocks_per_sm; b *= 2) block_counts.push_back(b * sms);
     const int max_blocks = block_counts.back();
 
+    // Buffer sizes to test, in % of L2, rounded down to a whole number of rows groups.
     const std::vector<int> pcts = {20, 30, 40, 50};
-    const size_t granule = static_cast<size_t>(ROW_BYTES) * UNROLL;
-    auto working_set = [&](int pct) {
-        return (l2_bytes * pct / 100) / granule * granule;
-    };
-    const size_t buffer_bytes = working_set(pcts.back());
-    if (working_set(pcts.front()) == 0 || pcts.back() > MAX_PCT) {
+    const size_t granule = (size_t)ROW_BYTES * UNROLL;
+    auto buffer_size = [&](int pct) { return (l2_bytes * pct / 100) / granule * granule; };
+    if (buffer_size(pcts.front()) == 0) {
         fprintf(stderr, "L2 (%zu bytes) is too small for the sweep\n", l2_bytes);
         return 1;
     }
 
-    fprintf(stderr, "GPU: %s (%s), SMs: %d, L2: %.1f MB (%s), blocks up to %d x %d threads\n",
+    fprintf(stderr, "GPU: %s (%s), SMs: %d, L2: %.1f MB (%s), up to %d blocks of %d threads\n",
             gpu_name.c_str(), arch.c_str(), sms, l2_bytes / (1024.0 * 1024.0),
             l2_cache_kb ? "user-supplied" : "device-reported", max_blocks, THREADS);
 
+    // ---- Memory ----
+    const size_t max_buffer_bytes = buffer_size(pcts.back());
     uint8_t* d_buf = nullptr;
     uint64_t* d_ts = nullptr;
     uint32_t* d_sink = nullptr;
-    CUDA_CHECK(cudaMalloc(&d_buf, buffer_bytes));
-    CUDA_CHECK(cudaMalloc(&d_ts, static_cast<size_t>(max_blocks) * 4 * sizeof(uint64_t)));
-    CUDA_CHECK(cudaMalloc(&d_sink, static_cast<size_t>(max_blocks) * THREADS * sizeof(uint32_t)));
-    fill_random_kernel<<<sms, THREADS>>>(reinterpret_cast<uint64_t*>(d_buf),
-                                         buffer_bytes / 8, DATA_SEED);
+    CUDA_CHECK(cudaMalloc(&d_buf, max_buffer_bytes));
+    CUDA_CHECK(cudaMalloc(&d_ts, (size_t)max_blocks * 4 * sizeof(uint64_t)));
+    CUDA_CHECK(cudaMalloc(&d_sink, (size_t)max_blocks * THREADS * sizeof(uint32_t)));
+
+    // Fill with random data (the memory system may compress repeated values).
+    fill_random_kernel<<<sms, THREADS>>>((uint64_t*)d_buf, max_buffer_bytes / 8, DATA_SEED);
     CUDA_CHECK(cudaGetLastError());
     CUDA_CHECK(cudaDeviceSynchronize());
-    const uint4* d_vec = reinterpret_cast<const uint4*>(d_buf);
 
+    // Passes per block: enough that every launch reads at least MIN_TOTAL_PASSES buffers.
     auto passes_for = [&](int blocks) {
         const int needed = (MIN_TOTAL_PASSES + blocks - 1) / blocks;
-        return static_cast<uint32_t>(std::max(passes_arg, needed));
+        return (uint32_t)std::max(passes_arg, needed);
     };
     auto launch = [&](int pct, int blocks) {
-        const uint32_t rows = static_cast<uint32_t>(working_set(pct) / ROW_BYTES);
-        l2_read_kernel<<<blocks, THREADS>>>(d_vec, rows, passes_for(blocks), d_ts, d_sink);
+        const uint32_t rows = buffer_size(pct) / ROW_BYTES;
+        l2_read_kernel<<<blocks, THREADS>>>((const uint4*)d_buf, rows, passes_for(blocks), d_ts, d_sink);
         CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
     };
 
-    // Warm up by time: the SM clock ramps up from idle over several hundred ms.
-    int warmup_launches_done = 0;
-    {
-        const auto t_start = std::chrono::steady_clock::now();
-        double elapsed_ms = 0.0;
-        do {
-            launch(PROFILE_PCT, max_blocks);
-            ++warmup_launches_done;
-            elapsed_ms = std::chrono::duration<double, std::milli>(
-                             std::chrono::steady_clock::now() - t_start).count();
-        } while (warmup_launches_done < WARMUP_LAUNCHES || elapsed_ms < WARMUP_MS);
-    }
+    // ---- Warm-up ----
+    // The SM clock needs a few hundred ms to ramp up from idle, so keep the GPU busy.
+    const auto warmup_start = std::chrono::steady_clock::now();
+    int warmup_done = 0;
+    double elapsed_ms = 0.0;
+    do {
+        launch(PROFILE_PCT, max_blocks);
+        ++warmup_done;
+        elapsed_ms = std::chrono::duration<double, std::milli>(
+                         std::chrono::steady_clock::now() - warmup_start).count();
+    } while (warmup_done < WARMUP_LAUNCHES || elapsed_ms < WARMUP_MS);
 
+    // ---- Measure one config (buffer size and block count) ----
     auto measure = [&](int pct, int blocks) -> Result {
         for (int i = 0; i < CONFIG_WARMUP_LAUNCHES; ++i) launch(pct, blocks);
-        const size_t bytes = working_set(pct);
+
+        const size_t buffer_bytes = buffer_size(pct);
         const uint32_t passes = passes_for(blocks);
-        const double bytes_read = static_cast<double>(bytes) * passes * blocks;
-        std::vector<uint64_t> h_ts(static_cast<size_t>(blocks) * 4);
-        std::vector<double> rates, gbs, clocks;
+        const double bytes_read = (double)buffer_bytes * passes * blocks;
+
+        std::vector<uint64_t> h_ts((size_t)blocks * 4);
+        std::vector<double> rates, gb_rates, clocks;
         for (int r = 0; r < reps; ++r) {
             launch(pct, blocks);
-            CUDA_CHECK(cudaMemcpy(h_ts.data(), d_ts, h_ts.size() * sizeof(uint64_t),
-                                  cudaMemcpyDeviceToHost));
-            uint64_t t_first = UINT64_MAX, t_last = 0;
-            std::vector<double> ghz_per_block;
+            CUDA_CHECK(cudaMemcpy(h_ts.data(), d_ts, h_ts.size() * sizeof(uint64_t), cudaMemcpyDeviceToHost));
+
+            // Kernel time = latest block end - earliest block start.
+            // SM clock = clock64 cycles / globaltimer ns, taken from each block.
+            uint64_t first_start = UINT64_MAX, last_end = 0;
+            std::vector<double> block_ghz;
             for (int b = 0; b < blocks; ++b) {
-                const uint64_t ts0 = h_ts[4 * b + 0], ts1 = h_ts[4 * b + 1];
-                const uint64_t cs0 = h_ts[4 * b + 2], cs1 = h_ts[4 * b + 3];
-                t_first = std::min(t_first, ts0);
-                t_last = std::max(t_last, ts1);
-                if (ts1 > ts0) {
-                    ghz_per_block.push_back(static_cast<double>(cs1 - cs0) /
-                                            static_cast<double>(ts1 - ts0));
-                }
+                const uint64_t ns_start = h_ts[4 * b + 0], ns_end = h_ts[4 * b + 1];
+                const uint64_t cyc_start = h_ts[4 * b + 2], cyc_end = h_ts[4 * b + 3];
+                first_start = std::min(first_start, ns_start);
+                last_end = std::max(last_end, ns_end);
+                if (ns_end > ns_start) block_ghz.push_back((double)(cyc_end - cyc_start) / (double)(ns_end - ns_start));
             }
-            if (t_last <= t_first || ghz_per_block.empty()) {
-                fprintf(stderr, "bad timestamps (working set %d%%, %d blocks, rep %d)\n",
-                        pct, blocks, r);
+            if (last_end <= first_start || block_ghz.empty()) {
+                fprintf(stderr, "bad timestamps (buffer %d%% of L2, %d blocks, rep %d)\n", pct, blocks, r);
                 exit(EXIT_FAILURE);
             }
-            const double span_ns = static_cast<double>(t_last - t_first);
-            const double ghz = median_of(ghz_per_block);
+
+            const double span_ns = (double)(last_end - first_start);
+            const double ghz = median_of(block_ghz);
             rates.push_back(bytes_read / (span_ns * ghz));
-            gbs.push_back(bytes_read / span_ns);
+            gb_rates.push_back(bytes_read / span_ns);
             clocks.push_back(ghz);
         }
-        const double m = median_of(rates);
+
+        const double median = median_of(rates);
         const double lo = *std::min_element(rates.begin(), rates.end());
         const double hi = *std::max_element(rates.begin(), rates.end());
-        fprintf(stderr, "working set %2d%% of L2, %4d blocks: %.2f bytes/cycle (%.1f GB/s)\n",
-                pct, blocks, m, median_of(gbs));
-        return {pct, bytes, blocks, passes, m, median_of(gbs), median_of(clocks),
-                m > 0 ? (hi - lo) / m : 0.0};
+        fprintf(stderr, "buffer %2d%% of L2, %4d blocks: %.2f bytes/cycle (%.1f GB/s)\n",
+                pct, blocks, median, median_of(gb_rates));
+        return {pct, buffer_bytes, blocks, passes, median, median_of(gb_rates),
+                median_of(clocks), median > 0 ? (hi - lo) / median : 0.0};
     };
 
-    // every working set at the most blocks, then the other block counts at 40%
+    // ---- Run the sweep ----
+    // Every buffer size with the most blocks, then the other block counts at PROFILE_PCT.
     std::vector<Result> results;
     for (int pct : pcts) results.push_back(measure(pct, max_blocks));
-    for (int blocks : block_counts) {
+    for (int blocks : block_counts)
         if (blocks != max_blocks) results.push_back(measure(PROFILE_PCT, blocks));
-    }
 
-    auto find = [&](int pct, int blocks) -> const Result* {
-        for (const auto& r : results) {
-            if (r.pct == pct && r.blocks == blocks) return &r;
-        }
-        return nullptr;
-    };
-    const Result* main_result = find(PROFILE_PCT, max_blocks);
+    // ---- Result and checks ----
+    const Result* main_result = find(results, PROFILE_PCT, max_blocks);
     const double value = main_result->bytes_per_cycle;
-    const bool working_sets_agree =
-        agree(value, find(30, max_blocks)->bytes_per_cycle) &&
-        agree(value, find(50, max_blocks)->bytes_per_cycle);
+
+    // Does the rate stay the same at 30% and 50% of L2?
+    const bool working_sets_agree = agree(value, find(results, 30, max_blocks)->bytes_per_cycle) &&
+                                    agree(value, find(results, 50, max_blocks)->bytes_per_cycle);
+
+    // Does the rate stay the same with the next smaller block count?
     bool saturated = false;
     if (block_counts.size() >= 2) {
         const int previous = block_counts[block_counts.size() - 2];
-        saturated = agree(value, find(PROFILE_PCT, previous)->bytes_per_cycle);
+        saturated = agree(value, find(results, PROFILE_PCT, previous)->bytes_per_cycle);
     }
-    if (!working_sets_agree) {
-        fprintf(stderr, "WARNING: the rate at 30%% or 50%% of L2 differs from the rate at "
-                        "%d%% by more than %.0f%%; the working set may be evicted.\n",
+
+    if (!working_sets_agree)
+        fprintf(stderr, "WARNING: the rate at 30%% or 50%% of L2 differs from the rate at %d%% by more "
+                        "than %.0f%%. The data may be getting evicted from L2.\n",
                 PROFILE_PCT, AGREE_TOLERANCE * 100);
-    }
-    if (!saturated) {
-        fprintf(stderr, "WARNING: the rate is still rising with the number of blocks, so "
-                        "this is not a whole-GPU plateau (the limit may be per SM).\n");
-    }
+    if (!saturated)
+        fprintf(stderr, "WARNING: the rate is still rising with the number of blocks, so this is not a "
+                        "whole-GPU limit (it may be per SM).\n");
 
-    int rt_ver = 0;
-    CUDA_CHECK(cudaRuntimeGetVersion(&rt_ver));
+    int cuda_runtime = 0;
+    CUDA_CHECK(cudaRuntimeGetVersion(&cuda_runtime));
 
+    // ---- Save JSON ----
     std::ostringstream j;
     j.setf(std::ios::fixed);
     j.precision(4);
     j << "{\n"
-      << "  \"schema_version\": \"" << SCHEMA_VERSION << "\",\n"
       << "  \"benchmark\": \"l2_bandwidth.cu\",\n"
-      << "  \"benchmark_version\": \"" << BENCH_VERSION << "\",\n"
       << "  \"parameter\": \"" << PARAMETER << "\",\n"
       << "  \"value\": " << value << ",\n"
       << "  \"unit\": \"bytes/cycle\",\n"
@@ -321,11 +298,13 @@ int main(int argc, char** argv) {
       << "  \"arch\": \"" << arch << "\",\n"
       << "  \"num_sms\": " << sms << ",\n"
       << "  \"l2_cache_bytes\": " << prop.l2CacheSize << ",\n"
+      << "  \"l2_cache_kb_assumed\": " << l2_bytes / 1024 << ",\n"
+      << "  \"reps\": " << reps << ",\n"
       << "  \"configs\": [";
     for (size_t i = 0; i < results.size(); ++i) {
         const Result& r = results[i];
         j << (i ? ",\n" : "\n") << "    {\"working_set_pct_of_l2\": " << r.pct
-          << ", \"working_set_bytes\": " << r.working_set_bytes
+          << ", \"working_set_bytes\": " << r.buffer_bytes
           << ", \"blocks\": " << r.blocks
           << ", \"passes_per_block\": " << r.passes
           << ", \"bytes_per_cycle\": " << r.bytes_per_cycle
@@ -336,23 +315,7 @@ int main(int argc, char** argv) {
     }
     j << "\n  ],\n"
       << "  \"clock\": {\"sm_clock_ghz\": " << main_result->sm_clock_ghz << "},\n"
-      << "  \"measurement\": {\n"
-      << "    \"method\": \"L2-resident working set, every block sweeps all of it from its own row, loads bypass L1\",\n"
-      << "    \"load_instruction\": \"ld.global.cg.v4.u32\",\n"
-      << "    \"timer\": \"globaltimer (kernel span) and clock64 (SM clock)\",\n"
-      << "    \"value_formula\": \"bytes_read / (kernel_span_ns x sm_clock_ghz) at " << PROFILE_PCT
-      << "% of L2 and the most blocks\",\n"
-      << "    \"l2_cache_bytes_assumed\": " << l2_bytes << ",\n"
-      << "    \"l2_cache_size_source\": \"" << (l2_cache_kb ? "user" : "device") << "\",\n"
-      << "    \"data_pattern\": \"splitmix64 pseudo-random 64-bit words (fixed seed)\",\n"
-      << "    \"bytes_per_load\": " << VEC_BYTES << ",\n"
-      << "    \"loads_in_flight_per_thread\": " << UNROLL << ",\n"
-      << "    \"threads_per_block\": " << THREADS << ",\n"
-      << "    \"max_blocks_per_sm\": " << blocks_per_sm << ",\n"
-      << "    \"warmup_launches\": " << warmup_launches_done << ",\n"
-      << "    \"reps\": " << reps << "\n"
-      << "  },\n"
-      << "  \"cuda_version\": \"" << cuda_version_string(rt_ver) << "\",\n"
+      << "  \"cuda_version\": \"" << cuda_version_string(cuda_runtime) << "\",\n"
       << "  \"timestamp\": \"" << utc_timestamp() << "\"\n"
       << "}\n";
 
@@ -361,11 +324,11 @@ int main(int argc, char** argv) {
 
     printf("%s", j.str().c_str());
     fprintf(stderr, "\nL2 bandwidth: %.2f bytes/cycle (%.1f GB/s at %.3f GHz)\nSaved: %s\n",
-            value, main_result->gb_per_s, main_result->sm_clock_ghz,
-            out_path.c_str());
+            value, main_result->gb_per_s, main_result->sm_clock_ghz, out_path.c_str());
 
     CUDA_CHECK(cudaFree(d_buf));
     CUDA_CHECK(cudaFree(d_ts));
     CUDA_CHECK(cudaFree(d_sink));
     return 0;
 }
+

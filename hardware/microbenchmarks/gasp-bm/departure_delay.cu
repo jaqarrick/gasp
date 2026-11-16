@@ -1,109 +1,78 @@
 // departure_delay.cu
-// ---------------------------------------------------------------------------
-// Measures : departure_delay_cycles
+// Measures departure_delay_cycles: how many SM cycles pass between two
+// memory requests from different warps leaving the SM.
 //
-// Definition used here (Hong & Kim): the minimum number of SM cycles between
-// two consecutive warp-level memory requests leaving one SM for the memory
-// system. We measure it as the steady-state throughput of the SM's outbound
-// request path:
-//
-//     departure_delay = cycles / (number of warp-level requests)
-//
-// One block (so exactly one SM is active and nothing else competes for L2)
-// runs many warps. Every warp issues back-to-back, independent, fully
-// coalesced loads: one warp instruction = 32 lanes x 4 bytes = one 128-byte
-// line = one request. The loads use ld.global.cg (bypass L1, served by L2) and
-// the working set (2 MB) fits in L2, so every request leaves the SM and hits
-// L2. With enough warps and loads in flight (Little's law), the time per
-// request is set by how fast requests can depart, not by L2 latency.
-//
-// A sweep over the warp count checks that: the reported value is the smallest
-// per-request time across the sweep. If it kept falling as warps were added,
-// the benchmark would still be latency-bound (see the stderr summary).
-// Start-up and drain (about one L2 latency) are spread over thousands of
-// requests, so they add well under 1%.
-//
-
-#include <algorithm>
-#include <cctype>
-#include <cmath>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <filesystem>
-#include <numeric>
-#include <sstream>
-#include <string>
-#include <vector>
+// How it works:
+//   - One block with 32 warps runs on one SM.
+//   - Each warp reads its own lines of a 2 MB buffer, 8 loads at a time.
+//     The loads do not depend on each other, so many are in flight at once.
+//   - One warp load = 32 threads x 4 bytes = one 128-byte line = one request.
+//   - ld.global.cg skips L1, so every request leaves the SM and is served by L2.
+//   - delay = (total cycles - clock overhead) / number of requests
 
 #include <cuda_runtime.h>
 #include "common.h"
 
 static const char* PARAMETER = "departure_delay_cycles";
 
-constexpr int LINE_BYTES      = 128;   // one warp-wide 4-byte load = one 128-byte line
-constexpr int MAX_WARPS       = 32;    // one block of up to 1024 threads
-constexpr int UNROLL          = 8;     // independent loads in flight per warp
-constexpr int ITERS_PER_WARP  = 512;   // requests per warp (multiple of UNROLL)
-constexpr int WARMUP_LAUNCHES = 3;     // per warp count; also brings the data into L2
-constexpr int DEFAULT_REPS    = 200;   // timed launches per warp count (>=100)
-constexpr int WARP_SWEEP[]    = {8, 16, 32};
+constexpr int WARPS           = 32;    // warps in the block
+constexpr int LINE_BYTES      = 128;   // one warp load = one 128-byte line
+constexpr int LOADS_PER_WARP  = 512;   // requests each warp sends
+constexpr int UNROLL          = 8;     // loads each warp has in flight at once
+constexpr int WARMUP_LAUNCHES = 3;     // untimed launches (also loads the buffer into L2)
+constexpr int DEFAULT_REPS    = 200;   // timed launches
 
-static_assert(ITERS_PER_WARP % UNROLL == 0, "ITERS_PER_WARP must be a multiple of UNROLL");
+static_assert(LOADS_PER_WARP % UNROLL == 0, "LOADS_PER_WARP must be a multiple of UNROLL");
 
-// out[0] = gross cycles of the timed loop (clock + barrier overhead included)
-// out[1] = clock overhead (two back-to-back clock reads, nothing between)
-// out[2] = globaltimer ns around the timed loop (read outside the clock64 pair)
-__global__ void departure_kernel(const unsigned* __restrict__ buf, long long* out, unsigned* sink) {
-    const int warp = threadIdx.x >> 5;
-    const int lane = threadIdx.x & 31;
-    // This warp owns ITERS_PER_WARP consecutive 128-byte lines; lane reads word `lane` of each.
-    const unsigned* base = buf + static_cast<size_t>(warp) * ITERS_PER_WARP * 32 + lane;
+// out[0] = cycles for the timed loop (includes the cost of reading the clock)
+// out[1] = cost of reading the clock (two clock reads back to back)
+// out[2] = nanoseconds for the timed loop (used to get the SM clock speed)
+__global__ void departure_kernel(const unsigned* buf, long long* out, unsigned* sink) {
+    const int warp = threadIdx.x / 32;
+    const int lane = threadIdx.x % 32;
 
+    // Each warp starts at its own block of lines. Each lane reads one word of a line.
+    const unsigned* base = buf + warp * LOADS_PER_WARP * 32 + lane;
+
+    unsigned sum = 0;
     uint64_t b0 = 0, b1 = 0, t0 = 0, g0 = 0;
-    unsigned acc = 0;
 
+    // Measure the cost of reading the clock.
     __syncthreads();
-    if (threadIdx.x == 0) { b0 = read_clock64(); b1 = read_clock64(); }   // baseline
+    if (threadIdx.x == 0) { b0 = read_clock64(); b1 = read_clock64(); }
     __syncthreads();
+
+    // Start the timer.
     if (threadIdx.x == 0) { g0 = read_globaltimer(); t0 = read_clock64(); }
 
-    for (int i = 0; i < ITERS_PER_WARP; i += UNROLL) {
+    // "unroll 1" stops the compiler from unrolling this loop.
+#pragma unroll 1
+    for (int i = 0; i < LOADS_PER_WARP; i += UNROLL) {
         unsigned v[UNROLL];
-#pragma unroll // prevents loop unrolling by compiler
-        for (int k = 0; k < UNROLL; ++k) {
-            const unsigned* addr = base + static_cast<size_t>(i + k) * 32;
-            // Volatile PTX so the loads cannot be removed or merged
-            // .cg = L2 only,
-            // so every request leaves the SM
-            // Lanes read consecutive words, so one warp instruction is exactly one coalesced 128-byte request.
+
+        // Send UNROLL loads. "asm volatile" stops the compiler from removing them.
+        for (int k = 0; k < UNROLL; k++) {
+            const unsigned* addr = base + (i + k) * 32;
             asm volatile("ld.global.cg.u32 %0, [%1];" : "=r"(v[k]) : "l"(addr));
         }
-#pragma unroll
-        for (int k = 0; k < UNROLL; ++k) acc ^= v[k];
+        // Use the results so the loads are not dead code.
+        for (int k = 0; k < UNROLL; k++) sum ^= v[k];
     }
 
+    // Wait for the slowest warp, then stop the timer.
     __syncthreads();
     if (threadIdx.x == 0) {
-        out[0] = static_cast<long long>(read_clock64() - t0);
+        const uint64_t t1 = read_clock64();
         const uint64_t g1 = read_globaltimer();
-        out[1] = static_cast<long long>(b1 - b0);
-        out[2] = static_cast<long long>(g1 - g0);
+        out[0] = t1 - t0;
+        out[1] = b1 - b0;
+        out[2] = g1 - g0;
     }
-    sink[threadIdx.x] = acc;   // keeps the loaded data observable
+    sink[threadIdx.x] = sum;
 }
 
-struct SweepResult {
-    int warps = 0;
-    std::vector<long long> raw_cycles, overheads;   // per rep
-    double overhead = 0.0;                          // median overhead
-    std::vector<double> net_cycles, per_request;    // per rep
-    double median = 0.0;
-};
-
 int main(int argc, char** argv) {
+    // ---- Command line ----
     std::string out_dir = "./hardware/runs";
     std::string gpu_override;
     int reps = DEFAULT_REPS;
@@ -115,113 +84,86 @@ int main(int argc, char** argv) {
     }
     if (reps < 100) { fprintf(stderr, "reps must be >= 100 (issue #3)\n"); return 1; }
 
+    // ---- GPU info ----
     cudaDeviceProp prop;
     CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
     const std::string gpu_name = prop.name;
     const std::string gpu = gpu_override.empty() ? short_gpu_name(gpu_name) : gpu_override;
     const std::string arch = "sm_" + std::to_string(prop.major * 10 + prop.minor);
 
-    const size_t buf_bytes = static_cast<size_t>(MAX_WARPS) * ITERS_PER_WARP * LINE_BYTES;   // 2 MB
-    fprintf(stderr, "GPU: %s (%s), SMs: %d, L2: %.1f MB, working set: %.1f MB, one block on one SM\n",
+    const size_t buf_bytes = (size_t)WARPS * LOADS_PER_WARP * LINE_BYTES;   // 2 MB
+    fprintf(stderr, "GPU: %s (%s), SMs: %d, L2: %.1f MB, buffer: %.1f MB\n",
             gpu_name.c_str(), arch.c_str(), prop.multiProcessorCount,
             prop.l2CacheSize / (1024.0 * 1024.0), buf_bytes / (1024.0 * 1024.0));
-    if (buf_bytes * 2 > static_cast<size_t>(prop.l2CacheSize)) {
-        fprintf(stderr, "ERROR: working set (%zu bytes) is too large to stay in L2 (%d bytes)\n",
-                buf_bytes, prop.l2CacheSize);
+    if (buf_bytes * 2 > (size_t)prop.l2CacheSize) {
+        fprintf(stderr, "ERROR: buffer is too big to stay in L2\n");
         return 1;
     }
 
-    int rt_ver = 0;
-    CUDA_CHECK(cudaRuntimeGetVersion(&rt_ver));
+    int cuda_runtime = 0;
+    CUDA_CHECK(cudaRuntimeGetVersion(&cuda_runtime));
 
+    // ---- Memory ----
     unsigned* d_buf = nullptr;
     long long* d_out = nullptr;
     unsigned* d_sink = nullptr;
     CUDA_CHECK(cudaMalloc(&d_buf, buf_bytes));
     CUDA_CHECK(cudaMalloc(&d_out, 3 * sizeof(long long)));
-    CUDA_CHECK(cudaMalloc(&d_sink, MAX_WARPS * 32 * sizeof(unsigned)));
+    CUDA_CHECK(cudaMalloc(&d_sink, WARPS * 32 * sizeof(unsigned)));
     CUDA_CHECK(cudaMemset(d_buf, 0x01, buf_bytes));
 
-    std::vector<SweepResult> sweep;
-    // SM clock over every timed launch: total clock64 cycles / total globaltimer ns.
-    // One launch is only tens of us, so per-launch values are coarse (~1 us updates).
-    double sum_clock_cycles = 0.0, sum_clock_ns = 0.0;
-    for (int warps : WARP_SWEEP) {
-        SweepResult sr;
-        sr.warps = warps;
-        const int threads = warps * 32;
-        const double requests = static_cast<double>(warps) * ITERS_PER_WARP;
+    const int threads = WARPS * 32;
 
-        for (int w = 0; w < WARMUP_LAUNCHES; ++w) {      // loads data into L2, settles clocks
-            departure_kernel<<<1, threads>>>(d_buf, d_out, d_sink);
-            CUDA_CHECK(cudaGetLastError());
-        }
+    // ---- Warm-up (not timed) ----
+    for (int i = 0; i < WARMUP_LAUNCHES; ++i) {
+        departure_kernel<<<1, threads>>>(d_buf, d_out, d_sink);
+        CUDA_CHECK(cudaGetLastError());
+    }
+    CUDA_CHECK(cudaDeviceSynchronize());
+
+    // ---- Timed runs ----
+    std::vector<long long> raw_cycles, overhead_samples;
+    double total_cycles = 0.0, total_ns = 0.0;   // for the SM clock speed
+
+    for (int r = 0; r < reps; ++r) {
+        CUDA_CHECK(cudaMemset(d_out, 0, 3 * sizeof(long long)));
+        departure_kernel<<<1, threads>>>(d_buf, d_out, d_sink);
+        CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
 
-        for (int r = 0; r < reps; ++r) {
-            CUDA_CHECK(cudaMemset(d_out, 0, 3 * sizeof(long long)));
-            departure_kernel<<<1, threads>>>(d_buf, d_out, d_sink);
-            CUDA_CHECK(cudaGetLastError());
-            CUDA_CHECK(cudaDeviceSynchronize());
-            long long h[3];
-            CUDA_CHECK(cudaMemcpy(h, d_out, sizeof(h), cudaMemcpyDeviceToHost));
-            sr.raw_cycles.push_back(h[0]);
-            sr.overheads.push_back(h[1]);
-            if (h[2] > 0) {
-                sum_clock_cycles += static_cast<double>(h[0]);
-                sum_clock_ns += static_cast<double>(h[2]);
-            }
-        }
-        std::vector<double> ov(sr.overheads.begin(), sr.overheads.end());
-        sr.overhead = median_of(ov);
-        for (long long c : sr.raw_cycles) {
-            sr.net_cycles.push_back(static_cast<double>(c) - sr.overhead);
-            sr.per_request.push_back((static_cast<double>(c) - sr.overhead) / requests);
-        }
-        sr.median = median_of(sr.per_request);
-        sweep.push_back(std::move(sr));
+        long long h[3];
+        CUDA_CHECK(cudaMemcpy(h, d_out, sizeof(h), cudaMemcpyDeviceToHost));
+        raw_cycles.push_back(h[0]);
+        overhead_samples.push_back(h[1]);
+        total_cycles += (double)h[0];
+        total_ns += (double)h[2];
     }
 
-    if (sum_clock_ns <= 0.0) { fprintf(stderr, "ERROR: globaltimer did not advance\n"); return 1; }
-    // Departure delay is SM-side, but it is measured against L2, which runs on its own
-    // clock; the profile needs runs at the clock the validation runs at (README "Base clock").
-    const double clock_ghz_all = sum_clock_cycles / sum_clock_ns;
+    if (total_ns <= 0.0) { fprintf(stderr, "ERROR: globaltimer did not advance\n"); return 1; }
+    const double sm_clock_ghz = total_cycles / total_ns;
 
-    // Report the saturated (smallest) per-request time.
-    size_t best = 0;
-    for (size_t i = 1; i < sweep.size(); ++i)
-        if (sweep[i].median < sweep[best].median) best = i;
-    const SweepResult& S = sweep[best];
-    const double requests_per_rep = static_cast<double>(S.warps) * ITERS_PER_WARP;
+    // ---- Results ----
+    const double requests = (double)WARPS * LOADS_PER_WARP;   // 16384 requests per launch
 
-    std::vector<double> gross_per_request;
-    for (long long c : S.raw_cycles) gross_per_request.push_back(static_cast<double>(c) / requests_per_rep);
-    const double uncorrected_value = median_of(gross_per_request);
+    // Subtract the clock overhead, then divide by the number of requests.
+    const double overhead = median_of(std::vector<double>(overhead_samples.begin(), overhead_samples.end()));
+    std::vector<double> net_cycles, per_request, uncorrected;
+    for (long long c : raw_cycles) {
+        net_cycles.push_back(c - overhead);
+        per_request.push_back((c - overhead) / requests);
+        uncorrected.push_back(c / requests);
+    }
 
-    const Stats stats = compute_stats(S.per_request);
-    const double median = S.median;
+    const Stats stats = compute_stats(per_request);
+    const double median = stats.median;
 
-    fprintf(stderr, "\nSweep (median cycles per warp request):\n");
-    for (const SweepResult& sr : sweep)
-        fprintf(stderr, "  %2d warps: %.4f%s\n", sr.warps, sr.median, &sr == &S ? "   <- reported" : "");
-    if (best == 0 && sweep.size() > 1)
-        fprintf(stderr, "WARNING: the fewest warps gave the smallest value; the sweep is not behaving "
-                        "as expected. Check the SASS and nvidia-smi.\n");
-    if (sweep.size() > 1 && sweep[sweep.size() - 1].median > 1.10 * median)
-        fprintf(stderr, "NOTE: more warps made it slower; the load path may be saturating, which is "
-                        "fine, but check the sweep above.\n");
-    if (median > 20.0)
-        fprintf(stderr, "WARNING: median %.1f cycles per request is high; the run may be latency-bound "
-                        "or the GPU is shared. Check nvidia-smi and rerun.\n", median);
-    if (median < 0.4)
-        fprintf(stderr, "WARNING: median %.2f cycles per request is implausibly low; check the SASS "
-                        "(loads may have been removed).\n", median);
+    fprintf(stderr, "\nDeparture delay: %.4f cycles per request (std %.4f), SM clock %.3f GHz\n",
+            median, stats.std, sm_clock_ghz);
     if (median > 1.05 * stats.min)
-        fprintf(stderr, "WARNING: median %.3f is >5%% above the fastest run (%.3f). Another process may "
-                        "be sharing the GPU; check nvidia-smi and rerun.\n", median, stats.min);
+        fprintf(stderr, "WARNING: median is more than 5%% above the fastest run. Another process may be "
+                        "using the GPU. Check nvidia-smi and rerun.\n");
 
-    std::string driver = driver_version();
-
+    // ---- Save JSON ----
     std::ostringstream j;
     j.setf(std::ios::fixed);
     j.precision(4);
@@ -235,37 +177,32 @@ int main(int argc, char** argv) {
     j << "  \"arch\": \"" << arch << "\",\n";
     j << "  \"num_sms\": " << prop.multiProcessorCount << ",\n";
     j << json_stats(stats);
-    j << "  \"warps_per_block\": " << S.warps << ",\n";
-    j << "  \"requests_per_rep\": " << static_cast<long long>(requests_per_rep) << ",\n";
-    j << "  \"raw_cycles\": " << json_array(S.raw_cycles) << ",\n";
-    j << "  \"overhead_samples_cycles\": " << json_array(S.overheads) << ",\n";
-    j << "  \"overhead_cycles\": " << S.overhead << ",\n";
+    j << "  \"warps_per_block\": " << WARPS << ",\n";
+    j << "  \"requests_per_rep\": " << (long long)requests << ",\n";
+    j << "  \"raw_cycles\": " << json_array(raw_cycles) << ",\n";
+    j << "  \"overhead_samples_cycles\": " << json_array(overhead_samples) << ",\n";
+    j << "  \"overhead_cycles\": " << overhead << ",\n";
     j << "  \"overhead_subtracted\": true,\n";
-    j << "  \"net_cycles\": " << json_array(S.net_cycles) << ",\n";
-    j << "  \"per_request_cycles\": " << json_array(S.per_request) << ",\n";
-    j << "  \"uncorrected_value\": " << uncorrected_value << ",\n";
-    j << "  \"sweep_median_cycles_per_request\": {";
-    for (size_t i = 0; i < sweep.size(); ++i)
-        j << (i ? ", " : "") << "\"" << sweep[i].warps << "_warps\": " << sweep[i].median;
-    j << "},\n";
-    j << "  \"clock\": {\"sm_clock_ghz\": " << clock_ghz_all << "},\n";
-    j << "  \"cuda_version\": \"" << cuda_version_string(rt_ver) << "\",\n";
+    j << "  \"net_cycles\": " << json_array(net_cycles) << ",\n";
+    j << "  \"per_request_cycles\": " << json_array(per_request) << ",\n";
+    j << "  \"uncorrected_value\": " << median_of(uncorrected) << ",\n";
+    j << "  \"clock\": {\"sm_clock_ghz\": " << sm_clock_ghz << "},\n";
+    j << "  \"cuda_version\": \"" << cuda_version_string(cuda_runtime) << "\",\n";
     j << "  \"nvcc_version\": \"" << __CUDACC_VER_MAJOR__ << "." << __CUDACC_VER_MINOR__ << "\",\n";
-    j << "  \"driver_version\": \"" << json_escape(driver) << "\",\n";
+    j << "  \"driver_version\": \"" << json_escape(driver_version()) << "\",\n";
     j << "  \"timestamp\": \"" << utc_timestamp() << "\"\n";
     j << "}\n";
 
-    // Save to <out_dir>/{parameter}.{gpu}.run.json
     const std::string out_path = write_run_json(out_dir, PARAMETER, gpu, j.str());
     if (out_path.empty()) return 1;
 
     printf("%s", j.str().c_str());
-    fprintf(stderr, "\nDeparture delay: %.3f cycles per warp request at %.3f GHz SM clock (std %.4f, "
-                    "overhead %.1f cycles subtracted)\nSaved: %s\n",
-            median, clock_ghz_all, stats.std, S.overhead, out_path.c_str());
+    fprintf(stderr, "Saved: %s\n", out_path.c_str());
 
     CUDA_CHECK(cudaFree(d_buf));
     CUDA_CHECK(cudaFree(d_out));
     CUDA_CHECK(cudaFree(d_sink));
     return 0;
 }
+
+
