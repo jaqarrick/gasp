@@ -474,9 +474,7 @@ def run_benchmark(
 
 def default_base_profile(gpu: str) -> Path:
     measured = PROFILES_DIR / f"{gpu}.json"
-    if (
-        measured.exists() and measured.stat().st_size > 4
-    ):  # h100.json is empty, b200.json is {}
+    if measured.exists():
         return measured
     raise BenchmarkError(
         f"no profile {measured.relative_to(REPO_ROOT)}; pass --base-profile"

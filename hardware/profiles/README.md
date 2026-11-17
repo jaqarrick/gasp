@@ -2,7 +2,7 @@
 
 Hardware profiles for the GPUs GASP targets: the NVIDIA spec values and the microbenchmark results. `--gpu` accepts `rtx2080ti`, `titanv` and `rtx4070` (measured profiles) and `a100` (`GPU_PROFILES` in `src/gasp/cli/utils.py`). For another GPU, pass a profile with `--profile`.
 
-`--gpu a100` uses `a100.placeholder.json`, the only placeholder left. `a100.json` is measured but doesn't load yet: it has no `l1_miss_cycles_per_request` until `l1_miss_cost.cu` runs on the A100. The placeholder has 0 for that field (no charge for L1 misses). `h100.json` (empty) and `b200.json` (`{}`) are stubs, not profiles.
+`--gpu a100` uses `a100.placeholder.json`, the only placeholder left. `a100.json` is measured but doesn't load yet: it has no `l1_miss_cycles_per_request` until `l1_miss_cost.cu` runs on the A100. The placeholder has 0 for that field (no charge for L1 misses).
 
 ## Format
 
