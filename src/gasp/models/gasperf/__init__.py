@@ -1,6 +1,6 @@
 # GASPerf: our performance model
 
-from gasp.common.constants import SECTORS_PER_LINE
+from gasp.common.constants import SECTOR_BYTES, SECTORS_PER_LINE
 from gasp.logger import Logger
 from gasp.models.gpuperf.types import HardwareParameters, LaunchParameters
 from gasp.models.inputs import WORD_BYTES, ModelInputs
@@ -115,7 +115,12 @@ class GASPerf:
             lines_per_request * SECTORS_PER_LINE / h.l1_sectors_per_cycle,
         )
         self.l1_time = requests_per_sm * cycles_per_request
-        return max(t_mem_latency, self.l1_time)
+
+        l1_miss_bytes = (
+            requests_per_sm * sectors_per_request * (1 - o.l1_hit_ratio) * SECTOR_BYTES
+        )
+        self.l2_time = l1_miss_bytes / (h.l2_bandwidth / o.active_sms)
+        return max(t_mem_latency, self.l1_time, self.l2_time)
 
     def _get_t_overlap(self, t_memory: float, t_comp: float) -> float:
         o = self.o
@@ -269,5 +274,6 @@ def run(
         fp64_pipe_time=model.fp64_pipe_time,
         sfu_pipe_time=model.sfu_pipe_time,
         l1_time=model.l1_time,
+        l2_time=model.l2_time,
         l2_hit_ratio=l2_hit_ratio,
     )

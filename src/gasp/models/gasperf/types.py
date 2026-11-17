@@ -74,7 +74,7 @@ class ModelOutput:
     smem_pipe_time: float = 0.0
     fp64_pipe_time: float = 0.0
     sfu_pipe_time: float = 0.0
-    # global requests per SM x L1 cycles each; T_mem is at least this
     l1_time: float = 0.0
+    l2_time: float = 0.0
     # the L2 hit ratio GASPerf used (the concurrent-blocks one)
     l2_hit_ratio: float | None = None

@@ -666,6 +666,7 @@ def prepare_kernel(
             shared_mem_throughput=hp.shared_mem_load_throughput_cycles,
             l1_cycles_per_request=hp.l1_cycles_per_request,
             l1_sectors_per_cycle=hp.l1_sectors_per_cycle_per_sm,
+            l2_bandwidth=hp.l2_bandwidth_bytes_per_cycle,
         ),
         launch=LaunchParameters(
             block_size=spec.block_size,
@@ -740,6 +741,7 @@ def predict_kernel(
             ["SFU pipe time (cycles)", f"{prediction.sfu_pipe_time:.0f}"],
             ["T_comp (cycles)", f"{prediction.t_comp:.0f}"],
             ["L1 time (cycles)", f"{prediction.l1_time:.0f}"],
+            ["L2 time (cycles)", f"{prediction.l2_time:.0f}"],
             ["T_mem (cycles)", f"{prediction.t_mem:.0f}"],
             ["T_overlap (cycles)", f"{prediction.t_overlap:.0f}"],
             ["T_exec (cycles)", f"{prediction.t_exec:.0f}"],

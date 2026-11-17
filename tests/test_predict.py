@@ -60,6 +60,7 @@ SHARED_THROUGHPUT = 2.0
 FP64_WIDTH = 2
 L1_CYCLES_PER_REQUEST = 0.1
 L1_SECTORS_PER_CYCLE = 64.0
+L2_BANDWIDTH = 1e6
 
 
 def prediction_input(mem_inst_count: int = 2, grid_size: int = 40) -> PredictionInput:
@@ -105,6 +106,9 @@ def prediction_input(mem_inst_count: int = 2, grid_size: int = 40) -> Prediction
             # raises it
             l1_cycles_per_request=L1_CYCLES_PER_REQUEST,
             l1_sectors_per_cycle=L1_SECTORS_PER_CYCLE,
+            # large enough that GASPerf's L2 limit never binds unless a test
+            # lowers it
+            l2_bandwidth=L2_BANDWIDTH,
         ),
         launch=LaunchParameters(
             block_size=256,
@@ -700,6 +704,7 @@ def test_gasperf_matches_gpuperf(build):
         expected,
         model="GASPerf",
         l1_time=got.l1_time,
+        l2_time=got.l2_time,
         sfu_pipe_time=got.sfu_pipe_time,
         launch_overhead=got.launch_overhead,
         t_gpu=got.t_gpu,
@@ -931,6 +936,49 @@ def test_l1_single_line_request_costs_one_line():
     p = predict(base, logger=MagicMock())
 
     assert p.l1_time == pytest.approx(64 * 8.0)
+
+
+# ---------------------------------------------------------------------------
+# GASPerf: L2 throughput limit on T_mem
+# ---------------------------------------------------------------------------
+
+
+def l2_input(l2_bandwidth: float, l1_hit_ratio: float = 0.0, model="GASPerf"):
+    # 64 coalesced requests per SM (4 sectors each), 10 SMs: with every
+    # request missing L1, 64 x 4 x 32 = 8192 bytes per SM go to L2
+    base = l1_input(cycles_per_request=0.1, model=model)
+    base.hardware = replace(base.hardware, l2_bandwidth=l2_bandwidth)
+    base.overrides = ModelOverrides(l1_hit_ratio=l1_hit_ratio, average_trans_warp=1.0)
+    return base
+
+
+def test_l2_limit_under_latency_time_changes_nothing():
+    gasperf = predict(l2_input(L2_BANDWIDTH), logger=MagicMock())
+    gpuperf = predict(l2_input(L2_BANDWIDTH, model="GPUPerf"), logger=MagicMock())
+
+    assert gasperf.l2_time == pytest.approx(8192 / (L2_BANDWIDTH / 10))
+    assert gasperf.t_mem == pytest.approx(gpuperf.t_mem)
+
+
+def test_l2_limit_over_latency_time_sets_t_mem():
+    # 10 bytes per cycle over 10 SMs: 1 per SM
+    p = predict(l2_input(10.0), logger=MagicMock())
+
+    assert p.l2_time == pytest.approx(8192)
+    assert p.t_mem == pytest.approx(8192)
+
+
+def test_l2_limit_counts_only_l1_misses():
+    p = predict(l2_input(10.0, l1_hit_ratio=0.75), logger=MagicMock())
+
+    assert p.l2_time == pytest.approx(8192 * 0.25)
+
+
+def test_gpuperf_has_no_l2_limit():
+    p = predict(l2_input(10.0, model="GPUPerf"), logger=MagicMock())
+
+    assert p.l2_time == 0
+    assert p.t_mem < 8192
 
 
 # ---------------------------------------------------------------------------
