@@ -72,9 +72,6 @@ NCU_FLAGS = [
 ]
 CLOCK_TOLERANCE = 0.02  # warn if a run's clock is more than 2% from the median
 
-# Profile keys a base profile may lack (the model treats them as 0 until measured)
-OPTIONAL_PROFILE_KEYS = {"l1_miss_cycles_per_request"}
-
 # Run parameter -> profile key, where they differ.
 PROFILE_KEY = {
     "launch_base_cycles": "launch_overhead_base_cycles",
@@ -479,9 +476,11 @@ def default_base_profile(gpu: str) -> Path:
     measured = PROFILES_DIR / f"{gpu}.json"
     if (
         measured.exists() and measured.stat().st_size > 4
-    ):  # a100.json is empty, b200.json is {}
+    ):  # h100.json is empty, b200.json is {}
         return measured
-    return PROFILES_DIR / f"{gpu}.placeholder.json"
+    raise BenchmarkError(
+        f"no profile {measured.relative_to(REPO_ROOT)}; pass --base-profile"
+    )
 
 
 def build_profile(
@@ -493,9 +492,6 @@ def build_profile(
     """
     profile = json.loads(json.dumps(base))
     profiled = profile["profiled"]
-    for key in OPTIONAL_PROFILE_KEYS:
-        if key in measured and key not in profiled:
-            profiled[key] = measured[key]["value"]
     sources: dict[str, dict] = {}
     unknown = sorted(set(measured) - set(profiled))
     if unknown:
@@ -553,7 +549,7 @@ def main() -> int:
     parser.add_argument(
         "--base-profile",
         help="profile to copy unmeasured fields from "
-        "(default: hardware/profiles/<gpu>.json, else <gpu>.placeholder.json)",
+        "(default: hardware/profiles/<gpu>.json)",
     )
     parser.add_argument(
         "--only",

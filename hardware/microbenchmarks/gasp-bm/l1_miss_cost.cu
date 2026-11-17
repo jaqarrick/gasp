@@ -39,7 +39,7 @@ __device__ __forceinline__ uint32_t load_l1(const char* p) {
 }
 
 __device__ __forceinline__ uint32_t load_l2(const char* p) {
-    uint32_t a;
+    uint32_t a; // .cg - cache global
     asm volatile("ld.global.cg.u32 %0, [%1];" : "=r"(a) : "l"(p));
     return a;
 }
@@ -286,7 +286,7 @@ int main(int argc, char** argv) {
         plateaus.push_back({static_cast<double>(m) / UNROLL, best->cycles_per_request, ok});
     }
 
-    // cycles per request = intercept + slope x miss fraction
+    // cycles per request = intercept + slope times miss fraction
     double sx = 0, sy = 0, sxx = 0, sxy = 0;
     for (const auto& p : plateaus) {
         sx += p.fraction; sy += p.cycles;

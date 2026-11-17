@@ -82,6 +82,7 @@ VALID_PROFILE = {
         "shared_mem_load_throughput_cycles": 1.0,
         "l1_cycles_per_request": 1.0,
         "l1_sectors_per_cycle_per_sm": 4.0,
+        "l1_miss_cycles_per_request": 0,
         "l2_bandwidth_bytes_per_cycle": 5120,
         "const_mem_latency_cycles": 4,
     },
@@ -133,23 +134,6 @@ class TestHardwareProfile:
         with pytest.raises(TypeError):
             HardwareProfile(**flat)
 
-    def test_optional_field_defaults_to_zero(self):
-        flat = {
-            **VALID_PROFILE,
-            **VALID_PROFILE["spec"],
-            **VALID_PROFILE["profiled"],
-        }
-        flat.pop("spec")
-        flat.pop("profiled")
-        flat.pop("l1_miss_cycles_per_request", None)
-
-        assert HardwareProfile(**flat).l1_miss_cycles_per_request == 0.0
-
-    def test_profile_file_without_optional_field_loads(self, profile_file):
-        hp = load_profile_file(profile_file, MagicMock())
-
-        assert hp.l1_miss_cycles_per_request == 0.0
-
     def test_extra_field_raises(self):
         flat = {
             **VALID_PROFILE,
@@ -166,17 +150,11 @@ class TestHardwareProfile:
 
 class TestGPUProfiles:
     def test_known_gpus(self):
-        for gpu in (
-            "a100",
-            "h100",
-            "b200",
-            "l4",
-            "v100",
-            "rtx2080ti",
-            "titanv",
-            "rtx4070",
-        ):
-            assert gpu in GPU_PROFILES, f"{gpu} missing from GPU_PROFILES"
+        assert set(GPU_PROFILES) == {"a100", "rtx2080ti", "titanv", "rtx4070"}
+
+    def test_only_a100_uses_a_placeholder(self):
+        placeholders = {g for g, p in GPU_PROFILES.items() if "placeholder" in p.name}
+        assert placeholders == {"a100"}
 
     def test_paths_are_json(self):
         for gpu, path in GPU_PROFILES.items():
@@ -383,7 +361,7 @@ class TestGpuProfileFlags:
     def test_both_flags_warn_and_exit(self, monkeypatch, profile_file, capsys):
         monkeypatch.setattr(
             "sys.argv",
-            ["gasp", "--gpu", "b200", "--profile", str(profile_file), VECADD],
+            ["gasp", "--gpu", "rtx2080ti", "--profile", str(profile_file), VECADD],
         )
         with pytest.raises(SystemExit) as e:
             main()
@@ -413,7 +391,7 @@ STRIDE = "benchmarks/vecadd/vecadd_stride.cu"
 
 
 def parse(*argv):
-    return build_parser().parse_intermixed_args(["--gpu", "b200", VECADD, *argv])
+    return build_parser().parse_intermixed_args(["--gpu", "rtx2080ti", VECADD, *argv])
 
 
 def test_trace_defaults_to_off():
@@ -454,7 +432,7 @@ def test_trace_file_keeps_selected_modules():
 
 def checked_args(*argv) -> Args:
     parser = build_parser()
-    args = Args(**vars(parser.parse_intermixed_args(["--gpu", "b200", *argv])))
+    args = Args(**vars(parser.parse_intermixed_args(["--gpu", "rtx2080ti", *argv])))
     check_args(parser, args)
     return args
 

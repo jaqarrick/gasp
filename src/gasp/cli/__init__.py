@@ -151,7 +151,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # exclusive, but checked in main() so passing both warns instead of a usage error
-    parser.add_argument("--gpu", help="built-in GPU name (e.g., b200)")
+    parser.add_argument("--gpu", help="built-in GPU name (e.g., rtx2080ti)")
     parser.add_argument("--profile", help="path to custom hardware profile JSON")
     parser.add_argument(
         "--version", action="version", version=f"%(prog)s {__version__}"

@@ -204,5 +204,3 @@ int main(int argc, char** argv) {
     CUDA_CHECK(cudaFree(d_sink));
     return 0;
 }
-
-

@@ -203,7 +203,7 @@ def main() -> int:
     parser.add_argument(
         "--base-profile",
         help="profile for the base clock and comparison "
-        "(default: hardware/profiles/<gpu>.json, else <gpu>.placeholder.json)",
+        "(default: hardware/profiles/<gpu>.json)",
     )
     parser.add_argument(
         "--gpu-benches-dir", type=Path, default=DEFAULT_GPU_BENCHES_DIR, help="gpu-benches checkout"

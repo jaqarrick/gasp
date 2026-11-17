@@ -586,7 +586,7 @@ def main() -> int:
     parser.add_argument(
         "--base-profile",
         help="profile to copy unmeasured fields from "
-        "(default: hardware/profiles/<gpu>.json, else <gpu>.placeholder.json)",
+        "(default: hardware/profiles/<gpu>.json)",
     )
     parser.add_argument("--only", help="comma-separated benchmarks: " + ", ".join(BY_NAME))
     parser.add_argument("--skip", help="comma-separated benchmarks to leave out")

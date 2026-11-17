@@ -109,6 +109,8 @@ def prediction_input(mem_inst_count: int = 2, grid_size: int = 40) -> Prediction
             # large enough that GASPerf's L2 limit never binds unless a test
             # lowers it
             l2_bandwidth=L2_BANDWIDTH,
+            # no L1 miss cost unless a test sets one
+            l1_miss_cycles_per_request=0.0,
         ),
         launch=LaunchParameters(
             block_size=256,
@@ -942,7 +944,7 @@ def test_l1_miss_cost_adds_per_missing_request():
     assert p.t_mem == pytest.approx(64 * 52.0)
 
 
-def test_l1_miss_cost_unmeasured_adds_nothing():
+def test_zero_l1_miss_cost_adds_nothing():
     base = l1_input(cycles_per_request=50.0)
     base.overrides = ModelOverrides(l1_hit_ratio=0.0)
     p = predict(base, logger=MagicMock())

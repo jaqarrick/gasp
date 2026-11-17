@@ -100,6 +100,7 @@ def test_every_combined_runner_parameter_maps_to_a_profile_key():
         "launch_overhead_per_thread_cycles",
         "l1_cycles_per_request",
         "l1_sectors_per_cycle_per_sm",
+        "l1_miss_cycles_per_request",
         "l2_bandwidth_bytes_per_cycle",
     }
     mapped = {key for bench in run_all.BENCHMARKS for key in bench.profile_keys}
