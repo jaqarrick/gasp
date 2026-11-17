@@ -678,14 +678,15 @@ def test_prediction_names_its_model():
     "build",
     [
         prediction_input,
-        lambda: sfu_input(total=10, sfu=4),
+        lambda: sfu_input(total=10, sfu=2),
         lambda: vecadd_input(accesses=3, reusable=1),
     ],
 )
 def test_gasperf_matches_gpuperf(build):
-    """Holds for kernels without shared-memory accesses, whose L1 time is under
-    T_mem and whose data fits in L2 either way. GASPerf reports its L1 time,
-    which GPUPerf leaves at 0; its launch overhead term is off by default."""
+    """Holds for kernels without shared-memory or FP64 accesses, with SFU under
+    GPUPerf's threshold, whose L1 time is under T_mem and whose data fits in L2
+    either way. GASPerf reports its L1 and SFU pipe times, which GPUPerf leaves
+    at 0; its launch overhead term is off by default."""
     gpuperf = build()
     gasperf = build()
     gasperf.model = "GASPerf"
@@ -699,13 +700,14 @@ def test_gasperf_matches_gpuperf(build):
         expected,
         model="GASPerf",
         l1_time=got.l1_time,
+        sfu_pipe_time=got.sfu_pipe_time,
         launch_overhead=got.launch_overhead,
         t_gpu=got.t_gpu,
     )
 
 
 # ---------------------------------------------------------------------------
-# GASPerf: shared-memory pipe limit (O_shmem)
+# GASPerf: shared-memory pipe limit
 # ---------------------------------------------------------------------------
 
 
@@ -727,8 +729,8 @@ def test_shared_pipe_under_issue_time_adds_nothing():
     p = predict(shared_input(loads=4), logger=MagicMock())
     gpuperf = predict(shared_input(loads=4, model="GPUPerf"), logger=MagicMock())
 
-    assert p.shared_pipe_time == pytest.approx(4 * 320 / 10 * SHARED_THROUGHPUT)
-    assert p.o_shmem == 0
+    assert p.smem_pipe_time == pytest.approx(4 * 320 / 10 * SHARED_THROUGHPUT)
+    assert p.issue_time == pytest.approx(320)
     assert p.t_comp == pytest.approx(gpuperf.t_comp)
 
 
@@ -740,29 +742,30 @@ def test_shared_pipe_over_issue_time_sets_t_comp():
     )
 
     issue = 10 * 320 / 10
-    assert p.shared_pipe_time == pytest.approx(9 * 320 / 10 * SHARED_THROUGHPUT)
-    assert p.o_shmem == pytest.approx(p.shared_pipe_time - issue)
+    assert p.smem_pipe_time == pytest.approx(9 * 320 / 10 * SHARED_THROUGHPUT)
+    assert p.issue_time == pytest.approx(issue)
     # no other serial overheads here, so T_comp is the pipe time
-    assert p.t_comp == pytest.approx(p.shared_pipe_time)
+    assert p.t_comp == pytest.approx(p.smem_pipe_time)
     assert gpuperf.t_comp == pytest.approx(issue)
 
 
 def test_shared_pipe_counts_o_cfdiv_as_issue_time():
     # divergent instructions still take issue slots: moving 4 of the 10 into
-    # O_CFdiv leaves the comparison, and so O_shmem, unchanged
+    # O_CFdiv leaves issue time, and so T_comp, unchanged
     clean = predict(shared_input(loads=8, stores=1), logger=MagicMock())
     divergent = shared_input(loads=8, stores=1)
     divergent.dependency = replace(divergent.dependency, divergent_inst_count=4)
     split = predict(divergent, logger=MagicMock())
 
     assert split.o_cfdiv > 0
-    assert split.o_shmem == pytest.approx(clean.o_shmem)
+    assert split.issue_time == pytest.approx(clean.issue_time)
+    assert split.t_comp == pytest.approx(clean.t_comp)
 
 
 def test_gpuperf_ignores_shared_counts():
     p = predict(shared_input(loads=8, stores=1, model="GPUPerf"), logger=MagicMock())
 
-    assert (p.shared_pipe_time, p.o_shmem) == (0, 0)
+    assert p.smem_pipe_time == 0
 
 
 # ---------------------------------------------------------------------------
@@ -784,7 +787,7 @@ def fp64_input(
 def test_no_fp64_adds_nothing():
     p = predict(fp64_input(0), logger=MagicMock())
 
-    assert (p.fp64_pipe_time, p.o_fp64) == (0, 0)
+    assert p.fp64_pipe_time == 0
     assert p.t_comp == pytest.approx(ISSUE_TIME)
 
 
@@ -793,7 +796,6 @@ def test_fp64_pipe_under_issue_time_adds_nothing():
     p = predict(fp64_input(4, fp64_width=32), logger=MagicMock())
 
     assert p.fp64_pipe_time == pytest.approx(4 * 32 * 1)
-    assert p.o_fp64 == 0
     assert p.t_comp == pytest.approx(ISSUE_TIME)
 
 
@@ -803,7 +805,7 @@ def test_fp64_pipe_over_issue_time_sets_t_comp():
     gpuperf = predict(fp64_input(1, model="GPUPerf"), logger=MagicMock())
 
     assert p.fp64_pipe_time == pytest.approx(1 * 32 * 16)
-    assert p.o_fp64 == pytest.approx(p.fp64_pipe_time - ISSUE_TIME)
+    assert p.issue_time == pytest.approx(ISSUE_TIME)
     # no other serial overheads here, so T_comp is the pipe time
     assert p.t_comp == pytest.approx(p.fp64_pipe_time)
     assert gpuperf.t_comp == pytest.approx(ISSUE_TIME)
@@ -814,10 +816,8 @@ def test_fp64_and_shared_pipes_floor_at_the_busier_one():
     # T_comp is 1024, not 320 + (576 - 320) + (1024 - 320)
     p = predict(fp64_input(2, loads=9), logger=MagicMock())
 
-    assert p.shared_pipe_time == pytest.approx(576)
+    assert p.smem_pipe_time == pytest.approx(576)
     assert p.fp64_pipe_time == pytest.approx(1024)
-    assert p.o_shmem == pytest.approx(576 - ISSUE_TIME)
-    assert p.o_fp64 == pytest.approx(1024 - 576)
     assert p.t_comp == pytest.approx(1024)
 
 
@@ -825,14 +825,13 @@ def test_fp64_under_the_shared_pipe_adds_nothing():
     # FP64 512 sits under the shared pipe's 576
     p = predict(fp64_input(1, loads=9), logger=MagicMock())
 
-    assert p.o_fp64 == 0
     assert p.t_comp == pytest.approx(576)
 
 
 def test_gpuperf_ignores_fp64_counts():
     p = predict(fp64_input(2, model="GPUPerf"), logger=MagicMock())
 
-    assert (p.fp64_pipe_time, p.o_fp64) == (0, 0)
+    assert p.fp64_pipe_time == 0
 
 
 # ---------------------------------------------------------------------------
@@ -851,7 +850,7 @@ def test_sfu_pipe_under_issue_time_adds_nothing():
     p = predict(gasperf_sfu_input(total=10, sfu=2), logger=MagicMock())
 
     assert p.sfu_pipe_time == pytest.approx(128)
-    assert p.o_sfu == 0
+    assert p.issue_time == pytest.approx(256)
     assert p.t_comp == pytest.approx(256)
 
 
@@ -861,7 +860,7 @@ def test_sfu_pipe_over_issue_time_sets_t_comp():
     gpuperf = predict(sfu_input(total=10, sfu=8), logger=MagicMock())
 
     assert p.sfu_pipe_time == pytest.approx(512)
-    assert p.o_sfu == pytest.approx(512 - 64)
+    assert p.issue_time == pytest.approx(64)
     assert p.t_comp == pytest.approx(512)
     assert gpuperf.t_comp == pytest.approx(64 + 512)
 
@@ -869,7 +868,7 @@ def test_sfu_pipe_over_issue_time_sets_t_comp():
 def test_gpuperf_reports_no_sfu_pipe_time():
     p = predict(sfu_input(total=10, sfu=8), logger=MagicMock())
 
-    assert (p.sfu_pipe_time, p.o_sfu) == (0, 0)
+    assert p.sfu_pipe_time == 0
 
 
 # ---------------------------------------------------------------------------

@@ -70,34 +70,25 @@ class GASPerf:
         o_cfdiv = ((divergent * o.total_warps) / o.active_sms) * effective_throughput
         self.o_cfdiv = o_cfdiv
 
-        # Calibration experiment 1
-        # Shared-memory pipe limit
         shared_insts = k.shared_load_inst_count + k.shared_store_inst_count
-        self.shared_pipe_time = (
+        self.smem_pipe_time = (
             (shared_insts * o.total_warps) / o.active_sms
         ) * h.shared_mem_throughput
-
-        # Calibration experiment 2
-        # FP64 pipe limit
         self.fp64_pipe_time = ((k.fp64_inst_count * o.total_warps) / o.active_sms) * (
             h.warp_size / h.fp64_width
         )
-        # SFU pipe limit, replacing GPUPerf's O_SFU (Eqs. 9-10)
+        # replaces GPUPerf's O_SFU (Eqs. 9-10)
         self.sfu_pipe_time = ((k.sfu_inst_count * o.total_warps) / o.active_sms) * (
             h.warp_size / h.sfu_width
         )
-        # the pipes run side by side, so only the busiest one can set T_comp
-        issue_time = w_parallel + o_cfdiv
+        # the pipes run side by side, so the busiest one sets T_comp
+        self.issue_time = w_parallel + o_cfdiv
         base = max(
-            issue_time, self.shared_pipe_time, self.fp64_pipe_time, self.sfu_pipe_time
+            self.issue_time,
+            self.smem_pipe_time,
+            self.fp64_pipe_time,
+            self.sfu_pipe_time,
         )
-        # reported split: O_shmem, then O_fp64 beyond it, then O_sfu the rest
-        self.o_shmem = max(0.0, self.shared_pipe_time - issue_time)
-        self.o_fp64 = (
-            max(0.0, max(self.shared_pipe_time, self.fp64_pipe_time) - issue_time)
-            - self.o_shmem
-        )
-        self.o_sfu = max(0.0, base - issue_time) - self.o_shmem - self.o_fp64
         # Pico's count is per warp (extra shared accesses, N - 1 for an N-way
         # conflict), so it scales by warps per SM like the other W_serial terms.
         o_bank = (
@@ -273,12 +264,10 @@ def run(
         t_exec=t_exec,
         launch_overhead=launch_overhead,
         t_gpu=t_gpu,
-        shared_pipe_time=model.shared_pipe_time,
-        o_shmem=model.o_shmem,
+        issue_time=model.issue_time,
+        smem_pipe_time=model.smem_pipe_time,
         fp64_pipe_time=model.fp64_pipe_time,
-        o_fp64=model.o_fp64,
         sfu_pipe_time=model.sfu_pipe_time,
-        o_sfu=model.o_sfu,
         l1_time=model.l1_time,
         l2_hit_ratio=l2_hit_ratio,
     )

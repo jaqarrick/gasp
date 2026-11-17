@@ -104,11 +104,9 @@ class ModelOutput:
     t_exec: float
     t_gpu: float
     launch_overhead: float = 0.0
-    shared_pipe_time: float = 0.0
-    o_shmem: float = 0.0
+    issue_time: float = 0.0
+    smem_pipe_time: float = 0.0
     fp64_pipe_time: float = 0.0
-    o_fp64: float = 0.0
     sfu_pipe_time: float = 0.0
-    o_sfu: float = 0.0
     l1_time: float = 0.0
     l2_hit_ratio: float | None = None
