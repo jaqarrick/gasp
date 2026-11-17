@@ -143,7 +143,7 @@ int main(int argc, char **argv) {
         if (c[1] > 0) sm_clock_ghz = (double)c[0] / (double)c[1];
     }
 
-    //gasp-gpu output------------------------------------------------------------------------------
+    //gasp-gpu output-----
     cudaDeviceProp prop;
     CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
     int runtime_version = 0;
