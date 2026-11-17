@@ -1,0 +1,108 @@
+$ nvcc -O3 -std=c++17 -arch=sm_89 /home/jpc465/gpu/gasp-gpu/hardware/microbenchmarks/gasp-bm/l1_miss_cost.cu -o /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx4070/1_2/build/l1_miss_cost
+$ ncu --clock-control base --cache-control none --metrics gpc__cycles_elapsed.max --log-file /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx4070/1_2/l1_miss_cycles_per_request/ncu.log /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx4070/1_2/build/l1_miss_cost --gpu rtx4070 --out-dir /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx4070/1_2/l1_miss_cycles_per_request --l1-bytes 131072
+misses 0/8  warps/SM  1: 15.1365 cycles/request
+misses 0/8  warps/SM  2: 7.5687 cycles/request
+misses 0/8  warps/SM  4: 4.1285 cycles/request
+misses 0/8  warps/SM  8: 3.0860 cycles/request
+misses 0/8  warps/SM 16: 2.5200 cycles/request
+misses 0/8  warps/SM 32: 2.5046 cycles/request
+misses 1/8  warps/SM  1: 39.4681 cycles/request
+misses 1/8  warps/SM  2: 19.5570 cycles/request
+misses 1/8  warps/SM  4: 9.7953 cycles/request
+misses 1/8  warps/SM  8: 4.9336 cycles/request
+misses 1/8  warps/SM 16: 2.6365 cycles/request
+misses 1/8  warps/SM 32: 2.1547 cycles/request
+misses 2/8  warps/SM  1: 41.2312 cycles/request
+misses 2/8  warps/SM  2: 20.4222 cycles/request
+misses 2/8  warps/SM  4: 10.3179 cycles/request
+misses 2/8  warps/SM  8: 5.1602 cycles/request
+misses 2/8  warps/SM 16: 2.7216 cycles/request
+misses 2/8  warps/SM 32: 2.2776 cycles/request
+misses 4/8  warps/SM  1: 42.1186 cycles/request
+misses 4/8  warps/SM  2: 21.2316 cycles/request
+misses 4/8  warps/SM  4: 10.6844 cycles/request
+misses 4/8  warps/SM  8: 5.4022 cycles/request
+misses 4/8  warps/SM 16: 2.7931 cycles/request
+misses 4/8  warps/SM 32: 2.1502 cycles/request
+misses 8/8  warps/SM  1: 43.2756 cycles/request
+misses 8/8  warps/SM  2: 22.3997 cycles/request
+misses 8/8  warps/SM  4: 11.6224 cycles/request
+misses 8/8  warps/SM  8: 6.1209 cycles/request
+misses 8/8  warps/SM 16: 4.0708 cycles/request
+misses 8/8  warps/SM 32: 4.0120 cycles/request
+WARNING: misses 1/8 has no plateau: the two highest warp counts differ by more than 2%
+WARNING: misses 2/8 has no plateau: the two highest warp counts differ by more than 2%
+WARNING: misses 4/8 has no plateau: the two highest warp counts differ by more than 2%
+Saved results to /home/jpc465/gpu/gasp-gpu/hardware/runs/rtx4070/1_2/l1_miss_cycles_per_request/l1_miss_cycles_per_request.rtx4070.run.json
+{
+  "schema_version": "1.0.0",
+  "benchmark": "l1_miss_cost.cu",
+  "benchmark_version": "1.0.0",
+  "parameter": "l1_miss_cycles_per_request",
+  "value": 1.6219,
+  "unit": "extra SM cycles per global load request that misses L1 (L2 hit)",
+  "plateau_ok": false,
+  "intercept_cycles_per_request": 2.0116,
+  "max_fit_residual_cycles": 0.6723,
+  "gpu": "rtx4070",
+  "architecture": "ada",
+  "arch": "sm_89",
+  "device": {
+    "name": "NVIDIA GeForce RTX 4070",
+    "sms": 46,
+    "l2_cache_bytes": 37748736
+  },
+  "plateaus": [
+    {"miss_fraction": 0.0000, "cycles_per_request": 2.5046, "plateau_ok": true},
+    {"miss_fraction": 0.1250, "cycles_per_request": 2.1547, "plateau_ok": false},
+    {"miss_fraction": 0.2500, "cycles_per_request": 2.2776, "plateau_ok": false},
+    {"miss_fraction": 0.5000, "cycles_per_request": 2.1502, "plateau_ok": false},
+    {"miss_fraction": 1.0000, "cycles_per_request": 4.0120, "plateau_ok": true}
+  ],
+  "configs": [
+    {"misses_per_group": 0, "warps_per_sm": 1, "cycles_per_request": 15.1365, "rep_spread": 0.0000, "sms_measured": 4},
+    {"misses_per_group": 0, "warps_per_sm": 2, "cycles_per_request": 7.5687, "rep_spread": 0.0000, "sms_measured": 4},
+    {"misses_per_group": 0, "warps_per_sm": 4, "cycles_per_request": 4.1285, "rep_spread": 0.0005, "sms_measured": 4},
+    {"misses_per_group": 0, "warps_per_sm": 8, "cycles_per_request": 3.0860, "rep_spread": 0.1334, "sms_measured": 4},
+    {"misses_per_group": 0, "warps_per_sm": 16, "cycles_per_request": 2.5200, "rep_spread": 0.0021, "sms_measured": 4},
+    {"misses_per_group": 0, "warps_per_sm": 32, "cycles_per_request": 2.5046, "rep_spread": 0.0007, "sms_measured": 4},
+    {"misses_per_group": 1, "warps_per_sm": 1, "cycles_per_request": 39.4681, "rep_spread": 0.0003, "sms_measured": 4},
+    {"misses_per_group": 1, "warps_per_sm": 2, "cycles_per_request": 19.5570, "rep_spread": 0.0006, "sms_measured": 4},
+    {"misses_per_group": 1, "warps_per_sm": 4, "cycles_per_request": 9.7953, "rep_spread": 0.0087, "sms_measured": 4},
+    {"misses_per_group": 1, "warps_per_sm": 8, "cycles_per_request": 4.9336, "rep_spread": 0.0084, "sms_measured": 4},
+    {"misses_per_group": 1, "warps_per_sm": 16, "cycles_per_request": 2.6365, "rep_spread": 0.0028, "sms_measured": 4},
+    {"misses_per_group": 1, "warps_per_sm": 32, "cycles_per_request": 2.1547, "rep_spread": 0.0050, "sms_measured": 4},
+    {"misses_per_group": 2, "warps_per_sm": 1, "cycles_per_request": 41.2312, "rep_spread": 0.0002, "sms_measured": 4},
+    {"misses_per_group": 2, "warps_per_sm": 2, "cycles_per_request": 20.4222, "rep_spread": 0.0012, "sms_measured": 4},
+    {"misses_per_group": 2, "warps_per_sm": 4, "cycles_per_request": 10.3179, "rep_spread": 0.0078, "sms_measured": 4},
+    {"misses_per_group": 2, "warps_per_sm": 8, "cycles_per_request": 5.1602, "rep_spread": 0.0013, "sms_measured": 4},
+    {"misses_per_group": 2, "warps_per_sm": 16, "cycles_per_request": 2.7216, "rep_spread": 0.0017, "sms_measured": 4},
+    {"misses_per_group": 2, "warps_per_sm": 32, "cycles_per_request": 2.2776, "rep_spread": 0.0025, "sms_measured": 4},
+    {"misses_per_group": 4, "warps_per_sm": 1, "cycles_per_request": 42.1186, "rep_spread": 0.0005, "sms_measured": 4},
+    {"misses_per_group": 4, "warps_per_sm": 2, "cycles_per_request": 21.2316, "rep_spread": 0.0013, "sms_measured": 4},
+    {"misses_per_group": 4, "warps_per_sm": 4, "cycles_per_request": 10.6844, "rep_spread": 0.0133, "sms_measured": 4},
+    {"misses_per_group": 4, "warps_per_sm": 8, "cycles_per_request": 5.4022, "rep_spread": 0.0134, "sms_measured": 4},
+    {"misses_per_group": 4, "warps_per_sm": 16, "cycles_per_request": 2.7931, "rep_spread": 0.0058, "sms_measured": 4},
+    {"misses_per_group": 4, "warps_per_sm": 32, "cycles_per_request": 2.1502, "rep_spread": 0.0039, "sms_measured": 4},
+    {"misses_per_group": 8, "warps_per_sm": 1, "cycles_per_request": 43.2756, "rep_spread": 0.0005, "sms_measured": 4},
+    {"misses_per_group": 8, "warps_per_sm": 2, "cycles_per_request": 22.3997, "rep_spread": 0.0033, "sms_measured": 4},
+    {"misses_per_group": 8, "warps_per_sm": 4, "cycles_per_request": 11.6224, "rep_spread": 0.0340, "sms_measured": 4},
+    {"misses_per_group": 8, "warps_per_sm": 8, "cycles_per_request": 6.1209, "rep_spread": 0.0187, "sms_measured": 4},
+    {"misses_per_group": 8, "warps_per_sm": 16, "cycles_per_request": 4.0708, "rep_spread": 0.0061, "sms_measured": 4},
+    {"misses_per_group": 8, "warps_per_sm": 32, "cycles_per_request": 4.0120, "rep_spread": 0.0018, "sms_measured": 4}
+  ],
+  "clock": {"sm_clock_ghz": 1.9199},
+  "measurement": {
+    "method": "per-SM slice in L1 (hits) and a 1 MB L2-resident array via ld.global.cg (misses), independent coalesced 32-bit loads; per-SM clock64 span; slope of cycles per request against miss fraction",
+    "slice_bytes_per_sm": 65536,
+    "miss_bytes": 1048576,
+    "l1_bytes": 131072,
+    "sms_used": 4,
+    "loads_per_warp": 4096,
+    "unroll": 8,
+    "reps": 100
+  },
+  "cuda_version": "12.4",
+  "driver_api_version": "13.2",
+  "timestamp": "2026-11-17T20:11:52Z"
+}
