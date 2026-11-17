@@ -540,7 +540,10 @@ def prepare_kernel(
             ["Total Warps", str(occupancy_results.total_warps)],
             ["Active SMs", str(occupancy_results.active_sms)],
             ["Num Reps", str(occupancy_results.num_reps)],
-            ["MWP", f"{occupancy_results.mwp:.2f}"],
+            [
+                "MWP latency bound (Mem_L / delta, capped at N)",
+                f"{occupancy_results.mwp:.2f}",
+            ],
         ],
         trace="occupancy",
     )
@@ -717,6 +720,7 @@ def predict_kernel(
         [
             ["ITILP", f"{prediction.itilp:.2f}"],
             ["CWP", f"{prediction.cwp:.2f}"],
+            ["MWP", f"{prediction.mwp:.2f}"],
             ["MWP_cp", f"{prediction.mwp_cp:.2f}"],
             ["MWP_peak_bw", f"{prediction.mwp_peak_bw:.2f}"],
             ["ITMLP", f"{prediction.itmlp:.2f}"],

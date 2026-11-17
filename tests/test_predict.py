@@ -560,12 +560,73 @@ def test_f_sfu_uses_the_non_sfu_count():
 
 
 def test_cwp_uses_the_non_sfu_count():
-    # 40 non-SFU: Comp_cycles = 40 x 4 / 2, CWP = 300 / (80 / 2) = 7.5, under N
+    # 40 non-SFU (Eqs. A.1-A.4): comp_cycles = 40 x 4 / ITILP 4 = 40,
+    # mem_cycles = 2 x AMAT 300 / MLP 1 = 600, CWP = (600 + 40) / 40 = 16, under N
     with_sfu = predict(sfu_input(total=50, sfu=10), logger=MagicMock())
     without = predict(sfu_input(total=40, sfu=0), logger=MagicMock())
 
-    assert with_sfu.cwp == pytest.approx(7.5)
-    assert without.cwp == pytest.approx(7.5)
+    assert with_sfu.cwp == pytest.approx(16)
+    assert without.cwp == pytest.approx(16)
+
+
+# Eq. A.7 per-warp bandwidth for the fixture: one 128 B transaction per 300 cycles
+BW_PER_WARP = 32 * 4 / 300
+
+
+def test_mwp_is_capped_by_peak_bandwidth():
+    # Eq. A.5: 45 B/cycle over 10 SMs gives MWP_peak_bw 10.5, under 300 / 6 and N
+    base = prediction_input()
+    base.hardware = replace(base.hardware, dram_bandwidth=45)
+    p = predict(base, logger=MagicMock())
+
+    assert p.mwp_peak_bw == pytest.approx(45 / (BW_PER_WARP * 10))
+    assert p.mwp == pytest.approx(p.mwp_peak_bw)
+
+
+def test_mwp_latency_bound_uses_the_average_dram_latency():
+    # Eq. 13: 2 transactions per access, avg DRAM lat = 300 + 1 x 20 = 320, so the
+    # latency bound is 320 / 20 = 16, not 300 / 20 = 15
+    base = prediction_input()
+    base.hardware = replace(base.hardware, departure_delay=20)
+    base.overrides = ModelOverrides(average_trans_warp=2.0)
+    p = predict(base, logger=MagicMock())
+
+    assert p.mwp == pytest.approx(16)
+
+
+def compute_bound_input(total: int, model: str, bandwidth: float = 450):
+    i = sfu_input(total=total, sfu=0)
+    i.hardware = replace(i.hardware, dram_bandwidth=bandwidth)
+    i.model = model
+    return i
+
+
+def test_compute_bound_gasperf_overlaps_requests_up_to_mwp():
+    # CWP 16 < MWP 32: GPUPerf's Eq. 15 gives MWP_cp = 15, GASPerf uses MWP
+    gasperf = predict(compute_bound_input(40, "GASPerf"), logger=MagicMock())
+    gpuperf = predict(compute_bound_input(40, "GPUPerf"), logger=MagicMock())
+
+    assert gasperf.cwp == pytest.approx(16)
+    assert gasperf.mwp == pytest.approx(32)
+    assert gpuperf.itmlp == pytest.approx(15)
+    assert gasperf.itmlp == pytest.approx(32)
+
+
+def test_compute_bound_gasperf_itmlp_stays_under_peak_bandwidth():
+    # 200 insts: CWP = (600 + 200) / 200 = 4, under MWP = MWP_peak_bw = 10.5
+    p = predict(compute_bound_input(200, "GASPerf", bandwidth=45), logger=MagicMock())
+
+    assert p.cwp == pytest.approx(4)
+    assert p.itmlp == pytest.approx(p.mwp_peak_bw)
+
+
+def test_gasperf_keeps_eq_15_when_cwp_equals_mwp():
+    # the fixture: CWP = MWP = N = 32, so both models take MWP_cp = 31
+    gasperf = predict(gasperf_input(), logger=MagicMock())
+    gpuperf = predict(prediction_input(), logger=MagicMock())
+
+    assert gasperf.cwp == gasperf.mwp == 32
+    assert gasperf.itmlp == gpuperf.itmlp == pytest.approx(31)
 
 
 def test_sfu_only_kernel_is_all_o_sfu():
@@ -772,7 +833,8 @@ def l1_input(
     cycles_per_request: float, sectors_per_cycle: float = 2.0, model="GASPerf"
 ):
     # prediction_input: 2 global requests per warp x 320 warps / 10 SMs = 64 per
-    # SM; T_mem from latency = 64 / ITMLP 29 x AMAT 300 = 662
+    # SM; T_mem from latency = 64 / ITMLP 31 x AMAT 300 = 619 (CWP = MWP = 32,
+    # so MWP_cp = 31 in both models)
     base = prediction_input()
     base.hardware = replace(
         base.hardware,
@@ -801,7 +863,7 @@ def test_l1_limit_over_latency_time_sets_t_mem():
 
     assert gasperf.l1_time == pytest.approx(64 * 50.0)
     assert gasperf.t_mem == pytest.approx(64 * 50.0)
-    assert gpuperf.t_mem == pytest.approx(64 * 300 / 29)
+    assert gpuperf.t_mem == pytest.approx(64 * 300 / 31)
     assert gpuperf.l1_time == 0
 
 

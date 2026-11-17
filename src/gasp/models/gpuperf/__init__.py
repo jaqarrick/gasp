@@ -18,6 +18,25 @@ def non_sfu_inst_count(total_inst_count: float, sfu_inst_count: float) -> float:
     return max(total_inst_count - sfu_inst_count, 0.0)
 
 
+def average_dram_latency(h: HardwareParameters, average_trans_warp: float) -> float:
+    """Eq. 13: avg DRAM lat = DRAM lat + (avg trans warp - 1) x delta."""
+    return h.dram_latency + (average_trans_warp - 1) * h.departure_delay
+
+
+def amat(
+    h: HardwareParameters,
+    l1_hit_ratio: float,
+    l2_hit_ratio: float,
+    average_trans_warp: float,
+) -> float:
+    """Eq. 12 over two cache levels. Every latency is end-to-end, so a miss
+    costs the next level's latency with no lookup added on top: all misses
+    gives exactly the average DRAM latency."""
+    dram = average_dram_latency(h, average_trans_warp)
+    l1_miss_latency = l2_hit_ratio * h.l2_hit_latency + (1 - l2_hit_ratio) * dram
+    return l1_hit_ratio * h.l1_hit_latency + (1 - l1_hit_ratio) * l1_miss_latency
+
+
 class GPUPerf:
     def __init__(
         self,
@@ -102,16 +121,8 @@ class GPUPerf:
         return t_overlap
 
     def _get_amat(self):
-        # every latency is end-to-end, so a miss costs the next level's latency
-        # with no lookup added on top: all misses gives exactly the DRAM latency
-        h = self.h
-        h1 = self.o.l1_hit_ratio
-        h2 = self.o.l2_hit_ratio
-        average_dram_latency = (
-            h.dram_latency + (self.o.average_trans_warp - 1) * h.departure_delay
-        )
-        l1_miss_latency = h2 * h.l2_hit_latency + (1 - h2) * average_dram_latency
-        return h1 * h.l1_hit_latency + (1 - h1) * l1_miss_latency
+        o = self.o
+        return amat(self.h, o.l1_hit_ratio, o.l2_hit_ratio, o.average_trans_warp)
 
 
 def run(
@@ -132,20 +143,23 @@ def run(
     itilp_max = m.average_inst_latency / (h.warp_size / h.simd_width)
     itilp = min(m.ilp * n, itilp_max)
 
-    # CWP = Mem_L / (Comp_cycles / #mem_insts), capped at N
-    # Comp_cycles: one warp's compute time, dependency-limited by ILP
-    comp_cycles = insts * m.average_inst_latency / m.ilp
-    if m.mem_inst_count > 0 and comp_cycles > 0:
-        cwp = min(h.dram_latency / (comp_cycles / m.mem_inst_count), n)
-    else:
-        cwp = n
+    avg_dram_lat = average_dram_latency(h, m.average_trans_warp)
+    amat_cycles = amat(h, m.l1_hit_ratio, m.l2_hit_ratio, m.average_trans_warp)
 
-    # Eq. 15
-    mwp_cp = min(max(1, cwp - 1), occ.mwp)
-
-    # Eq. 14, MWP_peak_bw as in Hong-Kim: bandwidth / (per-warp bandwidth x active SMs)
-    bw_per_warp = h.warp_size * WORD_BYTES / h.dram_latency
+    # Eqs. A.5-A.7: MWP = min(avg DRAM lat / delta, MWP_peak_bw, N), with BW per
+    # warp one transaction (warp_size x 4 B) per avg DRAM lat
+    bw_per_warp = h.warp_size * WORD_BYTES / avg_dram_lat
     mwp_peak_bw = h.dram_bandwidth / (bw_per_warp * occ.active_sms)
+    mwp = min(avg_dram_lat / h.departure_delay, mwp_peak_bw, n)
+
+    # Eqs. A.1-A.4, per warp: CWP = min((mem_cycles + comp_cycles) / comp_cycles, N),
+    # comp_cycles = #insts x avg inst lat / ITILP, mem_cycles = #mem insts x AMAT / MLP
+    comp_cycles = insts * m.average_inst_latency / itilp
+    mem_cycles = m.mem_inst_count * amat_cycles / m.mlp
+    cwp = min((mem_cycles + comp_cycles) / comp_cycles, n) if comp_cycles > 0 else n
+
+    # Eqs. 14-15
+    mwp_cp = min(max(1, cwp - 1), mwp)
     itmlp = min(m.mlp * mwp_cp, mwp_peak_bw)
 
     k = KernelParameters(
@@ -172,7 +186,7 @@ def run(
         itilp=itilp,
         itmlp=itmlp,
         cwp=cwp,
-        mwp=occ.mwp,
+        mwp=mwp,
         mwp_cp=mwp_cp,
         average_trans_warp=m.average_trans_warp,
         l1_hit_ratio=m.l1_hit_ratio,
@@ -186,6 +200,7 @@ def run(
     return ModelOutput(
         itilp=itilp,
         cwp=cwp,
+        mwp=mwp,
         mwp_cp=mwp_cp,
         mwp_peak_bw=mwp_peak_bw,
         itmlp=itmlp,
