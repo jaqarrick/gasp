@@ -1,0 +1,167 @@
+{
+  "schema_version": "1.0.0",
+  "benchmark": "hpmll/RegularUnits/l1_bw_128/l1_bw_128.cu",
+  "parameter": "l1_sectors_per_cycle_per_sm",
+  "value": 3.7917,
+  "unit": "sectors/cycle/SM",
+  "gpu": "rtx4070",
+  "gpu_name": "NVIDIA GeForce RTX 4070",
+  "arch": "sm_89",
+  "stats": {
+    "median": 3.7917,
+    "mean": 3.7925,
+    "std": 0.0016,
+    "min": 3.791,
+    "max": 3.7948
+  },
+  "clock": {
+    "sm_clock_ghz": 1.9196,
+    "max_sm_clock_ghz": 3.105
+  },
+  "candidates": {
+    "l1_bw_32f": {
+      "benchmark": "hpmll/RegularUnits/l1_bw_32f/l1_bw_32f.cu",
+      "stats": {
+        "median": 1.9885,
+        "mean": 1.9873,
+        "std": 0.0026,
+        "min": 1.9841,
+        "max": 1.99
+      },
+      "values": [
+        1.9849,
+        1.99,
+        1.9885,
+        1.989,
+        1.9841
+      ],
+      "printed_values": [
+        63.515415,
+        63.679348,
+        63.632977,
+        63.646496,
+        63.49234
+      ],
+      "printed_lines": [
+        "L1 bandwidth = 63.515415",
+        "L1 bandwidth = 63.679348",
+        "L1 bandwidth = 63.632977",
+        "L1 bandwidth = 63.646496",
+        "L1 bandwidth = 63.492340"
+      ],
+      "sm_clock_ghz_samples": [
+        1.9178,
+        1.9166,
+        1.9174,
+        1.9178,
+        1.9166
+      ],
+      "conversion": "printed bytes per clock per SM / 32; the field takes the highest valid shape",
+      "hit_rates_pct": {
+        "l1tex__t_sector_hit_rate.pct": 98.18
+      },
+      "valid": true,
+      "invalid_reason": null,
+      "source_changes": {},
+      "notes": []
+    },
+    "l1_bw_64f": {
+      "benchmark": "hpmll/RegularUnits/l1_bw_64f/l1_bw_64f.cu",
+      "stats": {
+        "median": 0.4171,
+        "mean": 0.4171,
+        "std": 0.0001,
+        "min": 0.4171,
+        "max": 0.4172
+      },
+      "values": [
+        0.4172,
+        0.4171,
+        0.4171,
+        0.4171,
+        0.4172
+      ],
+      "printed_values": [
+        13.350896,
+        13.34669,
+        13.345798,
+        13.348559,
+        13.349451
+      ],
+      "printed_lines": [
+        "L1 bandwidth = 13.350896",
+        "L1 bandwidth = 13.346690",
+        "L1 bandwidth = 13.345798",
+        "L1 bandwidth = 13.348559",
+        "L1 bandwidth = 13.349451"
+      ],
+      "sm_clock_ghz_samples": [
+        1.9192,
+        1.9194,
+        1.9194,
+        1.9194,
+        1.9192
+      ],
+      "conversion": "printed bytes per clock per SM / 32; the field takes the highest valid shape",
+      "hit_rates_pct": {
+        "l1tex__t_sector_hit_rate.pct": 94.66
+      },
+      "valid": false,
+      "invalid_reason": "l1tex__t_sector_hit_rate.pct = 94.7% < 95% (the array must stay in L1)",
+      "source_changes": {},
+      "notes": []
+    },
+    "l1_bw_128": {
+      "benchmark": "hpmll/RegularUnits/l1_bw_128/l1_bw_128.cu",
+      "stats": {
+        "median": 3.7917,
+        "mean": 3.7925,
+        "std": 0.0016,
+        "min": 3.791,
+        "max": 3.7948
+      },
+      "values": [
+        3.7934,
+        3.7917,
+        3.7917,
+        3.791,
+        3.7948
+      ],
+      "printed_values": [
+        121.387769,
+        121.332902,
+        121.333779,
+        121.312285,
+        121.434116
+      ],
+      "printed_lines": [
+        "L1 bandwidth = 121.387769",
+        "L1 bandwidth = 121.332902",
+        "L1 bandwidth = 121.333779",
+        "L1 bandwidth = 121.312285",
+        "L1 bandwidth = 121.434116"
+      ],
+      "sm_clock_ghz_samples": [
+        1.9195,
+        1.9196,
+        1.9198,
+        1.9197,
+        1.9196
+      ],
+      "conversion": "printed bytes per clock per SM / 32; the field takes the highest valid shape",
+      "hit_rates_pct": {
+        "l1tex__t_sector_hit_rate.pct": 99.88
+      },
+      "valid": true,
+      "invalid_reason": null,
+      "source_changes": {},
+      "notes": []
+    }
+  },
+  "reps": 5,
+  "hpmll_commit": "ded6f57",
+  "nvcc_version": "12.4",
+  "driver_version": "595.104.02",
+  "git_commit": "26d9634",
+  "timestamp": "2026-11-17T01:00:10Z"
+}

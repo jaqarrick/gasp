@@ -1,0 +1,45 @@
+{
+  "benchmark": "shared_memory_load_throughput.cu",
+  "parameter": "shared_mem_load_throughput_cycles",
+  "value": 2.0003,
+  "unit": "SM cycles per warp shared load instruction, at the plateau",
+  "plateau_ok": true,
+  "gpu": "rtx4070",
+  "architecture": "ada",
+  "arch": "sm_89",
+  "device": {
+    "name": "NVIDIA GeForce RTX 4070",
+    "sms": 46,
+    "max_warps_per_sm": 48
+  },
+  "groups_per_warp": 256,
+  "loads_per_group": 16,
+  "mixed_loads_per_group": 10,
+  "mixed_stores_per_group": 1,
+  "max_blocks": 92,
+  "reps": 200,
+  "plateaus": {
+    "loads_only": {"cycles_per_load": 2.0003, "cycles_per_access": 2.0003, "plateau_ok": true},
+    "10loads_1store": {"cycles_per_load": 2.2007, "cycles_per_access": 2.0007, "plateau_ok": true}
+  },
+  "configs": [
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 1, "span_cycles": 25161.0000, "overhead_cycles": 316.0000, "cycles_per_load": 6.0657, "cycles_per_access": 6.0657, "rep_spread": 0.0004, "sms_measured": 46},
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 2, "span_cycles": 25170.0000, "overhead_cycles": 315.0000, "cycles_per_load": 3.0341, "cycles_per_access": 3.0341, "rep_spread": 0.0004, "sms_measured": 46},
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 4, "span_cycles": 40312.0000, "overhead_cycles": 302.5000, "cycles_per_load": 2.4420, "cycles_per_access": 2.4420, "rep_spread": 0.0002, "sms_measured": 46},
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 8, "span_cycles": 65949.0000, "overhead_cycles": 318.0000, "cycles_per_load": 2.0029, "cycles_per_access": 2.0029, "rep_spread": 0.0002, "sms_measured": 46},
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 16, "span_cycles": 131505.0000, "overhead_cycles": 358.0000, "cycles_per_load": 2.0011, "cycles_per_access": 2.0011, "rep_spread": 0.0001, "sms_measured": 46},
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 32, "span_cycles": 262627.0000, "overhead_cycles": 449.5000, "cycles_per_load": 2.0003, "cycles_per_access": 2.0003, "rep_spread": 0.0000, "sms_measured": 46},
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 48, "span_cycles": 394209.0000, "overhead_cycles": 477.0000, "cycles_per_load": 2.0026, "cycles_per_access": 2.0026, "rep_spread": 0.0001, "sms_measured": 46},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 1, "span_cycles": 19786.0000, "overhead_cycles": 316.0000, "cycles_per_load": 7.6055, "cycles_per_access": 6.9141, "rep_spread": 0.0005, "sms_measured": 46},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 2, "span_cycles": 19793.5000, "overhead_cycles": 315.0000, "cycles_per_load": 3.8044, "cycles_per_access": 3.4585, "rep_spread": 0.0005, "sms_measured": 46},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 4, "span_cycles": 29048.0000, "overhead_cycles": 302.5000, "cycles_per_load": 2.8072, "cycles_per_access": 2.5520, "rep_spread": 0.0003, "sms_measured": 46},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 8, "span_cycles": 45474.0000, "overhead_cycles": 318.0000, "cycles_per_load": 2.2049, "cycles_per_access": 2.0044, "rep_spread": 0.0002, "sms_measured": 46},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 16, "span_cycles": 90566.0000, "overhead_cycles": 358.0000, "cycles_per_load": 2.2023, "cycles_per_access": 2.0021, "rep_spread": 0.0001, "sms_measured": 46},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 32, "span_cycles": 180734.0000, "overhead_cycles": 449.5000, "cycles_per_load": 2.2007, "cycles_per_access": 2.0007, "rep_spread": 0.0001, "sms_measured": 46},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 48, "span_cycles": 271382.2500, "overhead_cycles": 477.0000, "cycles_per_load": 2.2046, "cycles_per_access": 2.0042, "rep_spread": 0.0001, "sms_measured": 46}
+  ],
+  "clock": {"sm_clock_ghz": 1.9199},
+  "cuda_version": "12.4",
+  "driver_api_version": "13.2",
+  "timestamp": "2026-11-17T01:03:50Z"
+}

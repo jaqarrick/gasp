@@ -1,0 +1,106 @@
+{
+    "version": "1_1",
+    "gpu": "rtx4070",
+    "arch": "sm_89",
+    "suite": "hpmll",
+    "hpmll_commit": "ded6f57",
+    "base_profile": "hardware/profiles/rtx4070.json",
+    "git_commit": "26d9634",
+    "timestamp": "2026-11-17T01:00:10Z",
+    "fields": {
+        "launch_overhead_base_cycles": {
+            "value": 2114.2483484906597,
+            "source": "copied from base profile"
+        },
+        "launch_overhead_per_thread_cycles": {
+            "value": 0.0038304143572520243,
+            "source": "copied from base profile"
+        },
+        "departure_delay_cycles": {
+            "value": 4.0314,
+            "source": "copied from base profile"
+        },
+        "sync_factor": {
+            "value": 0.3868,
+            "source": "copied from base profile"
+        },
+        "dram_latency_cycles": {
+            "value": 501.9888,
+            "source": "copied from base profile",
+            "hpmll_not_used": "mem_lat: lts__t_sector_hit_rate.pct = 99.6% > 10% (the chase must miss L2; an L2 of 8 MB or more keeps it)"
+        },
+        "dram_bandwidth_bytes_per_cycle": {
+            "value": 250.0,
+            "source": "copied from base profile"
+        },
+        "l1_cache_hit_latency_cycles": {
+            "value": 34.2945,
+            "source": "hardware/runs/rtx4070/1_1/hpmll/l1_cache_hit_latency_cycles/l1_cache_hit_latency_cycles.rtx4070.run.json (hpmll l1_lat)",
+            "sm_clock_ghz": 1.92
+        },
+        "l2_cache_hit_latency_cycles": {
+            "value": 261.7112,
+            "source": "hardware/runs/rtx4070/1_1/hpmll/l2_cache_hit_latency_cycles/l2_cache_hit_latency_cycles.rtx4070.run.json (hpmll l2_lat)",
+            "sm_clock_ghz": 1.92
+        },
+        "shared_mem_load_latency_cycles": {
+            "value": 30.0322,
+            "source": "hardware/runs/rtx4070/1_1/hpmll/shared_mem_load_latency_cycles/shared_mem_load_latency_cycles.rtx4070.run.json (hpmll shared_lat)",
+            "sm_clock_ghz": 1.9183
+        },
+        "shared_mem_store_latency_cycles": {
+            "value": 4.998,
+            "source": "copied from base profile"
+        },
+        "shared_mem_load_throughput_cycles": {
+            "value": 2.004,
+            "source": "hardware/runs/rtx4070/1_1/hpmll/shared_mem_load_throughput_cycles/shared_mem_load_throughput_cycles.rtx4070.run.json (hpmll shared_bw)",
+            "sm_clock_ghz": 1.9192
+        },
+        "l1_cycles_per_request": {
+            "value": 2.5284,
+            "source": "copied from base profile"
+        },
+        "l1_sectors_per_cycle_per_sm": {
+            "value": 3.7917,
+            "source": "hardware/runs/rtx4070/1_1/hpmll/l1_sectors_per_cycle_per_sm/l1_sectors_per_cycle_per_sm.rtx4070.run.json (hpmll l1_bw_128)",
+            "sm_clock_ghz": 1.9196
+        },
+        "l2_bandwidth_bytes_per_cycle": {
+            "value": 784.0962,
+            "source": "hardware/runs/rtx4070/1_1/hpmll/l2_bandwidth_bytes_per_cycle/l2_bandwidth_bytes_per_cycle.rtx4070.run.json (hpmll l2_bw_128)",
+            "sm_clock_ghz": 1.92
+        },
+        "const_mem_latency_cycles": {
+            "value": 28.3604,
+            "source": "copied from base profile"
+        },
+        "bank_penalty_cycles": {
+            "value": 1.9937,
+            "source": "copied from base profile"
+        },
+        "sfu_inst_latency_cycles": {
+            "value": 17.2539,
+            "source": "copied from base profile"
+        },
+        "fp32_inst_latency_cycles": {
+            "value": 4.0984,
+            "source": "hardware/runs/rtx4070/1_1/hpmll/fp32_inst_latency_cycles/fp32_inst_latency_cycles.rtx4070.run.json (hpmll alu_lat_float)",
+            "sm_clock_ghz": 1.9174
+        },
+        "int32_inst_latency_cycles": {
+            "value": 4.283,
+            "source": "hardware/runs/rtx4070/1_1/hpmll/int32_inst_latency_cycles/int32_inst_latency_cycles.rtx4070.run.json (hpmll alu_lat_int32)",
+            "sm_clock_ghz": 1.9091
+        },
+        "fp64_inst_latency_cycles": {
+            "value": 54.0585,
+            "source": "hardware/runs/rtx4070/1_1/hpmll/fp64_inst_latency_cycles/fp64_inst_latency_cycles.rtx4070.run.json (hpmll alu_lat_double)",
+            "sm_clock_ghz": 1.9198
+        },
+        "clock_rate_ghz": {
+            "value": 1.9197,
+            "source": "median SM clock of the runs"
+        }
+    }
+}

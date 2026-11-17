@@ -1,0 +1,173 @@
+{
+  "schema_version": "1.0.0",
+  "benchmark": "hpmll/RegularUnits/l2_bw_128/l2_bw_128.cu",
+  "parameter": "l2_bandwidth_bytes_per_cycle",
+  "value": 784.0962,
+  "unit": "bytes/cycle",
+  "gpu": "rtx4070",
+  "gpu_name": "NVIDIA GeForce RTX 4070",
+  "arch": "sm_89",
+  "stats": {
+    "median": 784.0962,
+    "mean": 782.8526,
+    "std": 3.6549,
+    "min": 776.4553,
+    "max": 785.7394
+  },
+  "clock": {
+    "sm_clock_ghz": 1.92,
+    "max_sm_clock_ghz": 3.105
+  },
+  "candidates": {
+    "l2_bw_32f": {
+      "benchmark": "hpmll/RegularUnits/l2_bw_32f/l2_bw_32f.cu",
+      "stats": {
+        "median": 746.3042,
+        "mean": 747.1429,
+        "std": 11.3609,
+        "min": 734.6505,
+        "max": 759.7336
+      },
+      "values": [
+        746.3042,
+        737.4951,
+        759.7336,
+        734.6505,
+        757.531
+      ],
+      "printed_values": [
+        461.466949,
+        456.020691,
+        469.772308,
+        454.261139,
+        468.409424
+      ],
+      "printed_lines": [
+        "L2 bandwidth = 461.466949",
+        "L2 bandwidth = 456.020691",
+        "L2 bandwidth = 469.772308",
+        "L2 bandwidth = 454.261139",
+        "L2 bandwidth = 468.409424"
+      ],
+      "sm_clock_ghz_samples": [
+        1.9199,
+        1.9199,
+        1.9199,
+        1.9199,
+        1.9199
+      ],
+      "conversion": "printed value x max SM clock / measured SM clock (it converts globaltimer ns with deviceProp.clockRate, the max clock); the field takes the highest valid shape",
+      "hit_rates_pct": {
+        "lts__t_sector_hit_rate.pct": 100.0
+      },
+      "valid": true,
+      "invalid_reason": null,
+      "source_changes": {},
+      "notes": [
+        "only the last of the benchmark's launches is timed"
+      ]
+    },
+    "l2_bw_64f": {
+      "benchmark": "hpmll/RegularUnits/l2_bw_64f/l2_bw_64f.cu",
+      "stats": {
+        "median": 754.1474,
+        "mean": 753.8466,
+        "std": 0.6935,
+        "min": 752.9534,
+        "max": 754.4854
+      },
+      "values": [
+        754.383,
+        753.2636,
+        752.9534,
+        754.1474,
+        754.4854
+      ],
+      "printed_values": [
+        466.474365,
+        465.782288,
+        465.5914,
+        466.328491,
+        466.538239
+      ],
+      "printed_lines": [
+        "L2 bandwidth = 466.474365",
+        "L2 bandwidth = 465.782288",
+        "L2 bandwidth = 465.591400",
+        "L2 bandwidth = 466.328491",
+        "L2 bandwidth = 466.538239"
+      ],
+      "sm_clock_ghz_samples": [
+        1.92,
+        1.92,
+        1.92,
+        1.92,
+        1.92
+      ],
+      "conversion": "printed value x max SM clock / measured SM clock (it converts globaltimer ns with deviceProp.clockRate, the max clock); the field takes the highest valid shape",
+      "hit_rates_pct": {
+        "lts__t_sector_hit_rate.pct": 100.0
+      },
+      "valid": true,
+      "invalid_reason": null,
+      "source_changes": {},
+      "notes": [
+        "only the last of the benchmark's launches is timed"
+      ]
+    },
+    "l2_bw_128": {
+      "benchmark": "hpmll/RegularUnits/l2_bw_128/l2_bw_128.cu",
+      "stats": {
+        "median": 784.0962,
+        "mean": 782.8526,
+        "std": 3.6549,
+        "min": 776.4553,
+        "max": 785.7394
+      },
+      "values": [
+        784.155,
+        784.0962,
+        783.8171,
+        785.7394,
+        776.4553
+      ],
+      "printed_values": [
+        484.884125,
+        484.847198,
+        484.674835,
+        485.864105,
+        480.12265
+      ],
+      "printed_lines": [
+        "L2 bandwidth = 484.884125",
+        "L2 bandwidth = 484.847198",
+        "L2 bandwidth = 484.674835",
+        "L2 bandwidth = 485.864105",
+        "L2 bandwidth = 480.122650"
+      ],
+      "sm_clock_ghz_samples": [
+        1.92,
+        1.92,
+        1.92,
+        1.92,
+        1.92
+      ],
+      "conversion": "printed value x max SM clock / measured SM clock (it converts globaltimer ns with deviceProp.clockRate, the max clock); the field takes the highest valid shape",
+      "hit_rates_pct": {
+        "lts__t_sector_hit_rate.pct": 100.0
+      },
+      "valid": true,
+      "invalid_reason": null,
+      "source_changes": {},
+      "notes": [
+        "only the last of the benchmark's launches is timed"
+      ]
+    }
+  },
+  "reps": 5,
+  "hpmll_commit": "ded6f57",
+  "nvcc_version": "12.4",
+  "driver_version": "595.104.02",
+  "git_commit": "26d9634",
+  "timestamp": "2026-11-17T01:00:10Z"
+}
