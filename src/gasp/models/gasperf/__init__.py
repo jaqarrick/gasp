@@ -1,11 +1,5 @@
-# GASPerf: our performance model. It starts as a copy of GPUPerf (gasp.models.gpuperf)
-# and is ours to change; GPUPerf stays as published. Edit freely.
-# Changes from GPUPerf: shared-memory and FP64 pipe limits in T_comp (O_shmem,
-# O_fp64: one floor at the busier pipe's time); an L1
-# throughput limit on T_mem; the L2 hit ratio against the blocks resident at the
-# same time; when compute-bound (CWP < MWP), ITMLP = min(MLP x MWP, MWP_peak_bw)
-# instead of Eq. 15's MWP_cp. A launch overhead term for T_GPU exists but is off
-# (INCLUDE_LAUNCH_OVERHEAD).
+# GASPerf: our performance model
+
 from gasp.common.constants import SECTORS_PER_LINE
 from gasp.logger import Logger
 from gasp.models.gpuperf.types import HardwareParameters, LaunchParameters
@@ -15,9 +9,9 @@ from gasp.occupancy import OccupancyOutput
 from .types import KernelParameters, ModelOutput, OccupancyParams
 
 # Off: on the pairs measured so far, every kernel in a pair launches the same
-# grid, so the term only pulls predicted speedups toward 1 (helping or hurting by
-# about a point). When off, T_GPU = T_exec and the reported launch overhead is 0.
-INCLUDE_LAUNCH_OVERHEAD = True
+# We included this from Alvani, but hasn't shown any significant improvement
+# In some cases, it increased error from GpuPerf model
+INCLUDE_LAUNCH_OVERHEAD = False
 
 
 def non_sfu_inst_count(total_inst_count: float, sfu_inst_count: float) -> float:
