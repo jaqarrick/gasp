@@ -1,10 +1,4 @@
-# gasp --gpu rtx2080ti --run --config benchmarks/l2/l2.toml --override cache=profiled
-#
-# Same loop, 64 coalesced __ldcg loads per thread (256 MB in total). l2_resident
-# reads a 2 MB array that fits L2; dram_stream reads a 256 MB array once. Tests
-# GASPerf's L2 throughput limit. cache=profiled takes the hit rates from ncu, so
-# the run checks the throughput term apart from the cache model.
-#
+
 # footprint: the array plus the 4 MB output.
 
 [defaults]
@@ -13,6 +7,7 @@ block_size = 256
 grid_size = 4096
 params = { N = 1048576, reads = 64 }
 program_args = ["1048576", "64"]
+nvcc_flags = ["-Xptxas", "-dlcm=cg"]
 
 [[kernel]]
 name = "dram_stream"

@@ -12,19 +12,20 @@
 
 // 2 MB: fits L2, reread many times
 #define ARRAY_FLOATS (1 << 19)
+// 64 reads per thread step across the whole array
+#define STEP (ARRAY_FLOATS / 64)
 
-// __ldcg skips L1, so every load is served by L2 or DRAM
+// built with -dlcm=cg (l2.toml), so every load skips L1
 __global__ void l2_resident(float *out, const float *a, int N, int reads) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= N) return;
-    int T = gridDim.x * blockDim.x;
     float s0 = 0.0f, s1 = 0.0f, s2 = 0.0f, s3 = 0.0f;
 #pragma unroll 1
     for (int k = 0; k < reads; k += 4) {
-        s0 += __ldcg(&a[(i + (k + 0) * T) & (ARRAY_FLOATS - 1)]);
-        s1 += __ldcg(&a[(i + (k + 1) * T) & (ARRAY_FLOATS - 1)]);
-        s2 += __ldcg(&a[(i + (k + 2) * T) & (ARRAY_FLOATS - 1)]);
-        s3 += __ldcg(&a[(i + (k + 3) * T) & (ARRAY_FLOATS - 1)]);
+        s0 += a[(i + (k + 0) * STEP) & (ARRAY_FLOATS - 1)];
+        s1 += a[(i + (k + 1) * STEP) & (ARRAY_FLOATS - 1)];
+        s2 += a[(i + (k + 2) * STEP) & (ARRAY_FLOATS - 1)];
+        s3 += a[(i + (k + 3) * STEP) & (ARRAY_FLOATS - 1)];
     }
     out[i] = s0 + s1 + s2 + s3;
 }
