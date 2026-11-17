@@ -59,6 +59,7 @@ def apply_overrides(
 class PredictionOutput:
     itilp: float
     cwp: float
+    mwp: float
     mwp_cp: float
     mwp_peak_bw: float
     itmlp: float
@@ -249,6 +250,7 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
     return PredictionOutput(
         itilp=out.itilp,
         cwp=out.cwp,
+        mwp=out.mwp,
         mwp_cp=out.mwp_cp,
         mwp_peak_bw=out.mwp_peak_bw,
         itmlp=out.itmlp,

@@ -18,10 +18,10 @@ __global__ void branch_divergent(float *out, const float *in, int N, int n) {
     float x = in[i];
     if (threadIdx.x & 1) {
 #pragma unroll 1
-        for (int k = 0; k < n; ++k) x = __sinf(x) * 1.01f + 0.5f;
+        for (int k = 0; k < n; ++k) x = x * 1.01f + 0.5f;
     } else {
 #pragma unroll 1
-        for (int k = 0; k < n; ++k) x = __cosf(x) * 0.99f - 0.25f;
+        for (int k = 0; k < n; ++k) x = x * 0.99f - 0.25f;
     }
     out[i] = x;
 }

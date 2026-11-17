@@ -646,6 +646,7 @@ def result(name: str, t_gpu: float, pico_error: bool = False) -> KernelResult:
         prediction=PredictionOutput(
             itilp=1.0,
             cwp=1.0,
+            mwp=1.0,
             mwp_cp=1.0,
             mwp_peak_bw=1.0,
             itmlp=1.0,

@@ -1,9 +1,5 @@
-# GASPerf: our performance model. It starts as a copy of GPUPerf (gasp.models.gpuperf)
-# and is ours to change; GPUPerf stays as published. Edit freely.
-# Changes from GPUPerf: shared-memory and FP64 pipe limits in T_comp (O_shmem,
-# O_fp64: one floor at the busier pipe's time); an L1
-# throughput limit on T_mem; the L2 hit ratio against the blocks resident at the
-# same time; launch overhead added to T_exec for T_GPU. To try: ITMLP = MWP_peak_bw when compute-bound (CWP < MWP), below.
+# GASPerf: our performance model
+
 from gasp.common.constants import SECTORS_PER_LINE
 from gasp.logger import Logger
 from gasp.models.gpuperf.types import HardwareParameters, LaunchParameters
@@ -11,6 +7,11 @@ from gasp.models.inputs import WORD_BYTES, ModelInputs
 from gasp.occupancy import OccupancyOutput
 
 from .types import KernelParameters, ModelOutput, OccupancyParams
+
+# Off: on the pairs measured so far, every kernel in a pair launches the same
+# We included this from Alvani, but hasn't shown any significant improvement
+# In some cases, it increased error from GpuPerf model
+INCLUDE_LAUNCH_OVERHEAD = False
 
 
 def non_sfu_inst_count(total_inst_count: float, sfu_inst_count: float) -> float:
@@ -88,6 +89,8 @@ class GASPerf:
         self.shared_pipe_time = (
             (shared_insts * o.total_warps) / o.active_sms
         ) * h.shared_mem_throughput
+
+        # Calibration experiment 2
         # FP64 pipe limit
         self.fp64_pipe_time = ((k.fp64_inst_count * o.total_warps) / o.active_sms) * (
             h.warp_size / h.fp64_width
@@ -138,16 +141,27 @@ class GASPerf:
         return t_overlap
 
     def _get_amat(self):
-        # every latency is end-to-end, so a miss costs the next level's latency
-        # with no lookup added on top: all misses gives exactly the DRAM latency
-        h = self.h
-        h1 = self.o.l1_hit_ratio
-        h2 = self.o.l2_hit_ratio
-        average_dram_latency = (
-            h.dram_latency + (self.o.average_trans_warp - 1) * h.departure_delay
-        )
-        l1_miss_latency = h2 * h.l2_hit_latency + (1 - h2) * average_dram_latency
-        return h1 * h.l1_hit_latency + (1 - h1) * l1_miss_latency
+        o = self.o
+        return amat(self.h, o.l1_hit_ratio, o.l2_hit_ratio, o.average_trans_warp)
+
+
+def average_dram_latency(h: HardwareParameters, average_trans_warp: float) -> float:
+    """Eq. 13: avg DRAM lat = DRAM lat + (avg trans warp - 1) x delta."""
+    return h.dram_latency + (average_trans_warp - 1) * h.departure_delay
+
+
+def amat(
+    h: HardwareParameters,
+    l1_hit_ratio: float,
+    l2_hit_ratio: float,
+    average_trans_warp: float,
+) -> float:
+    """Eq. 12 over two cache levels. Every latency is end-to-end, so a miss
+    costs the next level's latency with no lookup added on top: all misses
+    gives exactly the average DRAM latency."""
+    dram = average_dram_latency(h, average_trans_warp)
+    l1_miss_latency = l2_hit_ratio * h.l2_hit_latency + (1 - l2_hit_ratio) * dram
+    return l1_hit_ratio * h.l1_hit_latency + (1 - l1_hit_ratio) * l1_miss_latency
 
 
 def run(
@@ -168,34 +182,39 @@ def run(
     itilp_max = m.average_inst_latency / (h.warp_size / h.simd_width)
     itilp = min(m.ilp * n, itilp_max)
 
-    # CWP = Mem_L / (Comp_cycles / #mem_insts), capped at N
-    # Comp_cycles: one warp's compute time, dependency-limited by ILP
-    comp_cycles = insts * m.average_inst_latency / m.ilp
-    if m.mem_inst_count > 0 and comp_cycles > 0:
-        cwp = min(h.dram_latency / (comp_cycles / m.mem_inst_count), n)
-    else:
-        cwp = n
-
-    # Eq. 15
-    mwp_cp = min(max(1, cwp - 1), occ.mwp)
-
-    # Eq. 14, MWP_peak_bw as in Hong-Kim: bandwidth / (per-warp bandwidth x active SMs)
-    bw_per_warp = h.warp_size * WORD_BYTES / h.dram_latency
-    mwp_peak_bw = h.dram_bandwidth / (bw_per_warp * occ.active_sms)
-
-    # potential improvement
-    # if cwp < occ.mwp:
-    #     itmlp = mwp_peak_bw
-    # else:
-    #     itmlp = min(m.mlp * mwp_cp, mwp_peak_bw)
-
-    itmlp = min(m.mlp * mwp_cp, mwp_peak_bw)
-
     l2_hit_ratio = (
         m.l2_hit_ratio_concurrent
         if m.l2_hit_ratio_concurrent is not None
         else m.l2_hit_ratio
     )
+    avg_dram_lat = average_dram_latency(h, m.average_trans_warp)
+    amat_cycles = amat(h, m.l1_hit_ratio, l2_hit_ratio, m.average_trans_warp)
+
+    # Eqs. A.5-A.7: MWP = min(avg DRAM lat / delta, MWP_peak_bw, N), with BW per
+    # warp one transaction (warp_size x 4 B) per avg DRAM lat
+    bw_per_warp = h.warp_size * WORD_BYTES / avg_dram_lat
+    mwp_peak_bw = h.dram_bandwidth / (bw_per_warp * occ.active_sms)
+    mwp = min(avg_dram_lat / h.departure_delay, mwp_peak_bw, n)
+
+    # Eqs. A.1-A.4, per warp: CWP = min((mem_cycles + comp_cycles) / comp_cycles, N),
+    # comp_cycles = #insts x avg inst lat / ITILP, mem_cycles = #mem insts x AMAT / MLP
+    comp_cycles = insts * m.average_inst_latency / itilp
+    mem_cycles = m.mem_inst_count * amat_cycles / m.mlp
+    cwp = min((mem_cycles + comp_cycles) / comp_cycles, n) if comp_cycles > 0 else n
+
+    # Eq. 15
+    mwp_cp = min(max(1, cwp - 1), mwp)
+
+    # Compute-bound (CWP < MWP, Hong-Kim's MWP > CWP case): Eq. 15 sets MWP_cp to
+    # CWP - 1 (at least 1), so a compute-heavy kernel's requests are charged
+    # nearly one at a time, which can make T_mem larger
+    # than T_comp in a kernel the model itself calls compute-bound. Here the
+    # warps' requests overlap up to MWP (capped at N) and DRAM bandwidth, still
+    # limited by MLP. Strict <: CWP = MWP = N keeps Eq. 15. GPUPerf unchanged.
+    if cwp < mwp:
+        itmlp = min(m.mlp * mwp, mwp_peak_bw)
+    else:
+        itmlp = min(m.mlp * mwp_cp, mwp_peak_bw)
 
     k = KernelParameters(
         total_inst_count=m.total_inst_count,
@@ -224,7 +243,7 @@ def run(
         itilp=itilp,
         itmlp=itmlp,
         cwp=cwp,
-        mwp=occ.mwp,
+        mwp=mwp,
         mwp_cp=mwp_cp,
         average_trans_warp=m.average_trans_warp,
         l1_hit_ratio=m.l1_hit_ratio,
@@ -235,7 +254,11 @@ def run(
 
     model = GASPerf(k, o, l, h, logger)
     t_exec = model.predict_total_exec_time_cycles()
-    launch_overhead = model.predict_launch_overhead_cycles()
+
+    # Include Alvani's launch overhead
+    launch_overhead = (
+        model.predict_launch_overhead_cycles() if INCLUDE_LAUNCH_OVERHEAD else 0.0
+    )
     t_gpu = t_exec + launch_overhead
     logger.trace(
         "predict",
@@ -244,6 +267,7 @@ def run(
     return ModelOutput(
         itilp=itilp,
         cwp=cwp,
+        mwp=mwp,
         mwp_cp=mwp_cp,
         mwp_peak_bw=mwp_peak_bw,
         itmlp=itmlp,

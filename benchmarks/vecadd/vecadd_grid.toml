@@ -1,0 +1,18 @@
+# Try two different launch configs to judge launch overhead
+
+[defaults]
+problem_size = 1000000
+# distinct global bytes for the cache model: a, b and c, 1000000 floats each
+footprint = 12000000
+block_size = 256
+program_args = ["1000000"]
+
+[[kernel]]
+name = "good"
+file = "benchmarks/vecadd/vecadd_good.cu"
+
+[[kernel]]
+name = "stride"
+file = "benchmarks/vecadd/vecadd_stride.cu"
+grid_size = 272
+loop_counts = [15]

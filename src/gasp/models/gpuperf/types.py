@@ -92,6 +92,7 @@ class ModelOutput:
 
     itilp: float
     cwp: float
+    mwp: float  # Eq. A.5: min(avg DRAM lat / delta, MWP_peak_bw, N)
     mwp_cp: float
     mwp_peak_bw: float
     itmlp: float
