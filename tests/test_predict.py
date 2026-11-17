@@ -931,6 +931,25 @@ def test_l1_scattered_requests_are_charged_a_line_per_sector():
     assert p.l1_time == pytest.approx(64 * 32.0)
 
 
+def test_l1_miss_cost_adds_per_missing_request():
+    # 25% of requests miss L1 at 8 extra cycles each: 50 + 0.25 x 8 = 52
+    base = l1_input(cycles_per_request=50.0)
+    base.hardware = replace(base.hardware, l1_miss_cycles_per_request=8.0)
+    base.overrides = ModelOverrides(l1_hit_ratio=0.75)
+    p = predict(base, logger=MagicMock())
+
+    assert p.l1_time == pytest.approx(64 * 52.0)
+    assert p.t_mem == pytest.approx(64 * 52.0)
+
+
+def test_l1_miss_cost_unmeasured_adds_nothing():
+    base = l1_input(cycles_per_request=50.0)
+    base.overrides = ModelOverrides(l1_hit_ratio=0.0)
+    p = predict(base, logger=MagicMock())
+
+    assert p.l1_time == pytest.approx(64 * 50.0)
+
+
 def test_l1_single_line_request_costs_one_line():
     # at most 4 sectors is one line: 4 sectors at 0.5 per cycle = 8 cycles
     base = l1_input(cycles_per_request=2.48, sectors_per_cycle=0.5)

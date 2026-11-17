@@ -72,6 +72,9 @@ NCU_FLAGS = [
 ]
 CLOCK_TOLERANCE = 0.02  # warn if a run's clock is more than 2% from the median
 
+# Profile keys a base profile may lack (the model treats them as 0 until measured)
+OPTIONAL_PROFILE_KEYS = {"l1_miss_cycles_per_request"}
+
 # Run parameter -> profile key, where they differ.
 PROFILE_KEY = {
     "launch_base_cycles": "launch_overhead_base_cycles",
@@ -165,6 +168,7 @@ BENCHMARKS = [
             "l1_sectors_per_cycle_per_sm": l1_sectors_per_cycle,
         },
     ),
+    Benchmark("l1_miss_cost", "l1_miss_cost.cu", ["l1_miss_cycles_per_request"]),
     Benchmark("l2_bandwidth", "l2_bandwidth.cu", ["l2_bandwidth_bytes_per_cycle"]),
     Benchmark("departure_delay", "departure_delay.cu", ["departure_delay_cycles"]),
     Benchmark(
@@ -443,7 +447,7 @@ def run_benchmark(
         shutil.copy(
             load_json, bench_dir / f"shared_mem_load_latency_cycles.{gpu}.run.json"
         )
-    if bench.name == "l1_throughput":
+    if bench.name in ("l1_throughput", "l1_miss_cost"):
         args += ["--l1-bytes", str(l1_bytes_per_sm(gpu))]
     if bench.name == "sync_cost":
         # The same DRAM values the profile gets (HPMLL latency if valid, gpu-stream bandwidth)
@@ -489,6 +493,9 @@ def build_profile(
     """
     profile = json.loads(json.dumps(base))
     profiled = profile["profiled"]
+    for key in OPTIONAL_PROFILE_KEYS:
+        if key in measured and key not in profiled:
+            profiled[key] = measured[key]["value"]
     sources: dict[str, dict] = {}
     unknown = sorted(set(measured) - set(profiled))
     if unknown:

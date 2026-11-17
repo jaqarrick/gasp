@@ -667,6 +667,7 @@ def prepare_kernel(
             l1_cycles_per_request=hp.l1_cycles_per_request,
             l1_sectors_per_cycle=hp.l1_sectors_per_cycle_per_sm,
             l2_bandwidth=hp.l2_bandwidth_bytes_per_cycle,
+            l1_miss_cycles_per_request=hp.l1_miss_cycles_per_request,
         ),
         launch=LaunchParameters(
             block_size=spec.block_size,

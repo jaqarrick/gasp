@@ -77,6 +77,9 @@ class HardwareParameters:
     l1_sectors_per_cycle: float
     # bytes per cycle, whole GPU (GASPerf only)
     l2_bandwidth: float
+    # extra L1 cycles per global request that misses L1, from l1_miss_cost.cu;
+    # 0 when not measured (GASPerf only)
+    l1_miss_cycles_per_request: float = 0.0
 
 
 @dataclass

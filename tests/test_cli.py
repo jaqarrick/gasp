@@ -133,6 +133,23 @@ class TestHardwareProfile:
         with pytest.raises(TypeError):
             HardwareProfile(**flat)
 
+    def test_optional_field_defaults_to_zero(self):
+        flat = {
+            **VALID_PROFILE,
+            **VALID_PROFILE["spec"],
+            **VALID_PROFILE["profiled"],
+        }
+        flat.pop("spec")
+        flat.pop("profiled")
+        flat.pop("l1_miss_cycles_per_request", None)
+
+        assert HardwareProfile(**flat).l1_miss_cycles_per_request == 0.0
+
+    def test_profile_file_without_optional_field_loads(self, profile_file):
+        hp = load_profile_file(profile_file, MagicMock())
+
+        assert hp.l1_miss_cycles_per_request == 0.0
+
     def test_extra_field_raises(self):
         flat = {
             **VALID_PROFILE,

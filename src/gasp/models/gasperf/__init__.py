@@ -110,9 +110,13 @@ class GASPerf:
         sectors_per_request = o.average_trans_warp * SECTORS_PER_LINE
         # Adjustment - check for strided access pattern
         lines_per_request = sectors_per_request if o.average_trans_warp > 1 else 1.0
-        cycles_per_request = max(
-            h.l1_cycles_per_request,
-            lines_per_request * SECTORS_PER_LINE / h.l1_sectors_per_cycle,
+        # a request that misses L1 holds its slot while L2 answers
+        cycles_per_request = (
+            max(
+                h.l1_cycles_per_request,
+                lines_per_request * SECTORS_PER_LINE / h.l1_sectors_per_cycle,
+            )
+            + (1 - o.l1_hit_ratio) * h.l1_miss_cycles_per_request
         )
         self.l1_time = requests_per_sm * cycles_per_request
 
