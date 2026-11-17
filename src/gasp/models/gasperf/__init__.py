@@ -17,7 +17,7 @@ from .types import KernelParameters, ModelOutput, OccupancyParams
 # Off: on the pairs measured so far, every kernel in a pair launches the same
 # grid, so the term only pulls predicted speedups toward 1 (helping or hurting by
 # about a point). When off, T_GPU = T_exec and the reported launch overhead is 0.
-INCLUDE_LAUNCH_OVERHEAD = False
+INCLUDE_LAUNCH_OVERHEAD = True
 
 
 def non_sfu_inst_count(total_inst_count: float, sfu_inst_count: float) -> float:
