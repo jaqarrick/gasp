@@ -16,6 +16,9 @@
 constexpr int SHARED_WORDS = 1024;
 constexpr int REPEATS = 64; // feel free to change this- 64 is arbitrary
 
+// the fill below writes 4 words per thread, which covers SHARED_WORDS only at 256 threads
+static_assert(GASP_BLOCK_SIZE == 256, "bank_conflict needs a block size of 256");
+
 // Bank conflict kernel accesses shared memory with a configurable stride
 __global__ void bank_conflict(float *out, int stride) {
     // initialize words in shared memory with volatile so compiler doesn't move it anywhere else
@@ -24,10 +27,11 @@ __global__ void bank_conflict(float *out, int stride) {
     int tid = threadIdx.x;
     int lane = tid % 32;
 
-    // initializing words array with data, for any block size
-    for (int i = tid; i < SHARED_WORDS; i += blockDim.x) {
-        words[i] = (float)i;
-    }
+    // initializing words array with data
+    words[tid] = (float)tid;
+    words[tid + 256] = (float)(tid + 256);
+    words[tid + 512] = (float)(tid + 512);
+    words[tid + 768] = (float)(tid + 768);
 
     __syncthreads(); // sync threads before accessing shared memory
 

@@ -1,0 +1,48 @@
+[defaults]
+file = "benchmarks/bank_conflict/bank_conflict_loop_fill.cu"
+problem_size = 1048576
+block_size = 256
+grid_size = 4096
+footprint = 4194304
+
+[[kernel]]
+name = "degree_1"
+kernel = "bank_conflict_loop_fill"
+program_args = ["1"]
+params = { stride = 1 }
+loop_counts = [4, 64]
+
+[[kernel]]
+name = "degree_2"
+kernel = "bank_conflict_loop_fill"
+program_args = ["2"]
+params = { stride = 2 }
+loop_counts = [4, 64]
+
+[[kernel]]
+name = "degree_4"
+kernel = "bank_conflict_loop_fill"
+program_args = ["4"]
+params = { stride = 4 }
+loop_counts = [4, 64]
+
+[[kernel]]
+name = "degree_8"
+kernel = "bank_conflict_loop_fill"
+program_args = ["8"]
+params = { stride = 8 }
+loop_counts = [4, 64]
+
+[[kernel]]
+name = "degree_16"
+kernel = "bank_conflict_loop_fill"
+program_args = ["16"]
+params = { stride = 16 }
+loop_counts = [4, 64]
+
+[[kernel]]
+name = "degree_32"
+kernel = "bank_conflict_loop_fill"
+program_args = ["32"]
+params = { stride = 32 }
+loop_counts = [4, 64]
