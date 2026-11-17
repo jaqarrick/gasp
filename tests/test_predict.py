@@ -122,7 +122,19 @@ def gasperf_input(grid_size: int = 40) -> PredictionInput:
     return i
 
 
-def test_gasperf_t_gpu_adds_launch_overhead_to_eq_1():
+@pytest.fixture
+def launch_overhead_on(monkeypatch):
+    monkeypatch.setattr("gasp.models.gasperf.INCLUDE_LAUNCH_OVERHEAD", True)
+
+
+def test_gasperf_launch_overhead_is_off_by_default():
+    p = predict(gasperf_input(), logger=MagicMock())
+
+    assert p.launch_overhead == 0.0
+    assert p.t_gpu == p.t_exec
+
+
+def test_gasperf_t_gpu_adds_launch_overhead_to_eq_1(launch_overhead_on):
     p = predict(gasperf_input(), logger=MagicMock())
 
     assert p.t_exec == pytest.approx(p.t_comp + p.t_mem - p.t_overlap)
@@ -138,7 +150,7 @@ def test_gpuperf_has_no_launch_overhead():
     assert p.t_gpu == p.t_exec
 
 
-def test_gasperf_launch_overhead_grows_with_threads():
+def test_gasperf_launch_overhead_grows_with_threads(launch_overhead_on):
     small = predict(gasperf_input(grid_size=40), logger=MagicMock())
     large = predict(gasperf_input(grid_size=80), logger=MagicMock())
 
@@ -673,8 +685,7 @@ def test_prediction_names_its_model():
 def test_gasperf_matches_gpuperf(build):
     """Holds for kernels without shared-memory accesses, whose L1 time is under
     T_mem and whose data fits in L2 either way. GASPerf reports its L1 time,
-    which GPUPerf leaves at 0, and adds launch overhead to T_GPU, which GPUPerf
-    doesn't."""
+    which GPUPerf leaves at 0; its launch overhead term is off by default."""
     gpuperf = build()
     gasperf = build()
     gasperf.model = "GASPerf"
@@ -682,8 +693,8 @@ def test_gasperf_matches_gpuperf(build):
     expected = predict(gpuperf, logger=MagicMock())
     got = predict(gasperf, logger=MagicMock())
     assert got.l1_time > 0
-    assert got.launch_overhead > 0
-    assert got.t_gpu == pytest.approx(got.t_exec + got.launch_overhead)
+    assert got.launch_overhead == 0.0
+    assert got.t_gpu == pytest.approx(got.t_exec)
     assert got == replace(
         expected,
         model="GASPerf",

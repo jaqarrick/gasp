@@ -3,8 +3,9 @@
 # Changes from GPUPerf: shared-memory and FP64 pipe limits in T_comp (O_shmem,
 # O_fp64: one floor at the busier pipe's time); an L1
 # throughput limit on T_mem; the L2 hit ratio against the blocks resident at the
-# same time; launch overhead added to T_exec for T_GPU; when compute-bound
-# (CWP < MWP), ITMLP = min(MLP x MWP, MWP_peak_bw) instead of Eq. 15's MWP_cp.
+# same time; when compute-bound (CWP < MWP), ITMLP = min(MLP x MWP, MWP_peak_bw)
+# instead of Eq. 15's MWP_cp. A launch overhead term for T_GPU exists but is off
+# (INCLUDE_LAUNCH_OVERHEAD).
 from gasp.common.constants import SECTORS_PER_LINE
 from gasp.logger import Logger
 from gasp.models.gpuperf.types import HardwareParameters, LaunchParameters
@@ -12,6 +13,11 @@ from gasp.models.inputs import WORD_BYTES, ModelInputs
 from gasp.occupancy import OccupancyOutput
 
 from .types import KernelParameters, ModelOutput, OccupancyParams
+
+# Off: on the pairs measured so far, every kernel in a pair launches the same
+# grid, so the term only pulls predicted speedups toward 1 (helping or hurting by
+# about a point). When off, T_GPU = T_exec and the reported launch overhead is 0.
+INCLUDE_LAUNCH_OVERHEAD = False
 
 
 def non_sfu_inst_count(total_inst_count: float, sfu_inst_count: float) -> float:
@@ -256,7 +262,9 @@ def run(
     t_exec = model.predict_total_exec_time_cycles()
 
     # Include Alvani's launch overhead
-    launch_overhead = model.predict_launch_overhead_cycles()
+    launch_overhead = (
+        model.predict_launch_overhead_cycles() if INCLUDE_LAUNCH_OVERHEAD else 0.0
+    )
     t_gpu = t_exec + launch_overhead
     logger.trace(
         "predict",
