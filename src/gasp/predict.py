@@ -85,6 +85,7 @@ class PredictionOutput:
     sfu_pipe_time: float = 0.0
     l1_time: float = 0.0
     l2_time: float = 0.0
+    dram_time: float = 0.0
     model: str = DEFAULT_MODEL
     # the model inputs from static analysis
     static_inputs: ModelInputs | None = None
@@ -280,6 +281,7 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         sfu_pipe_time=out.sfu_pipe_time,
         l1_time=out.l1_time,
         l2_time=out.l2_time,
+        dram_time=out.dram_time,
         model=input.model,
         static_inputs=static,
         total_warps=occ.total_warps,

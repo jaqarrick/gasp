@@ -742,6 +742,7 @@ def predict_kernel(
             ["T_comp (cycles)", f"{prediction.t_comp:.0f}"],
             ["L1 time (cycles)", f"{prediction.l1_time:.0f}"],
             ["L2 time (cycles)", f"{prediction.l2_time:.0f}"],
+            ["DRAM time (cycles)", f"{prediction.dram_time:.0f}"],
             ["T_mem (cycles)", f"{prediction.t_mem:.0f}"],
             ["T_overlap (cycles)", f"{prediction.t_overlap:.0f}"],
             ["T_exec (cycles)", f"{prediction.t_exec:.0f}"],

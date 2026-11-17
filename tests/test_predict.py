@@ -628,8 +628,9 @@ def test_compute_bound_gasperf_overlaps_requests_up_to_mwp():
     assert gasperf.itmlp == pytest.approx(32)
 
 
-def test_compute_bound_gasperf_itmlp_stays_under_peak_bandwidth():
-    # 200 insts: CWP = (600 + 200) / 200 = 4, under MWP = MWP_peak_bw = 10.5
+def test_compute_bound_gasperf_itmlp_stays_under_mwp():
+    # 200 insts: CWP = (600 + 200) / 200 = 4, under MWP = MWP_peak_bw = 10.5;
+    # MLP 1, so ITMLP is MWP
     p = predict(compute_bound_input(200, "GASPerf", bandwidth=45), logger=MagicMock())
 
     assert p.cwp == pytest.approx(4)
@@ -705,6 +706,7 @@ def test_gasperf_matches_gpuperf(build):
         model="GASPerf",
         l1_time=got.l1_time,
         l2_time=got.l2_time,
+        dram_time=got.dram_time,
         sfu_pipe_time=got.sfu_pipe_time,
         launch_overhead=got.launch_overhead,
         t_gpu=got.t_gpu,
@@ -979,6 +981,64 @@ def test_gpuperf_has_no_l2_limit():
 
     assert p.l2_time == 0
     assert p.t_mem < 8192
+
+
+# ---------------------------------------------------------------------------
+# GASPerf: DRAM bandwidth as a floor on T_mem, not a cap on ITMLP
+# ---------------------------------------------------------------------------
+
+
+def dram_input(
+    l1_hit_ratio: float = 0.0, l2_hit_ratio: float = 0.0, model: str = "GASPerf"
+) -> PredictionInput:
+    # MLP 4, 45 B/cycle: MWP = MWP_peak_bw = 45 / (BW_PER_WARP x 10) = 10.5;
+    # with every access missing, CWP = (2 x 300 / 4 + 10) / 10 = 16
+    base = prediction_input()
+    base.dependency = replace(base.dependency, mlp=4.0)
+    base.hardware = replace(base.hardware, dram_bandwidth=45)
+    base.overrides = ModelOverrides(
+        l1_hit_ratio=l1_hit_ratio, l2_hit_ratio=l2_hit_ratio, average_trans_warp=1.0
+    )
+    base.model = model
+    return base
+
+
+def test_gasperf_itmlp_is_not_capped_by_dram_bandwidth():
+    gasperf = predict(dram_input(), logger=MagicMock())
+    gpuperf = predict(dram_input(model="GPUPerf"), logger=MagicMock())
+
+    assert gpuperf.itmlp == pytest.approx(gpuperf.mwp_peak_bw)
+    assert gasperf.itmlp == pytest.approx(4 * gasperf.mwp_peak_bw)
+
+
+def test_dram_floor_matches_eq_14_when_every_access_misses():
+    # 64 requests x 128 B per SM over 4.5 B/cycle per SM
+    gasperf = predict(dram_input(), logger=MagicMock())
+    gpuperf = predict(dram_input(model="GPUPerf"), logger=MagicMock())
+
+    assert gasperf.dram_time == pytest.approx(64 * 128 / 4.5)
+    assert gasperf.t_mem == pytest.approx(gasperf.dram_time)
+    assert gasperf.t_mem == pytest.approx(gpuperf.t_mem)
+
+
+def test_l2_hits_are_not_charged_dram_bandwidth():
+    # every access misses L1 and hits L2: GPUPerf still caps ITMLP at the DRAM
+    # rate, GASPerf charges only the latency term (no DRAM traffic)
+    gasperf = predict(dram_input(l2_hit_ratio=1.0), logger=MagicMock())
+    gpuperf = predict(dram_input(l2_hit_ratio=1.0, model="GPUPerf"), logger=MagicMock())
+
+    # AMAT is the L2 latency 200; CWP = (2 x 200 / 4 + 10) / 10 = 11 > MWP, so
+    # MWP_cp = 10 and GASPerf's ITMLP = 4 x 10
+    assert gasperf.dram_time == 0
+    assert gasperf.itmlp == pytest.approx(40)
+    assert gasperf.t_mem == pytest.approx(64 * 200 / 40)
+    assert gpuperf.t_mem == pytest.approx(64 * 200 / gpuperf.mwp_peak_bw)
+
+
+def test_dram_floor_counts_only_l2_misses():
+    p = predict(dram_input(l2_hit_ratio=0.75), logger=MagicMock())
+
+    assert p.dram_time == pytest.approx(64 * 128 * 0.25 / 4.5)
 
 
 # ---------------------------------------------------------------------------

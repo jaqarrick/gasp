@@ -116,11 +116,16 @@ class GASPerf:
         )
         self.l1_time = requests_per_sm * cycles_per_request
 
+        # L2 throughput limit, the SM's share of the whole-GPU rate
         l1_miss_bytes = (
             requests_per_sm * sectors_per_request * (1 - o.l1_hit_ratio) * SECTOR_BYTES
         )
         self.l2_time = l1_miss_bytes / (h.l2_bandwidth / o.active_sms)
-        return max(t_mem_latency, self.l1_time, self.l2_time)
+
+        # DRAM throughput limit, on the bytes that also miss L2
+        l2_miss_bytes = l1_miss_bytes * (1 - o.l2_hit_ratio)
+        self.dram_time = l2_miss_bytes / (h.dram_bandwidth / o.active_sms)
+        return max(t_mem_latency, self.l1_time, self.l2_time, self.dram_time)
 
     def _get_t_overlap(self, t_memory: float, t_comp: float) -> float:
         o = self.o
@@ -199,12 +204,14 @@ def run(
     # CWP - 1 (at least 1), so a compute-heavy kernel's requests are charged
     # nearly one at a time, which can make T_mem larger
     # than T_comp in a kernel the model itself calls compute-bound. Here the
-    # warps' requests overlap up to MWP (capped at N) and DRAM bandwidth, still
-    # limited by MLP. Strict <: CWP = MWP = N keeps Eq. 15. GPUPerf unchanged.
+    # warps' requests overlap up to MWP (capped at N), still limited by MLP.
+    # Strict <: CWP = MWP = N keeps Eq. 15. DRAM bandwidth is a floor on T_mem
+    # (_get_t_mem), not a cap on ITMLP, so it only limits traffic that misses L2.
+    # GPUPerf unchanged.
     if cwp < mwp:
-        itmlp = min(m.mlp * mwp, mwp_peak_bw)
+        itmlp = m.mlp * mwp
     else:
-        itmlp = min(m.mlp * mwp_cp, mwp_peak_bw)
+        itmlp = m.mlp * mwp_cp
 
     k = KernelParameters(
         total_inst_count=m.total_inst_count,
@@ -275,5 +282,6 @@ def run(
         sfu_pipe_time=model.sfu_pipe_time,
         l1_time=model.l1_time,
         l2_time=model.l2_time,
+        dram_time=model.dram_time,
         l2_hit_ratio=l2_hit_ratio,
     )

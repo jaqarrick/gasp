@@ -76,5 +76,7 @@ class ModelOutput:
     sfu_pipe_time: float = 0.0
     l1_time: float = 0.0
     l2_time: float = 0.0
+    # L2-miss bytes per SM over the SM's share of DRAM bandwidth; T_mem is at least this
+    dram_time: float = 0.0
     # the L2 hit ratio GASPerf used (the concurrent-blocks one)
     l2_hit_ratio: float | None = None

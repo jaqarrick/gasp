@@ -112,4 +112,5 @@ class ModelOutput:
     sfu_pipe_time: float = 0.0
     l1_time: float = 0.0
     l2_time: float = 0.0
+    dram_time: float = 0.0
     l2_hit_ratio: float | None = None
