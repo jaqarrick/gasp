@@ -93,6 +93,7 @@ class GPUPerf:
 
         o_cfdiv = ((divergent * o.total_warps) / o.active_sms) * effective_throughput
         self.o_cfdiv = o_cfdiv
+        self.issue_time = w_parallel + o_cfdiv
         # Pico's count is per warp (extra shared accesses, N - 1 for an N-way
         # conflict), so it scales by warps per SM like the other W_serial terms.
         o_bank = (
@@ -206,6 +207,7 @@ def run(
         itmlp=itmlp,
         amat=model.amat,
         o_cfdiv=model.o_cfdiv,
+        issue_time=model.issue_time,
         t_comp=model.t_comp,
         t_mem=model.t_mem,
         t_overlap=model.t_overlap,

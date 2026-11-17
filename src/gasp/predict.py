@@ -79,11 +79,13 @@ class PredictionOutput:
     launch_overhead: float
     t_gpu: float
     o_cfdiv: float = 0.0
-    shared_pipe_time: float = 0.0
-    o_shmem: float = 0.0
+    issue_time: float = 0.0
+    smem_pipe_time: float = 0.0
     fp64_pipe_time: float = 0.0
-    o_fp64: float = 0.0
+    sfu_pipe_time: float = 0.0
     l1_time: float = 0.0
+    l2_time: float = 0.0
+    dram_time: float = 0.0
     model: str = DEFAULT_MODEL
     # the model inputs from static analysis
     static_inputs: ModelInputs | None = None
@@ -273,11 +275,13 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         launch_overhead=out.launch_overhead,
         t_gpu=out.t_gpu,
         o_cfdiv=out.o_cfdiv,
-        shared_pipe_time=out.shared_pipe_time,
-        o_shmem=out.o_shmem,
+        issue_time=out.issue_time,
+        smem_pipe_time=out.smem_pipe_time,
         fp64_pipe_time=out.fp64_pipe_time,
-        o_fp64=out.o_fp64,
+        sfu_pipe_time=out.sfu_pipe_time,
         l1_time=out.l1_time,
+        l2_time=out.l2_time,
+        dram_time=out.dram_time,
         model=input.model,
         static_inputs=static,
         total_warps=occ.total_warps,

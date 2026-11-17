@@ -60,6 +60,7 @@ SHARED_THROUGHPUT = 2.0
 FP64_WIDTH = 2
 L1_CYCLES_PER_REQUEST = 0.1
 L1_SECTORS_PER_CYCLE = 64.0
+L2_BANDWIDTH = 1e6
 
 
 def prediction_input(mem_inst_count: int = 2, grid_size: int = 40) -> PredictionInput:
@@ -105,6 +106,11 @@ def prediction_input(mem_inst_count: int = 2, grid_size: int = 40) -> Prediction
             # raises it
             l1_cycles_per_request=L1_CYCLES_PER_REQUEST,
             l1_sectors_per_cycle=L1_SECTORS_PER_CYCLE,
+            # large enough that GASPerf's L2 limit never binds unless a test
+            # lowers it
+            l2_bandwidth=L2_BANDWIDTH,
+            # no L1 miss cost unless a test sets one
+            l1_miss_cycles_per_request=0.0,
         ),
         launch=LaunchParameters(
             block_size=256,
@@ -624,8 +630,9 @@ def test_compute_bound_gasperf_overlaps_requests_up_to_mwp():
     assert gasperf.itmlp == pytest.approx(32)
 
 
-def test_compute_bound_gasperf_itmlp_stays_under_peak_bandwidth():
-    # 200 insts: CWP = (600 + 200) / 200 = 4, under MWP = MWP_peak_bw = 10.5
+def test_compute_bound_gasperf_itmlp_stays_under_mwp():
+    # 200 insts: CWP = (600 + 200) / 200 = 4, under MWP = MWP_peak_bw = 10.5;
+    # MLP 1, so ITMLP is MWP
     p = predict(compute_bound_input(200, "GASPerf", bandwidth=45), logger=MagicMock())
 
     assert p.cwp == pytest.approx(4)
@@ -678,14 +685,15 @@ def test_prediction_names_its_model():
     "build",
     [
         prediction_input,
-        lambda: sfu_input(total=10, sfu=4),
+        lambda: sfu_input(total=10, sfu=2),
         lambda: vecadd_input(accesses=3, reusable=1),
     ],
 )
 def test_gasperf_matches_gpuperf(build):
-    """Holds for kernels without shared-memory accesses, whose L1 time is under
-    T_mem and whose data fits in L2 either way. GASPerf reports its L1 time,
-    which GPUPerf leaves at 0; its launch overhead term is off by default."""
+    """Holds for kernels without shared-memory or FP64 accesses, with SFU under
+    GPUPerf's threshold, whose L1 time is under T_mem and whose data fits in L2
+    either way. GASPerf reports its L1 and SFU pipe times, which GPUPerf leaves
+    at 0; its launch overhead term is off by default."""
     gpuperf = build()
     gasperf = build()
     gasperf.model = "GASPerf"
@@ -699,13 +707,16 @@ def test_gasperf_matches_gpuperf(build):
         expected,
         model="GASPerf",
         l1_time=got.l1_time,
+        l2_time=got.l2_time,
+        dram_time=got.dram_time,
+        sfu_pipe_time=got.sfu_pipe_time,
         launch_overhead=got.launch_overhead,
         t_gpu=got.t_gpu,
     )
 
 
 # ---------------------------------------------------------------------------
-# GASPerf: shared-memory pipe limit (O_shmem)
+# GASPerf: shared-memory pipe limit
 # ---------------------------------------------------------------------------
 
 
@@ -727,8 +738,8 @@ def test_shared_pipe_under_issue_time_adds_nothing():
     p = predict(shared_input(loads=4), logger=MagicMock())
     gpuperf = predict(shared_input(loads=4, model="GPUPerf"), logger=MagicMock())
 
-    assert p.shared_pipe_time == pytest.approx(4 * 320 / 10 * SHARED_THROUGHPUT)
-    assert p.o_shmem == 0
+    assert p.smem_pipe_time == pytest.approx(4 * 320 / 10 * SHARED_THROUGHPUT)
+    assert p.issue_time == pytest.approx(320)
     assert p.t_comp == pytest.approx(gpuperf.t_comp)
 
 
@@ -740,29 +751,30 @@ def test_shared_pipe_over_issue_time_sets_t_comp():
     )
 
     issue = 10 * 320 / 10
-    assert p.shared_pipe_time == pytest.approx(9 * 320 / 10 * SHARED_THROUGHPUT)
-    assert p.o_shmem == pytest.approx(p.shared_pipe_time - issue)
+    assert p.smem_pipe_time == pytest.approx(9 * 320 / 10 * SHARED_THROUGHPUT)
+    assert p.issue_time == pytest.approx(issue)
     # no other serial overheads here, so T_comp is the pipe time
-    assert p.t_comp == pytest.approx(p.shared_pipe_time)
+    assert p.t_comp == pytest.approx(p.smem_pipe_time)
     assert gpuperf.t_comp == pytest.approx(issue)
 
 
 def test_shared_pipe_counts_o_cfdiv_as_issue_time():
     # divergent instructions still take issue slots: moving 4 of the 10 into
-    # O_CFdiv leaves the comparison, and so O_shmem, unchanged
+    # O_CFdiv leaves issue time, and so T_comp, unchanged
     clean = predict(shared_input(loads=8, stores=1), logger=MagicMock())
     divergent = shared_input(loads=8, stores=1)
     divergent.dependency = replace(divergent.dependency, divergent_inst_count=4)
     split = predict(divergent, logger=MagicMock())
 
     assert split.o_cfdiv > 0
-    assert split.o_shmem == pytest.approx(clean.o_shmem)
+    assert split.issue_time == pytest.approx(clean.issue_time)
+    assert split.t_comp == pytest.approx(clean.t_comp)
 
 
 def test_gpuperf_ignores_shared_counts():
     p = predict(shared_input(loads=8, stores=1, model="GPUPerf"), logger=MagicMock())
 
-    assert (p.shared_pipe_time, p.o_shmem) == (0, 0)
+    assert p.smem_pipe_time == 0
 
 
 # ---------------------------------------------------------------------------
@@ -784,7 +796,7 @@ def fp64_input(
 def test_no_fp64_adds_nothing():
     p = predict(fp64_input(0), logger=MagicMock())
 
-    assert (p.fp64_pipe_time, p.o_fp64) == (0, 0)
+    assert p.fp64_pipe_time == 0
     assert p.t_comp == pytest.approx(ISSUE_TIME)
 
 
@@ -793,7 +805,6 @@ def test_fp64_pipe_under_issue_time_adds_nothing():
     p = predict(fp64_input(4, fp64_width=32), logger=MagicMock())
 
     assert p.fp64_pipe_time == pytest.approx(4 * 32 * 1)
-    assert p.o_fp64 == 0
     assert p.t_comp == pytest.approx(ISSUE_TIME)
 
 
@@ -803,7 +814,7 @@ def test_fp64_pipe_over_issue_time_sets_t_comp():
     gpuperf = predict(fp64_input(1, model="GPUPerf"), logger=MagicMock())
 
     assert p.fp64_pipe_time == pytest.approx(1 * 32 * 16)
-    assert p.o_fp64 == pytest.approx(p.fp64_pipe_time - ISSUE_TIME)
+    assert p.issue_time == pytest.approx(ISSUE_TIME)
     # no other serial overheads here, so T_comp is the pipe time
     assert p.t_comp == pytest.approx(p.fp64_pipe_time)
     assert gpuperf.t_comp == pytest.approx(ISSUE_TIME)
@@ -814,10 +825,8 @@ def test_fp64_and_shared_pipes_floor_at_the_busier_one():
     # T_comp is 1024, not 320 + (576 - 320) + (1024 - 320)
     p = predict(fp64_input(2, loads=9), logger=MagicMock())
 
-    assert p.shared_pipe_time == pytest.approx(576)
+    assert p.smem_pipe_time == pytest.approx(576)
     assert p.fp64_pipe_time == pytest.approx(1024)
-    assert p.o_shmem == pytest.approx(576 - ISSUE_TIME)
-    assert p.o_fp64 == pytest.approx(1024 - 576)
     assert p.t_comp == pytest.approx(1024)
 
 
@@ -825,14 +834,50 @@ def test_fp64_under_the_shared_pipe_adds_nothing():
     # FP64 512 sits under the shared pipe's 576
     p = predict(fp64_input(1, loads=9), logger=MagicMock())
 
-    assert p.o_fp64 == 0
     assert p.t_comp == pytest.approx(576)
 
 
 def test_gpuperf_ignores_fp64_counts():
     p = predict(fp64_input(2, model="GPUPerf"), logger=MagicMock())
 
-    assert (p.fp64_pipe_time, p.o_fp64) == (0, 0)
+    assert p.fp64_pipe_time == 0
+
+
+# ---------------------------------------------------------------------------
+# GASPerf: SFU pipe limit in T_comp
+# ---------------------------------------------------------------------------
+
+
+def gasperf_sfu_input(total: int, sfu: int) -> PredictionInput:
+    base = sfu_input(total=total, sfu=sfu)
+    base.model = "GASPerf"
+    return base
+
+
+def test_sfu_pipe_under_issue_time_adds_nothing():
+    # issue 8 x 32 warps/SM = 256, SFU 2 x 32 x 32 / 16 = 128
+    p = predict(gasperf_sfu_input(total=10, sfu=2), logger=MagicMock())
+
+    assert p.sfu_pipe_time == pytest.approx(128)
+    assert p.issue_time == pytest.approx(256)
+    assert p.t_comp == pytest.approx(256)
+
+
+def test_sfu_pipe_over_issue_time_sets_t_comp():
+    # issue 2 x 32 = 64, SFU 8 x 32 x 2 = 512; GPUPerf adds O_SFU 512 (F_SFU 1)
+    p = predict(gasperf_sfu_input(total=10, sfu=8), logger=MagicMock())
+    gpuperf = predict(sfu_input(total=10, sfu=8), logger=MagicMock())
+
+    assert p.sfu_pipe_time == pytest.approx(512)
+    assert p.issue_time == pytest.approx(64)
+    assert p.t_comp == pytest.approx(512)
+    assert gpuperf.t_comp == pytest.approx(64 + 512)
+
+
+def test_gpuperf_reports_no_sfu_pipe_time():
+    p = predict(sfu_input(total=10, sfu=8), logger=MagicMock())
+
+    assert p.sfu_pipe_time == 0
 
 
 # ---------------------------------------------------------------------------
@@ -888,6 +933,25 @@ def test_l1_scattered_requests_are_charged_a_line_per_sector():
     assert p.l1_time == pytest.approx(64 * 32.0)
 
 
+def test_l1_miss_cost_adds_per_missing_request():
+    # 25% of requests miss L1 at 8 extra cycles each: 50 + 0.25 x 8 = 52
+    base = l1_input(cycles_per_request=50.0)
+    base.hardware = replace(base.hardware, l1_miss_cycles_per_request=8.0)
+    base.overrides = ModelOverrides(l1_hit_ratio=0.75)
+    p = predict(base, logger=MagicMock())
+
+    assert p.l1_time == pytest.approx(64 * 52.0)
+    assert p.t_mem == pytest.approx(64 * 52.0)
+
+
+def test_zero_l1_miss_cost_adds_nothing():
+    base = l1_input(cycles_per_request=50.0)
+    base.overrides = ModelOverrides(l1_hit_ratio=0.0)
+    p = predict(base, logger=MagicMock())
+
+    assert p.l1_time == pytest.approx(64 * 50.0)
+
+
 def test_l1_single_line_request_costs_one_line():
     # at most 4 sectors is one line: 4 sectors at 0.5 per cycle = 8 cycles
     base = l1_input(cycles_per_request=2.48, sectors_per_cycle=0.5)
@@ -895,6 +959,107 @@ def test_l1_single_line_request_costs_one_line():
     p = predict(base, logger=MagicMock())
 
     assert p.l1_time == pytest.approx(64 * 8.0)
+
+
+# ---------------------------------------------------------------------------
+# GASPerf: L2 throughput limit on T_mem
+# ---------------------------------------------------------------------------
+
+
+def l2_input(l2_bandwidth: float, l1_hit_ratio: float = 0.0, model="GASPerf"):
+    # 64 coalesced requests per SM (4 sectors each), 10 SMs: with every
+    # request missing L1, 64 x 4 x 32 = 8192 bytes per SM go to L2
+    base = l1_input(cycles_per_request=0.1, model=model)
+    base.hardware = replace(base.hardware, l2_bandwidth=l2_bandwidth)
+    base.overrides = ModelOverrides(l1_hit_ratio=l1_hit_ratio, average_trans_warp=1.0)
+    return base
+
+
+def test_l2_limit_under_latency_time_changes_nothing():
+    gasperf = predict(l2_input(L2_BANDWIDTH), logger=MagicMock())
+    gpuperf = predict(l2_input(L2_BANDWIDTH, model="GPUPerf"), logger=MagicMock())
+
+    assert gasperf.l2_time == pytest.approx(8192 / (L2_BANDWIDTH / 10))
+    assert gasperf.t_mem == pytest.approx(gpuperf.t_mem)
+
+
+def test_l2_limit_over_latency_time_sets_t_mem():
+    # 10 bytes per cycle over 10 SMs: 1 per SM
+    p = predict(l2_input(10.0), logger=MagicMock())
+
+    assert p.l2_time == pytest.approx(8192)
+    assert p.t_mem == pytest.approx(8192)
+
+
+def test_l2_limit_counts_only_l1_misses():
+    p = predict(l2_input(10.0, l1_hit_ratio=0.75), logger=MagicMock())
+
+    assert p.l2_time == pytest.approx(8192 * 0.25)
+
+
+def test_gpuperf_has_no_l2_limit():
+    p = predict(l2_input(10.0, model="GPUPerf"), logger=MagicMock())
+
+    assert p.l2_time == 0
+    assert p.t_mem < 8192
+
+
+# ---------------------------------------------------------------------------
+# GASPerf: DRAM bandwidth as a floor on T_mem, not a cap on ITMLP
+# ---------------------------------------------------------------------------
+
+
+def dram_input(
+    l1_hit_ratio: float = 0.0, l2_hit_ratio: float = 0.0, model: str = "GASPerf"
+) -> PredictionInput:
+    # MLP 4, 45 B/cycle: MWP = MWP_peak_bw = 45 / (BW_PER_WARP x 10) = 10.5;
+    # with every access missing, CWP = (2 x 300 / 4 + 10) / 10 = 16
+    base = prediction_input()
+    base.dependency = replace(base.dependency, mlp=4.0)
+    base.hardware = replace(base.hardware, dram_bandwidth=45)
+    base.overrides = ModelOverrides(
+        l1_hit_ratio=l1_hit_ratio, l2_hit_ratio=l2_hit_ratio, average_trans_warp=1.0
+    )
+    base.model = model
+    return base
+
+
+def test_gasperf_itmlp_is_not_capped_by_dram_bandwidth():
+    gasperf = predict(dram_input(), logger=MagicMock())
+    gpuperf = predict(dram_input(model="GPUPerf"), logger=MagicMock())
+
+    assert gpuperf.itmlp == pytest.approx(gpuperf.mwp_peak_bw)
+    assert gasperf.itmlp == pytest.approx(4 * gasperf.mwp_peak_bw)
+
+
+def test_dram_floor_matches_eq_14_when_every_access_misses():
+    # 64 requests x 128 B per SM over 4.5 B/cycle per SM
+    gasperf = predict(dram_input(), logger=MagicMock())
+    gpuperf = predict(dram_input(model="GPUPerf"), logger=MagicMock())
+
+    assert gasperf.dram_time == pytest.approx(64 * 128 / 4.5)
+    assert gasperf.t_mem == pytest.approx(gasperf.dram_time)
+    assert gasperf.t_mem == pytest.approx(gpuperf.t_mem)
+
+
+def test_l2_hits_are_not_charged_dram_bandwidth():
+    # every access misses L1 and hits L2: GPUPerf still caps ITMLP at the DRAM
+    # rate, GASPerf charges only the latency term (no DRAM traffic)
+    gasperf = predict(dram_input(l2_hit_ratio=1.0), logger=MagicMock())
+    gpuperf = predict(dram_input(l2_hit_ratio=1.0, model="GPUPerf"), logger=MagicMock())
+
+    # AMAT is the L2 latency 200; CWP = (2 x 200 / 4 + 10) / 10 = 11 > MWP, so
+    # MWP_cp = 10 and GASPerf's ITMLP = 4 x 10
+    assert gasperf.dram_time == 0
+    assert gasperf.itmlp == pytest.approx(40)
+    assert gasperf.t_mem == pytest.approx(64 * 200 / 40)
+    assert gpuperf.t_mem == pytest.approx(64 * 200 / gpuperf.mwp_peak_bw)
+
+
+def test_dram_floor_counts_only_l2_misses():
+    p = predict(dram_input(l2_hit_ratio=0.75), logger=MagicMock())
+
+    assert p.dram_time == pytest.approx(64 * 128 * 0.25 / 4.5)
 
 
 # ---------------------------------------------------------------------------

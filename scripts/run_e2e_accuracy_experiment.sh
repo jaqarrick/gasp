@@ -94,10 +94,10 @@ if [ -n "$PROFILE" ]; then
     fi
     PROFILE_ARG="--profile $PROFILE"
 else
-    # the built-in profile for --gpu is <gpu>.json or <gpu>.placeholder.json
+    # the built-in profile for --gpu is <gpu>.json
     # (GPU_PROFILES in src/gasp/cli/utils.py)
-    if [ ! -f "./hardware/profiles/$GPU.json" ] && [ ! -f "./hardware/profiles/$GPU.placeholder.json" ]; then
-        echo "error: no hardware/profiles/$GPU.json or $GPU.placeholder.json; pass --profile" >&2
+    if [ ! -f "./hardware/profiles/$GPU.json" ]; then
+        echo "error: no hardware/profiles/$GPU.json; pass --profile" >&2
         exit 1
     fi
     PROFILE_ARG="--gpu $GPU"

@@ -75,6 +75,11 @@ class HardwareParameters:
     # cycle), from l1_throughput.cu (GASPerf only)
     l1_cycles_per_request: float
     l1_sectors_per_cycle: float
+    # bytes per cycle, whole GPU (GASPerf only)
+    l2_bandwidth: float
+    # extra L1 cycles per global request that misses L1, from l1_miss_cost.cu
+    # (GASPerf only)
+    l1_miss_cycles_per_request: float
 
 
 @dataclass
@@ -104,9 +109,11 @@ class ModelOutput:
     t_exec: float
     t_gpu: float
     launch_overhead: float = 0.0
-    shared_pipe_time: float = 0.0
-    o_shmem: float = 0.0
+    issue_time: float = 0.0
+    smem_pipe_time: float = 0.0
     fp64_pipe_time: float = 0.0
-    o_fp64: float = 0.0
+    sfu_pipe_time: float = 0.0
     l1_time: float = 0.0
+    l2_time: float = 0.0
+    dram_time: float = 0.0
     l2_hit_ratio: float | None = None

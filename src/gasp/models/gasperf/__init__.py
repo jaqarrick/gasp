@@ -1,6 +1,6 @@
 # GASPerf: our performance model
 
-from gasp.common.constants import SECTORS_PER_LINE
+from gasp.common.constants import SECTOR_BYTES, SECTORS_PER_LINE
 from gasp.logger import Logger
 from gasp.models.gpuperf.types import HardwareParameters, LaunchParameters
 from gasp.models.inputs import WORD_BYTES, ModelInputs
@@ -62,56 +62,41 @@ class GASPerf:
         inst_per_sm = ((insts - divergent) * o.total_warps) / o.active_sms
         w_parallel = inst_per_sm * effective_throughput
 
-        # w_serial = o_sync + o_sfu + o_cfdiv + o_bank
+        # w_serial = o_sync + o_bank
         mem_ratio = k.mem_inst_count / insts if insts > 0 else 0.0
         f_sync = h.sync_factor * h.dram_latency * mem_ratio
         o_sync = ((k.sync_inst_count * o.total_warps) / o.active_sms) * f_sync
 
-        # with no other instructions the SFU share is all of them
-        sfu_ratio = k.sfu_inst_count / insts if insts > 0 else 1.0
-        f_sfu = min(
-            [
-                max([sfu_ratio - (h.sfu_width / h.simd_width), 0]),
-                1,
-            ]
-        )
-        sfu_throughput = h.warp_size / h.sfu_width
-        o_sfu = (
-            ((k.sfu_inst_count * o.total_warps) / o.active_sms) * sfu_throughput * f_sfu
-        )
-
         o_cfdiv = ((divergent * o.total_warps) / o.active_sms) * effective_throughput
         self.o_cfdiv = o_cfdiv
 
-        # Calibration experiment 1
-        # Shared-memory pipe limit
         shared_insts = k.shared_load_inst_count + k.shared_store_inst_count
-        self.shared_pipe_time = (
+        self.smem_pipe_time = (
             (shared_insts * o.total_warps) / o.active_sms
         ) * h.shared_mem_throughput
-
-        # Calibration experiment 2
-        # FP64 pipe limit
         self.fp64_pipe_time = ((k.fp64_inst_count * o.total_warps) / o.active_sms) * (
             h.warp_size / h.fp64_width
         )
-        # the pipes run side by side, so only the busiest one can set T_comp
-        issue_time = w_parallel + o_cfdiv
-        busiest_pipe_time = max(self.shared_pipe_time, self.fp64_pipe_time)
-        o_pipe = max(0.0, busiest_pipe_time - issue_time)
-        # reported split: O_shmem as without the FP64 limit, O_fp64 the rest
-        # tbd do we want max or the sum?
-        self.o_shmem = max(0.0, self.shared_pipe_time - issue_time)
-        self.o_fp64 = o_pipe - self.o_shmem
+        # replaces GPUPerf's O_SFU (Eqs. 9-10)
+        self.sfu_pipe_time = ((k.sfu_inst_count * o.total_warps) / o.active_sms) * (
+            h.warp_size / h.sfu_width
+        )
+        # the pipes run side by side, so the busiest one sets T_comp
+        self.issue_time = w_parallel + o_cfdiv
+        base = max(
+            self.issue_time,
+            self.smem_pipe_time,
+            self.fp64_pipe_time,
+            self.sfu_pipe_time,
+        )
         # Pico's count is per warp (extra shared accesses, N - 1 for an N-way
         # conflict), so it scales by warps per SM like the other W_serial terms.
         o_bank = (
             (k.bank_conflict_count * o.total_warps) / o.active_sms
         ) * h.bank_penalty
 
-        w_serial = o_sync + o_sfu + o_cfdiv + o_bank + o_pipe
-
-        return w_parallel + w_serial
+        w_serial = o_sync + o_bank
+        return base + w_serial
 
     def _get_t_mem(self):
         k = self.k
@@ -125,12 +110,26 @@ class GASPerf:
         sectors_per_request = o.average_trans_warp * SECTORS_PER_LINE
         # Adjustment - check for strided access pattern
         lines_per_request = sectors_per_request if o.average_trans_warp > 1 else 1.0
-        cycles_per_request = max(
-            h.l1_cycles_per_request,
-            lines_per_request * SECTORS_PER_LINE / h.l1_sectors_per_cycle,
+        # a request that misses L1 holds its slot while L2 answers
+        cycles_per_request = (
+            max(
+                h.l1_cycles_per_request,
+                lines_per_request * SECTORS_PER_LINE / h.l1_sectors_per_cycle,
+            )
+            + (1 - o.l1_hit_ratio) * h.l1_miss_cycles_per_request
         )
         self.l1_time = requests_per_sm * cycles_per_request
-        return max(t_mem_latency, self.l1_time)
+
+        # L2 throughput limit, the SM's share of the whole-GPU rate
+        l1_miss_bytes = (
+            requests_per_sm * sectors_per_request * (1 - o.l1_hit_ratio) * SECTOR_BYTES
+        )
+        self.l2_time = l1_miss_bytes / (h.l2_bandwidth / o.active_sms)
+
+        # DRAM throughput limit, on the bytes that also miss L2
+        l2_miss_bytes = l1_miss_bytes * (1 - o.l2_hit_ratio)
+        self.dram_time = l2_miss_bytes / (h.dram_bandwidth / o.active_sms)
+        return max(t_mem_latency, self.l1_time, self.l2_time, self.dram_time)
 
     def _get_t_overlap(self, t_memory: float, t_comp: float) -> float:
         o = self.o
@@ -209,12 +208,14 @@ def run(
     # CWP - 1 (at least 1), so a compute-heavy kernel's requests are charged
     # nearly one at a time, which can make T_mem larger
     # than T_comp in a kernel the model itself calls compute-bound. Here the
-    # warps' requests overlap up to MWP (capped at N) and DRAM bandwidth, still
-    # limited by MLP. Strict <: CWP = MWP = N keeps Eq. 15. GPUPerf unchanged.
+    # warps' requests overlap up to MWP (capped at N), still limited by MLP.
+    # Strict <: CWP = MWP = N keeps Eq. 15. DRAM bandwidth is a floor on T_mem
+    # (_get_t_mem), not a cap on ITMLP, so it only limits traffic that misses L2.
+    # GPUPerf unchanged.
     if cwp < mwp:
-        itmlp = min(m.mlp * mwp, mwp_peak_bw)
+        itmlp = m.mlp * mwp
     else:
-        itmlp = min(m.mlp * mwp_cp, mwp_peak_bw)
+        itmlp = m.mlp * mwp_cp
 
     k = KernelParameters(
         total_inst_count=m.total_inst_count,
@@ -279,10 +280,12 @@ def run(
         t_exec=t_exec,
         launch_overhead=launch_overhead,
         t_gpu=t_gpu,
-        shared_pipe_time=model.shared_pipe_time,
-        o_shmem=model.o_shmem,
+        issue_time=model.issue_time,
+        smem_pipe_time=model.smem_pipe_time,
         fp64_pipe_time=model.fp64_pipe_time,
-        o_fp64=model.o_fp64,
+        sfu_pipe_time=model.sfu_pipe_time,
         l1_time=model.l1_time,
+        l2_time=model.l2_time,
+        dram_time=model.dram_time,
         l2_hit_ratio=l2_hit_ratio,
     )

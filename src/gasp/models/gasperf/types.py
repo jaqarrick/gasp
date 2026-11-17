@@ -69,13 +69,14 @@ class ModelOutput:
     t_exec: float
     launch_overhead: float
     t_gpu: float
-    # shared loads + stores per SM x cycles each, and what it adds to T_comp
-    shared_pipe_time: float = 0.0
-    o_shmem: float = 0.0
-    # FP64-pipe insts per SM x warp_size / fp64_width, and what it adds beyond O_shmem
+    # W_parallel + O_CFdiv, and each pipe's time; T_comp starts from the largest
+    issue_time: float = 0.0
+    smem_pipe_time: float = 0.0
     fp64_pipe_time: float = 0.0
-    o_fp64: float = 0.0
-    # global requests per SM x L1 cycles each; T_mem is at least this
+    sfu_pipe_time: float = 0.0
     l1_time: float = 0.0
+    l2_time: float = 0.0
+    # L2-miss bytes per SM over the SM's share of DRAM bandwidth; T_mem is at least this
+    dram_time: float = 0.0
     # the L2 hit ratio GASPerf used (the concurrent-blocks one)
     l2_hit_ratio: float | None = None

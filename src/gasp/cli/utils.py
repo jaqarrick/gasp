@@ -10,11 +10,8 @@ from gasp.parser.types import OpCategory
 PROFILES_DIR = Path("hardware/profiles")
 
 GPU_PROFILES = {
-    "b200": PROFILES_DIR / "b200.placeholder.json",
-    "h100": PROFILES_DIR / "h100.placeholder.json",
+    # until a100.json has every field (l1_miss_cycles_per_request)
     "a100": PROFILES_DIR / "a100.placeholder.json",
-    "l4": PROFILES_DIR / "l4.placeholder.json",
-    "v100": PROFILES_DIR / "v100.placeholder.json",
     "rtx2080ti": PROFILES_DIR / "rtx2080ti.json",
     "titanv": PROFILES_DIR / "titanv.json",
     "rtx4070": PROFILES_DIR / "rtx4070.json",
@@ -66,7 +63,9 @@ class HardwareProfile:
     # bandwidth in 32-byte sectors per cycle per SM (wide requests)
     l1_cycles_per_request: float
     l1_sectors_per_cycle_per_sm: float
-    # whole-GPU L2 bandwidth with every load hitting L2; no model uses it yet
+    # extra L1 cycles per global request that misses L1, from l1_miss_cost.cu
+    l1_miss_cycles_per_request: float
+    # whole-GPU L2 bandwidth with every load hitting L2 (GASPerf's L2 limit)
     l2_bandwidth_bytes_per_cycle: float
     const_mem_latency_cycles: int
 

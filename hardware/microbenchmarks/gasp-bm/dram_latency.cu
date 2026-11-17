@@ -39,7 +39,7 @@ static_assert(CHASE_LOADS % UNROLL == 0, "CHASE_LOADS must be a multiple of UNRO
 __global__ void dram_chase_kernel(uint64_t start, long long* out, uint64_t* sink) {
     uint64_t p = start;
 
-    // Warm-up. 
+    // Warm-up.
 #pragma unroll 1
     for (int i = 0; i < WARMUP_LOADS; ++i) {
         CHASE_ONE

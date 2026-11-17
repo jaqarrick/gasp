@@ -80,8 +80,8 @@ if [ -n "$PROFILE" ]; then
         exit 1
     fi
     E2E_FLAGS+=(--profile "$PROFILE")
-elif [ ! -f "./hardware/profiles/$GPU.json" ] && [ ! -f "./hardware/profiles/$GPU.placeholder.json" ]; then
-    echo "error: no hardware/profiles/$GPU.json or $GPU.placeholder.json; pass --profile" >&2
+elif [ ! -f "./hardware/profiles/$GPU.json" ]; then
+    echo "error: no hardware/profiles/$GPU.json; pass --profile" >&2
     exit 1
 fi
 

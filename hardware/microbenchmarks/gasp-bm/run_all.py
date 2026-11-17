@@ -165,6 +165,7 @@ BENCHMARKS = [
             "l1_sectors_per_cycle_per_sm": l1_sectors_per_cycle,
         },
     ),
+    Benchmark("l1_miss_cost", "l1_miss_cost.cu", ["l1_miss_cycles_per_request"]),
     Benchmark("l2_bandwidth", "l2_bandwidth.cu", ["l2_bandwidth_bytes_per_cycle"]),
     Benchmark("departure_delay", "departure_delay.cu", ["departure_delay_cycles"]),
     Benchmark(
@@ -443,7 +444,7 @@ def run_benchmark(
         shutil.copy(
             load_json, bench_dir / f"shared_mem_load_latency_cycles.{gpu}.run.json"
         )
-    if bench.name == "l1_throughput":
+    if bench.name in ("l1_throughput", "l1_miss_cost"):
         args += ["--l1-bytes", str(l1_bytes_per_sm(gpu))]
     if bench.name == "sync_cost":
         # The same DRAM values the profile gets (HPMLL latency if valid, gpu-stream bandwidth)
@@ -473,11 +474,11 @@ def run_benchmark(
 
 def default_base_profile(gpu: str) -> Path:
     measured = PROFILES_DIR / f"{gpu}.json"
-    if (
-        measured.exists() and measured.stat().st_size > 4
-    ):  # a100.json is empty, b200.json is {}
+    if measured.exists():
         return measured
-    return PROFILES_DIR / f"{gpu}.placeholder.json"
+    raise BenchmarkError(
+        f"no profile {measured.relative_to(REPO_ROOT)}; pass --base-profile"
+    )
 
 
 def build_profile(
@@ -546,7 +547,7 @@ def main() -> int:
     parser.add_argument(
         "--base-profile",
         help="profile to copy unmeasured fields from "
-        "(default: hardware/profiles/<gpu>.json, else <gpu>.placeholder.json)",
+        "(default: hardware/profiles/<gpu>.json)",
     )
     parser.add_argument(
         "--only",

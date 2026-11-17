@@ -151,7 +151,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # exclusive, but checked in main() so passing both warns instead of a usage error
-    parser.add_argument("--gpu", help="built-in GPU name (e.g., b200)")
+    parser.add_argument("--gpu", help="built-in GPU name (e.g., rtx2080ti)")
     parser.add_argument("--profile", help="path to custom hardware profile JSON")
     parser.add_argument(
         "--version", action="version", version=f"%(prog)s {__version__}"
@@ -666,6 +666,8 @@ def prepare_kernel(
             shared_mem_throughput=hp.shared_mem_load_throughput_cycles,
             l1_cycles_per_request=hp.l1_cycles_per_request,
             l1_sectors_per_cycle=hp.l1_sectors_per_cycle_per_sm,
+            l2_bandwidth=hp.l2_bandwidth_bytes_per_cycle,
+            l1_miss_cycles_per_request=hp.l1_miss_cycles_per_request,
         ),
         launch=LaunchParameters(
             block_size=spec.block_size,
@@ -734,12 +736,14 @@ def predict_kernel(
             ["L2 hit ratio", f"{prediction.l2_hit_ratio:.3f}"],
             ["AMAT (cycles)", f"{prediction.amat:.1f}"],
             ["O_CFdiv (cycles)", f"{prediction.o_cfdiv:.0f}"],
-            ["Shared pipe time (cycles)", f"{prediction.shared_pipe_time:.0f}"],
-            ["O_shmem (cycles)", f"{prediction.o_shmem:.0f}"],
+            ["Issue time (cycles)", f"{prediction.issue_time:.0f}"],
+            ["Shared pipe time (cycles)", f"{prediction.smem_pipe_time:.0f}"],
             ["FP64 pipe time (cycles)", f"{prediction.fp64_pipe_time:.0f}"],
-            ["O_fp64 (cycles)", f"{prediction.o_fp64:.0f}"],
+            ["SFU pipe time (cycles)", f"{prediction.sfu_pipe_time:.0f}"],
             ["T_comp (cycles)", f"{prediction.t_comp:.0f}"],
             ["L1 time (cycles)", f"{prediction.l1_time:.0f}"],
+            ["L2 time (cycles)", f"{prediction.l2_time:.0f}"],
+            ["DRAM time (cycles)", f"{prediction.dram_time:.0f}"],
             ["T_mem (cycles)", f"{prediction.t_mem:.0f}"],
             ["T_overlap (cycles)", f"{prediction.t_overlap:.0f}"],
             ["T_exec (cycles)", f"{prediction.t_exec:.0f}"],

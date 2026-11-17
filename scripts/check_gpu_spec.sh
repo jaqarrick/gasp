@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Check a hardware profile's spec fields against the GPU this runs on.
 #
-#   scripts/check_gpu_spec.sh hardware/profiles/titanv.placeholder.json
+#   scripts/check_gpu_spec.sh hardware/profiles/titanv.json
 #   scripts/check_gpu_spec.sh            # just print what the GPU reports
 #
 # Needs nvcc (module load cuda-12.4 on the cuda machines) and python3.
