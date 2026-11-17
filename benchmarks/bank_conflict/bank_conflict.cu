@@ -5,8 +5,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-constexpr int BLOCK_SIZE = 256;
-constexpr int GRID_SIZE = 4096;
+// launch config, set by gasp --run (-DGASP_BLOCK_SIZE=... -DGASP_GRID_SIZE=...)
+#ifndef GASP_BLOCK_SIZE
+#define GASP_BLOCK_SIZE 256
+#endif
+#ifndef GASP_GRID_SIZE
+#define GASP_GRID_SIZE 4096
+#endif
+
 constexpr int SHARED_WORDS = 1024;
 constexpr int REPEATS = 64; // feel free to change this- 64 is arbitrary
 
@@ -18,11 +24,10 @@ __global__ void bank_conflict(float *out, int stride) {
     int tid = threadIdx.x;
     int lane = tid % 32;
 
-    // initializing words array with data
-    words[tid] = (float)tid;
-    words[tid + 256] = (float)(tid + 256);
-    words[tid + 512] = (float)(tid + 512);
-    words[tid + 768] = (float)(tid + 768);
+    // initializing words array with data, for any block size
+    for (int i = tid; i < SHARED_WORDS; i += blockDim.x) {
+        words[i] = (float)i;
+    }
 
     __syncthreads(); // sync threads before accessing shared memory
 
@@ -56,8 +61,11 @@ int main(int argc, char **argv) {
         fprintf(stderr, "stride must be one of 1, 2, 4, 8, 16, 32\n");
         return 1;
     }
+    int block_size = GASP_BLOCK_SIZE;
+    int grid_size = GASP_GRID_SIZE;
+
     // calculate total number of output elements across all blocks
-    const size_t count = (size_t)GRID_SIZE * BLOCK_SIZE;
+    const size_t count = (size_t)grid_size * block_size;
     float *device_out;
     float *host_out = (float *)malloc(count * sizeof(float));
 
@@ -68,7 +76,7 @@ int main(int argc, char **argv) {
     }
 
     check_cuda(cudaMalloc(&device_out, count * sizeof(float)), "cudaMalloc");
-    bank_conflict<<<GRID_SIZE, BLOCK_SIZE>>>(device_out, stride);
+    bank_conflict<<<grid_size, block_size>>>(device_out, stride);
     check_cuda(cudaGetLastError(), "kernel launch");
     check_cuda(cudaDeviceSynchronize(), "kernel execution");
     check_cuda(cudaMemcpy(host_out, device_out, count * sizeof(float),
@@ -77,7 +85,7 @@ int main(int argc, char **argv) {
     // verify every thread accessed the expected shared memory value
     int errors = 0;
     for (size_t i = 0; i < count; ++i) {
-        float expected = (float)((i % BLOCK_SIZE % 32) * stride);
+        float expected = (float)((i % block_size % 32) * stride);
         if (host_out[i] != expected) {
             ++errors;
         }
