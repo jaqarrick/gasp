@@ -836,6 +836,43 @@ def test_gpuperf_ignores_fp64_counts():
 
 
 # ---------------------------------------------------------------------------
+# GASPerf: SFU pipe limit in T_comp
+# ---------------------------------------------------------------------------
+
+
+def gasperf_sfu_input(total: int, sfu: int) -> PredictionInput:
+    base = sfu_input(total=total, sfu=sfu)
+    base.model = "GASPerf"
+    return base
+
+
+def test_sfu_pipe_under_issue_time_adds_nothing():
+    # issue 8 x 32 warps/SM = 256, SFU 2 x 32 x 32 / 16 = 128
+    p = predict(gasperf_sfu_input(total=10, sfu=2), logger=MagicMock())
+
+    assert p.sfu_pipe_time == pytest.approx(128)
+    assert p.o_sfu == 0
+    assert p.t_comp == pytest.approx(256)
+
+
+def test_sfu_pipe_over_issue_time_sets_t_comp():
+    # issue 2 x 32 = 64, SFU 8 x 32 x 2 = 512; GPUPerf adds O_SFU 512 (F_SFU 1)
+    p = predict(gasperf_sfu_input(total=10, sfu=8), logger=MagicMock())
+    gpuperf = predict(sfu_input(total=10, sfu=8), logger=MagicMock())
+
+    assert p.sfu_pipe_time == pytest.approx(512)
+    assert p.o_sfu == pytest.approx(512 - 64)
+    assert p.t_comp == pytest.approx(512)
+    assert gpuperf.t_comp == pytest.approx(64 + 512)
+
+
+def test_gpuperf_reports_no_sfu_pipe_time():
+    p = predict(sfu_input(total=10, sfu=8), logger=MagicMock())
+
+    assert (p.sfu_pipe_time, p.o_sfu) == (0, 0)
+
+
+# ---------------------------------------------------------------------------
 # GASPerf: L1 throughput limit on T_mem
 # ---------------------------------------------------------------------------
 

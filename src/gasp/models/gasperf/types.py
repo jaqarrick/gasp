@@ -75,6 +75,9 @@ class ModelOutput:
     # FP64-pipe insts per SM x warp_size / fp64_width, and what it adds beyond O_shmem
     fp64_pipe_time: float = 0.0
     o_fp64: float = 0.0
+    # SFU insts per SM x warp_size / sfu_width, and what it adds beyond O_fp64
+    sfu_pipe_time: float = 0.0
+    o_sfu: float = 0.0
     # global requests per SM x L1 cycles each; T_mem is at least this
     l1_time: float = 0.0
     # the L2 hit ratio GASPerf used (the concurrent-blocks one)

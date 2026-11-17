@@ -62,23 +62,10 @@ class GASPerf:
         inst_per_sm = ((insts - divergent) * o.total_warps) / o.active_sms
         w_parallel = inst_per_sm * effective_throughput
 
-        # w_serial = o_sync + o_sfu + o_cfdiv + o_bank
+        # w_serial = o_sync + o_bank
         mem_ratio = k.mem_inst_count / insts if insts > 0 else 0.0
         f_sync = h.sync_factor * h.dram_latency * mem_ratio
         o_sync = ((k.sync_inst_count * o.total_warps) / o.active_sms) * f_sync
-
-        # with no other instructions the SFU share is all of them
-        sfu_ratio = k.sfu_inst_count / insts if insts > 0 else 1.0
-        f_sfu = min(
-            [
-                max([sfu_ratio - (h.sfu_width / h.simd_width), 0]),
-                1,
-            ]
-        )
-        sfu_throughput = h.warp_size / h.sfu_width
-        o_sfu = (
-            ((k.sfu_inst_count * o.total_warps) / o.active_sms) * sfu_throughput * f_sfu
-        )
 
         o_cfdiv = ((divergent * o.total_warps) / o.active_sms) * effective_throughput
         self.o_cfdiv = o_cfdiv
@@ -95,23 +82,30 @@ class GASPerf:
         self.fp64_pipe_time = ((k.fp64_inst_count * o.total_warps) / o.active_sms) * (
             h.warp_size / h.fp64_width
         )
+        # SFU pipe limit, replacing GPUPerf's O_SFU (Eqs. 9-10)
+        self.sfu_pipe_time = ((k.sfu_inst_count * o.total_warps) / o.active_sms) * (
+            h.warp_size / h.sfu_width
+        )
         # the pipes run side by side, so only the busiest one can set T_comp
         issue_time = w_parallel + o_cfdiv
-        busiest_pipe_time = max(self.shared_pipe_time, self.fp64_pipe_time)
-        o_pipe = max(0.0, busiest_pipe_time - issue_time)
-        # reported split: O_shmem as without the FP64 limit, O_fp64 the rest
-        # tbd do we want max or the sum?
+        base = max(
+            issue_time, self.shared_pipe_time, self.fp64_pipe_time, self.sfu_pipe_time
+        )
+        # reported split: O_shmem, then O_fp64 beyond it, then O_sfu the rest
         self.o_shmem = max(0.0, self.shared_pipe_time - issue_time)
-        self.o_fp64 = o_pipe - self.o_shmem
+        self.o_fp64 = (
+            max(0.0, max(self.shared_pipe_time, self.fp64_pipe_time) - issue_time)
+            - self.o_shmem
+        )
+        self.o_sfu = max(0.0, base - issue_time) - self.o_shmem - self.o_fp64
         # Pico's count is per warp (extra shared accesses, N - 1 for an N-way
         # conflict), so it scales by warps per SM like the other W_serial terms.
         o_bank = (
             (k.bank_conflict_count * o.total_warps) / o.active_sms
         ) * h.bank_penalty
 
-        w_serial = o_sync + o_sfu + o_cfdiv + o_bank + o_pipe
-
-        return w_parallel + w_serial
+        w_serial = o_sync + o_bank
+        return base + w_serial
 
     def _get_t_mem(self):
         k = self.k
@@ -283,6 +277,8 @@ def run(
         o_shmem=model.o_shmem,
         fp64_pipe_time=model.fp64_pipe_time,
         o_fp64=model.o_fp64,
+        sfu_pipe_time=model.sfu_pipe_time,
+        o_sfu=model.o_sfu,
         l1_time=model.l1_time,
         l2_hit_ratio=l2_hit_ratio,
     )

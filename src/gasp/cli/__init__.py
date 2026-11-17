@@ -738,6 +738,8 @@ def predict_kernel(
             ["O_shmem (cycles)", f"{prediction.o_shmem:.0f}"],
             ["FP64 pipe time (cycles)", f"{prediction.fp64_pipe_time:.0f}"],
             ["O_fp64 (cycles)", f"{prediction.o_fp64:.0f}"],
+            ["SFU pipe time (cycles)", f"{prediction.sfu_pipe_time:.0f}"],
+            ["O_sfu (cycles)", f"{prediction.o_sfu:.0f}"],
             ["T_comp (cycles)", f"{prediction.t_comp:.0f}"],
             ["L1 time (cycles)", f"{prediction.l1_time:.0f}"],
             ["T_mem (cycles)", f"{prediction.t_mem:.0f}"],

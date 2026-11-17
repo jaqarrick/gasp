@@ -108,5 +108,7 @@ class ModelOutput:
     o_shmem: float = 0.0
     fp64_pipe_time: float = 0.0
     o_fp64: float = 0.0
+    sfu_pipe_time: float = 0.0
+    o_sfu: float = 0.0
     l1_time: float = 0.0
     l2_hit_ratio: float | None = None

@@ -83,6 +83,8 @@ class PredictionOutput:
     o_shmem: float = 0.0
     fp64_pipe_time: float = 0.0
     o_fp64: float = 0.0
+    sfu_pipe_time: float = 0.0
+    o_sfu: float = 0.0
     l1_time: float = 0.0
     model: str = DEFAULT_MODEL
     # the model inputs from static analysis
@@ -277,6 +279,8 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         o_shmem=out.o_shmem,
         fp64_pipe_time=out.fp64_pipe_time,
         o_fp64=out.o_fp64,
+        sfu_pipe_time=out.sfu_pipe_time,
+        o_sfu=out.o_sfu,
         l1_time=out.l1_time,
         model=input.model,
         static_inputs=static,
