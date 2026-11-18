@@ -1,0 +1,19 @@
+$ nvcc -O3 -std=c++17 -arch=sm_80 /home/jsr10062/repos/gasp/hardware/microbenchmarks/gasp-bm/sfu_latency.cu -o /home/jsr10062/repos/gasp/hardware/runs/a100/1_2/build/sfu_latency
+$ ncu --clock-control base --cache-control none --metrics gpc__cycles_elapsed.max --log-file /home/jsr10062/repos/gasp/hardware/runs/a100/1_2/sfu_inst_latency_cycles/ncu.log /home/jsr10062/repos/gasp/hardware/runs/a100/1_2/build/sfu_latency
+Saved /home/jsr10062/repos/gasp/hardware/runs/a100/1_2/build/sfu_inst_latency_cycles.a100.run.json (17.261 cycles per SFU op)
+{
+  "benchmark": "sfu_latency.cu",
+  "parameter": "sfu_inst_latency_cycles",
+  "value": 17.2610,
+  "unit": "cycles",
+  "gpu": "a100",
+  "gpu_name": "NVIDIA A100-SXM4-40GB",
+  "arch": "sm_80",
+  "num_sms": 108,
+  "clock": {"sm_clock_ghz": 1.0950},
+  "cuda_version": "12.6",
+  "nvcc_version": "12.6",
+  "driver_version": "610.43.02",
+  "git_commit": "59b00a1",
+  "timestamp": "2026-11-18T14:33:36Z"
+}
