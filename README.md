@@ -174,7 +174,17 @@ make run ARGS="--gpu rtx2080ti --config benchmarks/vecadd/configs/vecadd.toml --
 - The metrics file holds ncu's raw values for every run, keyed by kernel name. GASP stops if the GPU, a kernel name, or a kernel's block or grid size differs from the file, or if a metric a `profiled` override needs is missing.
 - `--metrics` also prints the predicted vs measured table from the file. It can't be combined with `--run`.
 
-The full ablation, one row per override set, is in [`experiments/ablation`](experiments/ablation/README.md): `make ablation ARGS="..."` for one config, `make batch-ablation-experiment GPU=<gpu>` to measure and ablate every config on a GPU, and `make ablation-results BATCH=<dir>` for the error decomposition. `make all-experiments GPU=<gpu>` runs the ablation batch on `mm`, then the e2e batch on every benchmark.
+The full ablation, one row per override set, is in [`experiments/ablation`](experiments/ablation/README.md): `make ablation ARGS="..."` for one config, `make batch-ablation-experiment GPU=<gpu>` to measure and ablate every config on a GPU, and `make ablation-results BATCH=<dir>` for the error decomposition.
+
+### Running every experiment
+
+```sh
+make all-experiments GPU=rtx2080ti
+```
+
+This runs the ablation batch on `mm`, then the e2e batch on every benchmark. It needs the GPU.
+
+**It asks for two descriptions at the start, one per batch, before anything runs.** After you answer them it runs to the end without stopping for input. To skip the questions, pass both: `ABLATION_DESC='<text>' E2E_DESC='<text>'`. Without a terminal (e.g. `nohup`) you must pass both, or it stops right away with an error. If the ablation batch fails, the e2e batch doesn't start. See [`docs/experiments.md`](docs/experiments.md) section 7.
 
 ### Models
 
