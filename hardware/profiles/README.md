@@ -57,7 +57,7 @@ The required fields are the ones in `HardwareProfile` (`src/gasp/cli/utils.py`).
 
 | Profile | Value |
 |---|---|
-| rtx2080ti | 1330.6586 (HPMLL; gasp-bm's `l2_bandwidth.cu` gave 1164.9505, and `benchmarks/l2/l2.toml` measured about 1,057 with 32-bit loads, so the HPMLL value may be off by a clock conversion) |
+| rtx2080ti | 1330.6586 (HPMLL; gasp-bm's `l2_bandwidth.cu` gave 1164.9505, and `benchmarks/l2/configs/l2.toml` measured about 1,057 with 32-bit loads, so the HPMLL value may be off by a clock conversion) |
 | rtx4070 | 784.0962 |
 | titanv | 1773.7093 |
 | a100 | 1715.1024 |

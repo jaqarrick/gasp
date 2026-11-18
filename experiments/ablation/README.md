@@ -19,13 +19,13 @@ Measures which static inputs matter: each model (GPUPerf and GASPerf) is run onc
 1. Profile once, on the GPU. This saves the ncu measurements:
 
    ```bash
-   make run ARGS="--gpu rtx2080ti --run --config benchmarks/vecadd/vecadd.toml --save-metrics vecadd.metrics.json"
+   make run ARGS="--gpu rtx2080ti --run --config benchmarks/vecadd/configs/vecadd.toml --save-metrics vecadd.metrics.json"
    ```
 
 2. Run the ablation, anywhere (no GPU needed):
 
    ```bash
-   make ablation ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --metrics vecadd.metrics.json --out vecadd.ablation.csv"
+   make ablation ARGS="--gpu rtx2080ti --config benchmarks/vecadd/configs/vecadd.toml --metrics vecadd.metrics.json --out vecadd.ablation.csv"
    ```
 
 It prints one line per (row, kernel, model) and writes the same to the CSV: predicted and measured cycles, their error, predicted and measured speedup against the reference kernel under the same model, and whether Pico fell back. When Pico fell back on a kernel, its static coalescing and bank values already are the crude ones.

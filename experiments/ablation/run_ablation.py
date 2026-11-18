@@ -2,7 +2,7 @@
 a different set of overrides, under every model (GPUPerf and GASPerf), and
 compare each with the saved measurements.
 
-    make ablation ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml \\
+    make ablation ARGS="--gpu rtx2080ti --config benchmarks/vecadd/configs/vecadd.toml \\
         --metrics vecadd.metrics.json --out vecadd.ablation.csv"
 
 Needs no GPU: the measurements come from a metrics file written earlier by

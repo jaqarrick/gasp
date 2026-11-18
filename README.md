@@ -53,10 +53,10 @@ Pick kernels out of a file that holds several. Without a kernel name, GASP stops
 make run ARGS="--gpu b200 kernels.cu::vecadd_good kernels.cu::vecadd_poor"
 ```
 
-Give each kernel its own settings with a TOML file (see [`vecadd.toml`](benchmarks/vecadd/vecadd.toml)):
+Give each kernel its own settings with a TOML file (see [`vecadd.toml`](benchmarks/vecadd/configs/vecadd.toml)):
 
 ```bash
-make run ARGS="--gpu b200 --config benchmarks/vecadd/vecadd.toml"
+make run ARGS="--gpu b200 --config benchmarks/vecadd/configs/vecadd.toml"
 ```
 
 ```toml
@@ -147,7 +147,7 @@ make run ARGS="--gpu rtx2080ti --run benchmarks/vecadd/vecadd_good.cu benchmarks
 `--json` writes one JSON document to stdout and sends everything else (tables, warnings, info) to stderr. 
 
 ```bash
-make run ARGS="--gpu rtx2080ti --run --json --config benchmarks/vecadd/vecadd.toml" > result.json
+make run ARGS="--gpu rtx2080ti --run --json --config benchmarks/vecadd/configs/vecadd.toml" > result.json
 ```
 
 
@@ -156,8 +156,8 @@ make run ARGS="--gpu rtx2080ti --run --json --config benchmarks/vecadd/vecadd.to
 An override replaces a group of the model's static inputs with what ncu measured, to see how much of the error that input causes. Profile once and save the measurements, then replay them with any override. Replaying needs no GPU:
 
 ```bash
-make run ARGS="--gpu rtx2080ti --run --config benchmarks/vecadd/vecadd.toml --save-metrics vecadd.metrics.json"
-make run ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --metrics vecadd.metrics.json --override cache=profiled"
+make run ARGS="--gpu rtx2080ti --run --config benchmarks/vecadd/configs/vecadd.toml --save-metrics vecadd.metrics.json"
+make run ARGS="--gpu rtx2080ti --config benchmarks/vecadd/configs/vecadd.toml --metrics vecadd.metrics.json --override cache=profiled"
 ```
 
 `--override GROUP=SOURCE` is repeatable. A group not named stays static.
@@ -183,8 +183,8 @@ Todo
 
 ```bash
 make build
-make docker-run ARGS="--gpu b200 --config benchmarks/vecadd/vecadd.toml"
-make docker-run DOCKER_FLAGS="--gpus all" ARGS="--gpu rtx2080ti --run --config benchmarks/vecadd/vecadd.toml"
+make docker-run ARGS="--gpu b200 --config benchmarks/vecadd/configs/vecadd.toml"
+make docker-run DOCKER_FLAGS="--gpus all" ARGS="--gpu rtx2080ti --run --config benchmarks/vecadd/configs/vecadd.toml"
 ```
 
 - `docker-run` mounts only `benchmarks/` and `hardware/`. Kernels and configs must be there, or already be in the image from the last `make build`.

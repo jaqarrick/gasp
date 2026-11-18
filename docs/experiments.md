@@ -31,12 +31,12 @@ The folder also has each benchmark's logs, and `rtx2080ti.1_2.sources.json`, whi
 
 ## 2. Test a speedup config with that profile
 
-A speedup config lists two kernels that do the same work, such as `benchmarks/vecadd/vecadd.toml` (`good` and `poor`). GASP predicts both and reports the second kernel's speedup over the first.
+A speedup config lists two kernels that do the same work, such as `benchmarks/vecadd/configs/vecadd.toml` (`good` and `poor`). GASP predicts both and reports the second kernel's speedup over the first.
 
 Pass the new profile with `--profile`, and add `--run` to also measure both kernels with `ncu`:
 
 ```sh
-make run ARGS='--profile hardware/runs/rtx2080ti/1_2/rtx2080ti.1_2.json --run --config benchmarks/vecadd/vecadd.toml'
+make run ARGS='--profile hardware/runs/rtx2080ti/1_2/rtx2080ti.1_2.json --run --config benchmarks/vecadd/configs/vecadd.toml'
 ```
 
 The output shows the predicted and measured speedup, and how far apart they are. Leave out `--run` to only predict (no GPU needed).
@@ -47,7 +47,7 @@ If you see positive results across kernels, you can replace the built in profile
 
 ## 4. Run batch experiments
 
-A batch runs every config in `benchmarks/*/configs/`. Each config is the same pair of kernels at one problem size and block size, so a batch shows how the speedup changes with them.
+A batch runs every config in `benchmarks/*/configs/`. Most configs are one pair of kernels at one problem size and block size, so a batch shows how the speedup changes with them. A few hold more kernels (`mm/configs/mm.toml`, five mm variants against `basic`) or one (`mm/configs/mm_basic.toml`, no speedup).
 
 ```sh
 make batch-experiment GPU=rtx2080ti
