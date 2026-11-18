@@ -211,7 +211,7 @@ These apply to the whole run:
 
 | Flag                  | Description                                              |
 |-----------------------|----------------------------------------------------------|
-| `--gpu`               | Target GPU: `rtx2080ti`, `titanv` or `rtx4070` (measured profiles in `hardware/profiles/`), `a100` (placeholder) |
+| `--gpu`               | Target GPU: `rtx2080ti`, `titanv`, `rtx4070` or `a100` (measured profiles in `hardware/profiles/`) |
 | `--profile`           | Path to a hardware profile JSON (same format as `hardware/profiles/*.json`); can't be combined with `--gpu` |
 | `--config`            | TOML file listing the kernels and their settings         |
 | `--reference`         | Kernel the others are compared with (default: the first) |

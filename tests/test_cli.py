@@ -152,9 +152,9 @@ class TestGPUProfiles:
     def test_known_gpus(self):
         assert set(GPU_PROFILES) == {"a100", "rtx2080ti", "titanv", "rtx4070"}
 
-    def test_only_a100_uses_a_placeholder(self):
+    def test_no_placeholders(self):
         placeholders = {g for g, p in GPU_PROFILES.items() if "placeholder" in p.name}
-        assert placeholders == {"a100"}
+        assert placeholders == set()
 
     def test_paths_are_json(self):
         for gpu, path in GPU_PROFILES.items():

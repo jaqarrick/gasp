@@ -10,8 +10,7 @@ from gasp.parser.types import OpCategory
 PROFILES_DIR = Path("hardware/profiles")
 
 GPU_PROFILES = {
-    # until a100.json has every field (l1_miss_cycles_per_request)
-    "a100": PROFILES_DIR / "a100.placeholder.json",
+    "a100": PROFILES_DIR / "a100.json",
     "rtx2080ti": PROFILES_DIR / "rtx2080ti.json",
     "titanv": PROFILES_DIR / "titanv.json",
     "rtx4070": PROFILES_DIR / "rtx4070.json",

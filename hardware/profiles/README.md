@@ -1,8 +1,6 @@
 # Profiles
 
-Hardware profiles for the GPUs GASP targets: the NVIDIA spec values and the microbenchmark results. `--gpu` accepts `rtx2080ti`, `titanv` and `rtx4070` (measured profiles) and `a100` (`GPU_PROFILES` in `src/gasp/cli/utils.py`). For another GPU, pass a profile with `--profile`.
-
-`--gpu a100` uses `a100.placeholder.json`, the only placeholder left. `a100.json` is measured but doesn't load yet: it has no `l1_miss_cycles_per_request` until `l1_miss_cost.cu` runs on the A100. The placeholder has 0 for that field (no charge for L1 misses).
+Hardware profiles for the GPUs GASP targets: the NVIDIA spec values and the microbenchmark results. `--gpu` accepts `rtx2080ti`, `titanv`, `rtx4070` and `a100`, all measured profiles (`GPU_PROFILES` in `src/gasp/cli/utils.py`). For another GPU, pass a profile with `--profile`.
 
 ## Format
 
@@ -38,7 +36,7 @@ The required fields are the ones in `HardwareProfile` (`src/gasp/cli/utils.py`).
 | rtx2080ti | 2.5233 | 1.9904 |
 | rtx4070 | 2.5253 | 3.7917 |
 | titanv | 2.2732 | 3.8406 |
-| a100 | 2.4969 | 3.8847 |
+| a100 | 2.4963 | 3.8863 |
 
 ## L1 miss cost
 
@@ -49,7 +47,7 @@ The required fields are the ones in `HardwareProfile` (`src/gasp/cli/utils.py`).
 | rtx2080ti | 1.6851 |
 | rtx4070 | 1.6219; the cost isn't linear in the miss fraction on this GPU (mixed hits and misses are faster than all hits), so the slope is a rough fit |
 | titanv | 1.8764 |
-| a100 | not measured yet (`a100.placeholder.json`: 0) |
+| a100 | 0.2308 |
 
 ## L2 bandwidth
 
@@ -60,7 +58,7 @@ The required fields are the ones in `HardwareProfile` (`src/gasp/cli/utils.py`).
 | rtx2080ti | 1330.6586 (HPMLL; gasp-bm's `l2_bandwidth.cu` gave 1164.9505, and `benchmarks/l2/configs/l2.toml` measured about 1,057 with 32-bit loads, so the HPMLL value may be off by a clock conversion) |
 | rtx4070 | 784.0962 |
 | titanv | 1773.7093 |
-| a100 | 1715.1024 |
+| a100 | 1709.0817 |
 
 ## Sources
 
