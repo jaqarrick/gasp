@@ -1,0 +1,37 @@
+description: Runs ablation experiment across variations of matrix multiplication. This is the first run of this experiment.
+
+started:     2026-11-17 21:33:22 EST
+gpu:         rtx2080ti
+device:      NVIDIA GeForce RTX 2080 Ti, 595.104.02
+nvcc:        Cuda compilation tools, release 12.4, V12.4.131
+host:        cuda2.cims.nyu.edu
+profile:     hardware/profiles/rtx2080ti.json (built-in for rtx2080ti)
+profile sha: 12aeb646c8ab682e7e10916fec74e27fc6c8b4dcca7777283d795460baa074d6
+mode:        ablation (measure with ncu, then every ablation row)
+commit:      097a242 on feat/prepare-gasp-experiments (uncommitted changes)
+command:     ./scripts/batch_ablation.sh --description Runs ablation experiment across variations of matrix multiplication. This is the first run of this experiment. rtx2080ti mm
+benchmarks:  mm
+configs:
+  benchmarks/mm/configs/mm_basic.toml
+  benchmarks/mm/configs/mm.toml
+  benchmarks/mm/configs/n1000_b16x16.toml
+  benchmarks/mm/configs/n1024_b16x16.toml
+  benchmarks/mm/configs/n1024_b32x32.toml
+  benchmarks/mm/configs/n1024_b32x8.toml
+  benchmarks/mm/configs/n1024_b8x8.toml
+  benchmarks/mm/configs/n2048_b16x16.toml
+  benchmarks/mm/configs/n2048_b32x32.toml
+  benchmarks/mm/configs/n2048_b32x8.toml
+  benchmarks/mm/configs/n2048_b8x8.toml
+  benchmarks/mm/configs/n256_b16x16.toml
+  benchmarks/mm/configs/n256_b32x32.toml
+  benchmarks/mm/configs/n256_b32x8.toml
+  benchmarks/mm/configs/n256_b8x8.toml
+  benchmarks/mm/configs/n512_b16x16.toml
+  benchmarks/mm/configs/n512_b32x32.toml
+  benchmarks/mm/configs/n512_b32x8.toml
+  benchmarks/mm/configs/n512_b8x8.toml
+  benchmarks/mm/configs/variants_n1000_b16x16.toml
+  benchmarks/mm/configs/variants_n2048_b16x16.toml
+  benchmarks/mm/configs/variants_n512_b16x16.toml
+finished:    2026-11-17 22:05:26 EST

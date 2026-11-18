@@ -1,0 +1,228 @@
+config sweeps on rtx4070: 66 passed, 1 failed
+profile: built-in for rtx4070
+  passed: bank_conflict/bank_conflict_loop_fill
+  passed: bank_conflict/bank_conflict
+  passed: divergence/divergence
+  passed: divergence/n1048576_b1024
+  passed: divergence/n1048576_b128
+  passed: divergence/n1048576_b512
+  passed: divergence/n1048576_b64
+  passed: divergence/n262144_b256
+  passed: divergence/n4194304_b256
+  passed: divergence/n65536_b256
+  passed: l2/l2
+  passed: l2/n1048576_b1024
+  passed: l2/n1048576_b128
+  passed: l2/n1048576_b512
+  passed: l2/n1048576_b64
+  passed: mm/mm_basic
+  passed: mm/mm
+  passed: mm/n1000_b16x16
+  passed: mm/n1024_b16x16
+  passed: mm/n1024_b32x32
+  passed: mm/n1024_b32x8
+  passed: mm/n1024_b8x8
+  passed: mm/n2048_b16x16
+  passed: mm/n2048_b32x32
+  passed: mm/n2048_b32x8
+  passed: mm/n2048_b8x8
+  passed: mm/n256_b16x16
+  passed: mm/n256_b32x32
+  passed: mm/n256_b32x8
+  passed: mm/n256_b8x8
+  passed: mm/n512_b16x16
+  passed: mm/n512_b32x32
+  passed: mm/n512_b32x8
+  passed: mm/n512_b8x8
+  passed: mm/variants_n1000_b16x16
+  passed: mm/variants_n2048_b16x16
+  passed: mm/variants_n512_b16x16
+  passed: sfu/n1048576_b1024
+  passed: sfu/n1048576_b128
+  passed: sfu/n1048576_b512
+  passed: sfu/n1048576_b64
+  passed: sfu/n262144_b256
+  passed: sfu/n4194304_b256
+  passed: sfu/n65536_b256
+  passed: sfu/sfu
+  passed: transpose/n1024_b32x32
+  passed: transpose/n2048_b32x32
+  passed: transpose/n512_b32x32
+  passed: transpose/transpose
+  passed: vecadd/n1000000_b1024
+  passed: vecadd/n1000000_b128
+  passed: vecadd/n1000000_b256
+  passed: vecadd/n1000000_b512
+  passed: vecadd/n1000000_b64
+  passed: vecadd/n16777216_b1024
+  passed: vecadd/n16777216_b128
+  passed: vecadd/n16777216_b256
+  passed: vecadd/n16777216_b512
+  passed: vecadd/n16777216_b64
+  passed: vecadd/n65536_b1024
+  passed: vecadd/n65536_b128
+  passed: vecadd/n65536_b256
+  passed: vecadd/n65536_b512
+  passed: vecadd/n65536_b64
+  passed: vecadd/vecadd_grid
+  passed: vecadd/vecadd
+  failed: l1_lines/l1_lines
+
+results (GASPerf; make batch-results BATCH=./experiments/results/e2e/rtx4070/batch_20261117_220923 ARGS='--model all' for every model):
+skipped l1_lines_l1_lines: Expecting value: line 1 column 1 (char 0)
+config                                 kernel       block  grid     problem_size  model     t_gpu_pred   t_gpu_meas  t_gpu_err_pct  speedup_pred  speedup_meas  speedup_err_pct
+-------------------------------------  -----------  -----  -------  ------------  -------  -----------  -----------  -------------  ------------  ------------  ---------------
+bank_conflict_bank_conflict            degree_1     256    4096     1,048,576     GASPerf       97,537      104,903         -7.021         1.000         1.000            0.000
+bank_conflict_bank_conflict            degree_2     256    4096     1,048,576     GASPerf      188,513      104,808         79.865         0.517         1.001          -48.306
+bank_conflict_bank_conflict            degree_4     256    4096     1,048,576     GASPerf      370,463      193,232         91.719         0.263         0.543          -51.503
+bank_conflict_bank_conflict            degree_8     256    4096     1,048,576     GASPerf      734,365      377,675         94.444         0.133         0.278          -52.182
+bank_conflict_bank_conflict            degree_16    256    4096     1,048,576     GASPerf    1,462,168      746,657         95.829         0.067         0.140          -52.520
+bank_conflict_bank_conflict            degree_32    256    4096     1,048,576     GASPerf    2,917,774    1,484,614         96.534         0.033         0.071          -52.691
+bank_conflict_bank_conflict_loop_fill  degree_1     256    4096     1,048,576     GASPerf       97,515      105,163         -7.272         1.000         1.000            0.000
+bank_conflict_bank_conflict_loop_fill  degree_2     256    4096     1,048,576     GASPerf       97,515      105,054         -7.176         1.000         1.001           -0.104
+bank_conflict_bank_conflict_loop_fill  degree_4     256    4096     1,048,576     GASPerf      546,706      193,313            183         0.178         0.544          -67.212
+bank_conflict_bank_conflict_loop_fill  degree_8     256    4096     1,048,576     GASPerf      910,608      377,785            141         0.107         0.278          -61.530
+bank_conflict_bank_conflict_loop_fill  degree_16    256    4096     1,048,576     GASPerf    1,638,411      746,610            119         0.060         0.141          -57.745
+bank_conflict_bank_conflict_loop_fill  degree_32    256    4096     1,048,576     GASPerf    3,094,016    1,484,585            108         0.032         0.071          -55.507
+divergence_divergence                  divergent    256    4096     1,048,576     GASPerf      370,243      418,329        -11.495         1.000         1.000            0.000
+divergence_divergence                  uniform      256    4096     1,048,576     GASPerf      186,635      214,377        -12.941         1.984         1.951            1.661
+divergence_n1048576_b1024              divergent    1024   1024     1,048,576     GASPerf      370,243      517,847        -28.503         1.000         1.000            0.000
+divergence_n1048576_b1024              uniform      1024   1024     1,048,576     GASPerf      186,635      264,734        -29.501         1.984         1.956            1.415
+divergence_n1048576_b128               divergent    128    8192     1,048,576     GASPerf      370,243      415,160        -10.819         1.000         1.000            0.000
+divergence_n1048576_b128               uniform      128    8192     1,048,576     GASPerf      186,635      212,983        -12.371         1.984         1.949            1.771
+divergence_n1048576_b512               divergent    512    2048     1,048,576     GASPerf      370,243      424,708        -12.824         1.000         1.000            0.000
+divergence_n1048576_b512               uniform      512    2048     1,048,576     GASPerf      186,635      217,691        -14.266         1.984         1.951            1.682
+divergence_n1048576_b64                divergent    64     16384    1,048,576     GASPerf      370,243      415,053        -10.796         1.000         1.000            0.000
+divergence_n1048576_b64                uniform      64     16384    1,048,576     GASPerf      186,635      213,013        -12.383         1.984         1.948            1.811
+divergence_n262144_b256                divergent    256    1024     262,144       GASPerf       92,561      113,912        -18.744         1.000         1.000            0.000
+divergence_n262144_b256                uniform      256    1024     262,144       GASPerf       46,659       59,776        -21.944         1.984         1.906            4.100
+divergence_n4194304_b256               divergent    256    16384    4,194,304     GASPerf    1,480,971    1,632,652         -9.290         1.000         1.000            0.000
+divergence_n4194304_b256               uniform      256    16384    4,194,304     GASPerf      746,541      833,853        -10.471         1.984         1.958            1.319
+divergence_n65536_b256                 divergent    256    256      65,536        GASPerf       23,140       37,529        -38.341         1.000         1.000            0.000
+divergence_n65536_b256                 uniform      256    256      65,536        GASPerf       11,665       21,282        -45.190         1.984         1.763           12.496
+l2_l2                                  dram_stream  256    4096     1,048,576     GASPerf    1,090,406    1,184,348         -7.932         1.000         1.000            0.000
+l2_l2                                  l2_resident  256    4096     1,048,576     GASPerf      347,699      391,491        -11.186         3.136         3.025            3.664
+l2_n1048576_b1024                      dram_stream  1024   1024     1,048,576     GASPerf    1,090,406    1,179,628         -7.564         1.000         1.000            0.000
+l2_n1048576_b1024                      l2_resident  1024   1024     1,048,576     GASPerf      347,699      431,881        -19.492         3.136         2.731           14.816
+l2_n1048576_b128                       dram_stream  128    8192     1,048,576     GASPerf    1,090,406    1,233,000        -11.565         1.000         1.000            0.000
+l2_n1048576_b128                       l2_resident  128    8192     1,048,576     GASPerf      347,699      390,694        -11.005         3.136         3.156           -0.629
+l2_n1048576_b512                       dram_stream  512    2048     1,048,576     GASPerf    1,090,406    1,240,975        -12.133         1.000         1.000            0.000
+l2_n1048576_b512                       l2_resident  512    2048     1,048,576     GASPerf      347,699      395,671        -12.124         3.136         3.136           -0.010
+l2_n1048576_b64                        dram_stream  64     16384    1,048,576     GASPerf    1,090,406    1,199,246         -9.076         1.000         1.000            0.000
+l2_n1048576_b64                        l2_resident  64     16384    1,048,576     GASPerf      347,699      389,282        -10.682         3.136         3.081            1.798
+mm_mm                                  basic        16x16  64x64    1,024         GASPerf    4,030,847    2,998,762         34.417         1.000         1.000            0.000
+mm_mm                                  uncoalesced  16x16  64x64    1,024         GASPerf   14,059,631   12,695,588         10.744         0.287         0.236           21.376
+mm_mm                                  double       16x16  64x64    1,024         GASPerf   23,535,972   26,932,366        -12.611         0.171         0.111           53.814
+mm_mm                                  bounds       16x16  64x64    1,024         GASPerf    4,013,356    3,078,737         30.357         1.004         0.974            3.114
+mm_mm                                  sfu          16x16  64x64    1,024         GASPerf    4,038,993    3,735,502          8.124         0.998         0.803           24.317
+mm_mm                                  tiled        16x16  64x64    1,024         GASPerf    2,560,500    2,300,067         11.323         1.574         1.304           20.745
+mm_mm_basic                            mm_basic     16x16  64x64    1,024         GASPerf    4,030,847    2,999,559         34.381         1.000         1.000            0.000
+mm_n1000_b16x16                        basic        16x16  63x63    1,000         GASPerf    3,784,820    2,799,108         35.215         1.000         1.000            0.000
+mm_n1000_b16x16                        tiled        16x16  63x63    1,000         GASPerf    2,442,331    2,188,006         11.624         1.550         1.279           21.135
+mm_n1024_b16x16                        basic        16x16  64x64    1,024         GASPerf    4,030,847    2,999,191         34.398         1.000         1.000            0.000
+mm_n1024_b16x16                        tiled        16x16  64x64    1,024         GASPerf    2,560,500    2,299,722         11.340         1.574         1.304           20.710
+mm_n1024_b32x32                        basic        32x32  32x32    1,024         GASPerf    3,860,866    3,064,600         25.983         1.000         1.000            0.000
+mm_n1024_b32x32                        tiled        16x16  64x64    1,024         GASPerf    2,560,500    2,300,761         11.289         1.508         1.332           13.203
+mm_n1024_b32x8                         basic        32x8   32x128   1,024         GASPerf    4,030,847    2,983,168         35.120         1.000         1.000            0.000
+mm_n1024_b32x8                         tiled        16x16  64x64    1,024         GASPerf    2,560,500    2,299,956         11.328         1.574         1.297           21.371
+mm_n1024_b8x8                          basic        8x8    128x128  1,024         GASPerf    4,209,783    3,695,018         13.931         1.000         1.000            0.000
+mm_n1024_b8x8                          tiled        16x16  64x64    1,024         GASPerf    2,560,500    2,300,016         11.325         1.644         1.607            2.341
+mm_n2048_b16x16                        basic        16x16  128x128  2,048         GASPerf   32,113,283   23,680,339         35.612         1.000         1.000            0.000
+mm_n2048_b16x16                        tiled        16x16  128x128  2,048         GASPerf   20,487,066   18,117,540         13.079         1.567         1.307           19.927
+mm_n2048_b32x32                        basic        32x32  64x64    2,048         GASPerf   30,758,648   23,813,038         29.167         1.000         1.000            0.000
+mm_n2048_b32x32                        tiled        16x16  128x128  2,048         GASPerf   20,487,066   18,116,572         13.085         1.501         1.314           14.222
+mm_n2048_b32x8                         basic        32x8   64x256   2,048         GASPerf   32,113,283   23,545,439         36.389         1.000         1.000            0.000
+mm_n2048_b32x8                         tiled        16x16  128x128  2,048         GASPerf   20,487,066   18,116,211         13.087         1.567         1.300           20.605
+mm_n2048_b8x8                          basic        8x8    256x256  2,048         GASPerf   33,538,878   29,301,537         14.461         1.000         1.000            0.000
+mm_n2048_b8x8                          tiled        16x16  128x128  2,048         GASPerf   20,487,066   18,116,710         13.084         1.637         1.617            1.218
+mm_n256_b16x16                         basic        16x16  16x16    256           GASPerf       64,546       58,490         10.355         1.000         1.000            0.000
+mm_n256_b16x16                         tiled        16x16  16x16    256           GASPerf       39,973       47,890        -16.532         1.615         1.221           32.211
+mm_n256_b32x32                         basic        32x32  8x8      256           GASPerf       61,829       72,654        -14.899         1.000         1.000            0.000
+mm_n256_b32x32                         tiled        16x16  16x16    256           GASPerf       39,973       48,096        -16.889         1.547         1.511            2.395
+mm_n256_b32x8                          basic        32x8   8x32     256           GASPerf       64,546       57,290         12.666         1.000         1.000            0.000
+mm_n256_b32x8                          tiled        16x16  16x16    256           GASPerf       39,973       47,850        -16.462         1.615         1.197           34.868
+mm_n256_b8x8                           basic        8x8    32x32    256           GASPerf       67,411       66,529          1.326         1.000         1.000            0.000
+mm_n256_b8x8                           tiled        16x16  16x16    256           GASPerf       39,973       47,992        -16.709         1.686         1.386           21.653
+mm_n512_b16x16                         basic        16x16  32x32    512           GASPerf      508,028      393,171         29.213         1.000         1.000            0.000
+mm_n512_b16x16                         tiled        16x16  32x32    512           GASPerf      319,968      304,937          4.929         1.588         1.289           23.143
+mm_n512_b32x32                         basic        32x32  16x16    512           GASPerf      486,617      409,589         18.806         1.000         1.000            0.000
+mm_n512_b32x32                         tiled        16x16  32x32    512           GASPerf      319,968      304,685          5.016         1.521         1.344           13.131
+mm_n512_b32x8                          basic        32x8   16x64    512           GASPerf      508,028      390,379         30.137         1.000         1.000            0.000
+mm_n512_b32x8                          tiled        16x16  32x32    512           GASPerf      319,968      305,114          4.868         1.588         1.279           24.096
+mm_n512_b8x8                           basic        8x8    64x64    512           GASPerf      530,579      489,734          8.340         1.000         1.000            0.000
+mm_n512_b8x8                           tiled        16x16  32x32    512           GASPerf      319,968      304,910          4.939         1.658         1.606            3.242
+mm_variants_n1000_b16x16               basic        16x16  63x63    1,000         GASPerf    3,784,820    2,799,414         35.200         1.000         1.000            0.000
+mm_variants_n1000_b16x16               uncoalesced  16x16  63x63    1,000         GASPerf   13,201,590    5,441,876            143         0.287         0.514          -44.269
+mm_variants_n1000_b16x16               double       16x16  63x63    1,000         GASPerf   22,099,392   25,286,777        -12.605         0.171         0.111           54.700
+mm_variants_n1000_b16x16               sfu          16x16  63x63    1,000         GASPerf    3,822,079    3,497,852          9.269         0.990         0.800           23.731
+mm_variants_n1000_b16x16               tiled        16x16  63x63    1,000         GASPerf    2,442,331    2,188,268         11.610         1.550         1.279           21.136
+mm_variants_n2048_b16x16               basic        16x16  128x128  2,048         GASPerf   32,113,283   23,680,630         35.610         1.000         1.000            0.000
+mm_variants_n2048_b16x16               uncoalesced  16x16  128x128  2,048         GASPerf  111,992,197  100,555,300         11.374         0.287         0.235           21.761
+mm_variants_n2048_b16x16               double       16x16  128x128  2,048         GASPerf  187,512,743  213,664,197        -12.240         0.171         0.111           54.523
+mm_variants_n2048_b16x16               bounds       16x16  128x128  2,048         GASPerf   32,098,404   24,190,199         32.692         1.000         0.979            2.199
+mm_variants_n2048_b16x16               sfu          16x16  128x128  2,048         GASPerf   32,303,531   29,447,229          9.700         0.994         0.804           23.619
+mm_variants_n2048_b16x16               tiled        16x16  128x128  2,048         GASPerf   20,487,066   18,119,475         13.067         1.567         1.307           19.938
+mm_variants_n512_b16x16                basic        16x16  32x32    512           GASPerf      508,028      393,607         29.070         1.000         1.000            0.000
+mm_variants_n512_b16x16                uncoalesced  16x16  32x32    512           GASPerf    1,772,613    1,635,628          8.375         0.287         0.241           19.095
+mm_variants_n512_b16x16                double       16x16  32x32    512           GASPerf    2,966,216    3,447,526        -13.961         0.171         0.114           50.013
+mm_variants_n512_b16x16                bounds       16x16  32x32    512           GASPerf      501,933      408,684         22.817         1.012         0.963            5.091
+mm_variants_n512_b16x16                sfu          16x16  32x32    512           GASPerf      505,137      492,791          2.505         1.006         0.799           25.915
+mm_variants_n512_b16x16                tiled        16x16  32x32    512           GASPerf      319,968      304,461          5.093         1.588         1.293           22.814
+sfu_n1048576_b1024                     sfu_bound    1024   1024     1,048,576     GASPerf    2,917,777    3,063,653         -4.762         1.000         1.000            0.000
+sfu_n1048576_b1024                     sfu_free     1024   1024     1,048,576     GASPerf      871,201      926,547         -5.973         3.349         3.307            1.289
+sfu_n1048576_b128                      sfu_bound    128    8192     1,048,576     GASPerf    2,917,777    3,001,250         -2.781         1.000         1.000            0.000
+sfu_n1048576_b128                      sfu_free     128    8192     1,048,576     GASPerf      871,201      886,216         -1.694         3.349         3.387           -1.106
+sfu_n1048576_b512                      sfu_bound    512    2048     1,048,576     GASPerf    2,917,777    2,982,293         -2.163         1.000         1.000            0.000
+sfu_n1048576_b512                      sfu_free     512    2048     1,048,576     GASPerf      871,201      894,628         -2.619         3.349         3.334            0.468
+sfu_n1048576_b64                       sfu_bound    64     16384    1,048,576     GASPerf    2,917,777    3,001,291         -2.783         1.000         1.000            0.000
+sfu_n1048576_b64                       sfu_free     64     16384    1,048,576     GASPerf      871,201      887,790         -1.869         3.349         3.381           -0.931
+sfu_n262144_b256                       sfu_bound    256    1024     262,144       GASPerf      729,444      772,419         -5.564         1.000         1.000            0.000
+sfu_n262144_b256                       sfu_free     256    1024     262,144       GASPerf      217,800      230,906         -5.676         3.349         3.345            0.119
+sfu_n4194304_b256                      sfu_bound    256    16384    4,194,304     GASPerf   11,671,107   11,916,608         -2.060         1.000         1.000            0.000
+sfu_n4194304_b256                      sfu_free     256    16384    4,194,304     GASPerf    3,484,806    3,531,484         -1.322         3.349         3.374           -0.748
+sfu_n65536_b256                        sfu_bound    256    256      65,536        GASPerf      182,361      205,483        -11.252         1.000         1.000            0.000
+sfu_n65536_b256                        sfu_free     256    256      65,536        GASPerf       54,450       62,901        -13.435         3.349         3.267            2.522
+sfu_sfu                                sfu_bound    256    4096     1,048,576     GASPerf    2,917,777    3,007,839         -2.994         1.000         1.000            0.000
+sfu_sfu                                sfu_free     256    4096     1,048,576     GASPerf      871,201      892,561         -2.393         3.349         3.370           -0.616
+transpose_n1024_b32x32                 naive        32x32  32x32    1,024         GASPerf       59,585       58,139          2.487         1.000         1.000            0.000
+transpose_n1024_b32x32                 padded       32x32  32x32    1,024         GASPerf       33,551       45,689        -26.567         1.776         1.272           39.565
+transpose_n2048_b32x32                 naive        32x32  64x64    2,048         GASPerf      238,340      237,004          0.564         1.000         1.000            0.000
+transpose_n2048_b32x32                 padded       32x32  64x64    2,048         GASPerf      134,204      155,522        -13.708         1.776         1.524           16.538
+transpose_n512_b32x32                  naive        32x32  16x16    512           GASPerf       14,896       17,668        -15.688         1.000         1.000            0.000
+transpose_n512_b32x32                  padded       32x32  16x16    512           GASPerf        8,388       12,070        -30.508         1.776         1.464           21.325
+transpose_transpose                    naive        32x32  128x128  4,096         GASPerf      953,359      949,378          0.419         1.000         1.000            0.000
+transpose_transpose                    padded       32x32  128x128  4,096         GASPerf      536,815      749,433        -28.371         1.776         1.267           40.193
+vecadd_n1000000_b1024                  good         1024   977      1,000,000     GASPerf       47,995       51,969         -7.647         1.000         1.000            0.000
+vecadd_n1000000_b1024                  poor         1024   977      1,000,000     GASPerf       47,995       53,423        -10.160         1.000         0.973            2.798
+vecadd_n1000000_b128                   good         128    7813     1,000,000     GASPerf       47,995       40,742         17.802         1.000         1.000            0.000
+vecadd_n1000000_b128                   poor         128    7813     1,000,000     GASPerf       47,995       41,876         14.612         1.000         0.973            2.783
+vecadd_n1000000_b256                   good         256    3907     1,000,000     GASPerf       47,995       43,186         11.136         1.000         1.000            0.000
+vecadd_n1000000_b256                   poor         256    3907     1,000,000     GASPerf       47,995       38,283         25.369         1.000         1.128          -11.353
+vecadd_n1000000_b512                   good         512    1954     1,000,000     GASPerf       47,995       38,665         24.130         1.000         1.000            0.000
+vecadd_n1000000_b512                   poor         512    1954     1,000,000     GASPerf       47,995       38,799         23.702         1.000         0.997            0.347
+vecadd_n1000000_b64                    good         64     15625    1,000,000     GASPerf       47,995       39,086         22.793         1.000         1.000            0.000
+vecadd_n1000000_b64                    poor         64     15625    1,000,000     GASPerf       47,995       37,835         26.853         1.000         1.033           -3.201
+vecadd_n16777216_b1024                 good         1024   16384    16,777,216    GASPerf      805,223      806,062         -0.104         1.000         1.000            0.000
+vecadd_n16777216_b1024                 poor         1024   16384    16,777,216    GASPerf      805,223      825,403         -2.445         1.000         0.977            2.399
+vecadd_n16777216_b128                  good         128    131072   16,777,216    GASPerf      805,223      844,712         -4.675         1.000         1.000            0.000
+vecadd_n16777216_b128                  poor         128    131072   16,777,216    GASPerf      805,223      810,762         -0.683         1.000         1.042           -4.019
+vecadd_n16777216_b256                  good         256    65536    16,777,216    GASPerf      805,223      800,231          0.624         1.000         1.000            0.000
+vecadd_n16777216_b256                  poor         256    65536    16,777,216    GASPerf      805,223      807,759         -0.314         1.000         0.991            0.941
+vecadd_n16777216_b512                  good         512    32768    16,777,216    GASPerf      805,223      819,113         -1.696         1.000         1.000            0.000
+vecadd_n16777216_b512                  poor         512    32768    16,777,216    GASPerf      805,223      794,971          1.290         1.000         1.030           -2.947
+vecadd_n16777216_b64                   good         64     262144   16,777,216    GASPerf      805,223      796,986          1.033         1.000         1.000            0.000
+vecadd_n16777216_b64                   poor         64     262144   16,777,216    GASPerf      805,223      800,916          0.538         1.000         0.995            0.493
+vecadd_n65536_b1024                    good         1024   64       65,536        GASPerf        3,145        6,572        -52.139         1.000         1.000            0.000
+vecadd_n65536_b1024                    poor         1024   64       65,536        GASPerf        3,145        6,524        -51.787         1.000         1.007           -0.730
+vecadd_n65536_b128                     good         128    512      65,536        GASPerf        3,145        5,891        -46.607         1.000         1.000            0.000
+vecadd_n65536_b128                     poor         128    512      65,536        GASPerf        3,145        6,099        -48.428         1.000         0.966            3.531
+vecadd_n65536_b256                     good         256    256      65,536        GASPerf        3,145        5,967        -47.287         1.000         1.000            0.000
+vecadd_n65536_b256                     poor         256    256      65,536        GASPerf        3,145        7,562        -58.405         1.000         0.789           26.730
+vecadd_n65536_b512                     good         512    128      65,536        GASPerf        3,145        5,973        -47.340         1.000         1.000            0.000
+vecadd_n65536_b512                     poor         512    128      65,536        GASPerf        3,145        7,310        -56.971         1.000         0.817           22.384
+vecadd_n65536_b64                      good         64     1024     65,536        GASPerf        3,145        6,152        -48.872         1.000         1.000            0.000
+vecadd_n65536_b64                      poor         64     1024     65,536        GASPerf        3,145        6,497        -51.587         1.000         0.947            5.608
+vecadd_vecadd                          good         256    3907     1,000,000     GASPerf       47,995       38,194         25.661         1.000         1.000            0.000
+vecadd_vecadd                          poor         256    3907     1,000,000     GASPerf       47,995       38,375         25.068         1.000         0.995            0.474
+vecadd_vecadd_grid                     good         256    3907     1,000,000     GASPerf       47,995       39,088         22.787         1.000         1.000            0.000
+vecadd_vecadd_grid                     stride       256    272      1,000,000     GASPerf       47,995       38,124         25.892         1.000         1.025           -2.466

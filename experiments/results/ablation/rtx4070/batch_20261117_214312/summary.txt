@@ -1,0 +1,42 @@
+ablation on rtx4070: 22 passed, 0 failed
+profile: built-in for rtx4070
+  passed: mm/mm_basic
+  passed: mm/mm
+  passed: mm/n1000_b16x16
+  passed: mm/n1024_b16x16
+  passed: mm/n1024_b32x32
+  passed: mm/n1024_b32x8
+  passed: mm/n1024_b8x8
+  passed: mm/n2048_b16x16
+  passed: mm/n2048_b32x32
+  passed: mm/n2048_b32x8
+  passed: mm/n2048_b8x8
+  passed: mm/n256_b16x16
+  passed: mm/n256_b32x32
+  passed: mm/n256_b32x8
+  passed: mm/n256_b8x8
+  passed: mm/n512_b16x16
+  passed: mm/n512_b32x32
+  passed: mm/n512_b32x8
+  passed: mm/n512_b8x8
+  passed: mm/variants_n1000_b16x16
+  passed: mm/variants_n2048_b16x16
+  passed: mm/variants_n512_b16x16
+
+error decomposition (GASPerf; make ablation-results BATCH=./experiments/results/ablation/rtx4070/batch_20261117_214312 ARGS='--model all' for every model):
+gpu      benchmark  model    row                  kernels  abs_err_mean  abs_err_median  speedups  abs_speedup_err_mean  abs_speedup_err_median  itilp_capped  itmlp_capped
+-------  ---------  -------  -------------------  -------  ------------  --------------  --------  --------------------  ----------------------  ------------  ------------
+rtx4070  mm         GASPerf  all-static                58        19.535          13.079        36                22.269                  21.136            58             0
+rtx4070  mm         GASPerf  crude                     58        20.775          13.802        36                51.119                  21.271            58             0
+rtx4070  mm         GASPerf  profiled-cache            58        19.308          13.073        36                21.678                  21.136            58             0
+rtx4070  mm         GASPerf  profiled-coalescing       58        18.956          13.079        36                22.758                  21.271            58             0
+rtx4070  mm         GASPerf  profiled-bank             58        19.535          13.079        36                22.269                  21.136            58             0
+rtx4070  mm         GASPerf  profiled-counts           58        19.065          13.079        36                21.238                  20.301            58             0
+rtx4070  mm         GASPerf  all-profiled              58        18.321          13.077        36                21.233                  20.176            58             0
+rtx4070  all        GASPerf  all-static                58        19.535          13.079        36                22.269                  21.136            58             0
+rtx4070  all        GASPerf  crude                     58        20.775          13.802        36                51.119                  21.271            58             0
+rtx4070  all        GASPerf  profiled-cache            58        19.308          13.073        36                21.678                  21.136            58             0
+rtx4070  all        GASPerf  profiled-coalescing       58        18.956          13.079        36                22.758                  21.271            58             0
+rtx4070  all        GASPerf  profiled-bank             58        19.535          13.079        36                22.269                  21.136            58             0
+rtx4070  all        GASPerf  profiled-counts           58        19.065          13.079        36                21.238                  20.301            58             0
+rtx4070  all        GASPerf  all-profiled              58        18.321          13.077        36                21.233                  20.176            58             0

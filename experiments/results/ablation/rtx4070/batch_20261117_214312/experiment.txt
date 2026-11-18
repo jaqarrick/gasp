@@ -1,0 +1,37 @@
+description: rtx4070 first run
+
+started:     2026-11-17 21:43:12 EST
+gpu:         rtx4070
+device:      NVIDIA GeForce RTX 4070, 595.104.02
+nvcc:        Cuda compilation tools, release 12.4, V12.4.131
+host:        cuda5.cims.nyu.edu
+profile:     hardware/profiles/rtx4070.json (built-in for rtx4070)
+profile sha: 558bb3f249c5aca5cbb8c4549d5fd226d21bb8a02007e3204af6b486b629aff9
+mode:        ablation (measure with ncu, then every ablation row)
+commit:      097a242 on feat/prepare-gasp-experiments (uncommitted changes)
+command:     ./scripts/batch_ablation.sh --description rtx4070 first run rtx4070 mm
+benchmarks:  mm
+configs:
+  benchmarks/mm/configs/mm_basic.toml
+  benchmarks/mm/configs/mm.toml
+  benchmarks/mm/configs/n1000_b16x16.toml
+  benchmarks/mm/configs/n1024_b16x16.toml
+  benchmarks/mm/configs/n1024_b32x32.toml
+  benchmarks/mm/configs/n1024_b32x8.toml
+  benchmarks/mm/configs/n1024_b8x8.toml
+  benchmarks/mm/configs/n2048_b16x16.toml
+  benchmarks/mm/configs/n2048_b32x32.toml
+  benchmarks/mm/configs/n2048_b32x8.toml
+  benchmarks/mm/configs/n2048_b8x8.toml
+  benchmarks/mm/configs/n256_b16x16.toml
+  benchmarks/mm/configs/n256_b32x32.toml
+  benchmarks/mm/configs/n256_b32x8.toml
+  benchmarks/mm/configs/n256_b8x8.toml
+  benchmarks/mm/configs/n512_b16x16.toml
+  benchmarks/mm/configs/n512_b32x32.toml
+  benchmarks/mm/configs/n512_b32x8.toml
+  benchmarks/mm/configs/n512_b8x8.toml
+  benchmarks/mm/configs/variants_n1000_b16x16.toml
+  benchmarks/mm/configs/variants_n2048_b16x16.toml
+  benchmarks/mm/configs/variants_n512_b16x16.toml
+finished:    2026-11-17 22:09:20 EST

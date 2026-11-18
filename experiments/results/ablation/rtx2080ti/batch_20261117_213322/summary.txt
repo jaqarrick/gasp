@@ -1,0 +1,42 @@
+ablation on rtx2080ti: 22 passed, 0 failed
+profile: built-in for rtx2080ti
+  passed: mm/mm_basic
+  passed: mm/mm
+  passed: mm/n1000_b16x16
+  passed: mm/n1024_b16x16
+  passed: mm/n1024_b32x32
+  passed: mm/n1024_b32x8
+  passed: mm/n1024_b8x8
+  passed: mm/n2048_b16x16
+  passed: mm/n2048_b32x32
+  passed: mm/n2048_b32x8
+  passed: mm/n2048_b8x8
+  passed: mm/n256_b16x16
+  passed: mm/n256_b32x32
+  passed: mm/n256_b32x8
+  passed: mm/n256_b8x8
+  passed: mm/n512_b16x16
+  passed: mm/n512_b32x32
+  passed: mm/n512_b32x8
+  passed: mm/n512_b8x8
+  passed: mm/variants_n1000_b16x16
+  passed: mm/variants_n2048_b16x16
+  passed: mm/variants_n512_b16x16
+
+error decomposition (GASPerf; make ablation-results BATCH=./experiments/results/ablation/rtx2080ti/batch_20261117_213322 ARGS='--model all' for every model):
+gpu        benchmark  model    row                  kernels  abs_err_mean  abs_err_median  speedups  abs_speedup_err_mean  abs_speedup_err_median  itilp_capped  itmlp_capped
+---------  ---------  -------  -------------------  -------  ------------  --------------  --------  --------------------  ----------------------  ------------  ------------
+rtx2080ti  mm         GASPerf  all-static                58        21.879          18.621        36                25.163                  21.603            58             0
+rtx2080ti  mm         GASPerf  crude                     58        25.697          24.125        36                67.704                  23.675            58             0
+rtx2080ti  mm         GASPerf  profiled-cache            58        21.899          18.785        36                25.107                  21.708            58             0
+rtx2080ti  mm         GASPerf  profiled-coalescing       58        21.391          18.621        36                24.667                  20.001            58             0
+rtx2080ti  mm         GASPerf  profiled-bank             58        21.879          18.621        36                25.163                  21.603            58             0
+rtx2080ti  mm         GASPerf  profiled-counts           58        21.493          19.260        36                23.842                  19.321            58             0
+rtx2080ti  mm         GASPerf  all-profiled              58        21.093          19.423        36                23.293                  18.087            58             0
+rtx2080ti  all        GASPerf  all-static                58        21.879          18.621        36                25.163                  21.603            58             0
+rtx2080ti  all        GASPerf  crude                     58        25.697          24.125        36                67.704                  23.675            58             0
+rtx2080ti  all        GASPerf  profiled-cache            58        21.899          18.785        36                25.107                  21.708            58             0
+rtx2080ti  all        GASPerf  profiled-coalescing       58        21.391          18.621        36                24.667                  20.001            58             0
+rtx2080ti  all        GASPerf  profiled-bank             58        21.879          18.621        36                25.163                  21.603            58             0
+rtx2080ti  all        GASPerf  profiled-counts           58        21.493          19.260        36                23.842                  19.321            58             0
+rtx2080ti  all        GASPerf  all-profiled              58        21.093          19.423        36                23.293                  18.087            58             0
