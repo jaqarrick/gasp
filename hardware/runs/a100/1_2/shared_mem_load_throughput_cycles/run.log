@@ -1,0 +1,62 @@
+$ nvcc -O3 -std=c++17 -arch=sm_80 /home/jsr10062/repos/gasp/hardware/microbenchmarks/gasp-bm/shared_memory_load_throughput.cu -o /home/jsr10062/repos/gasp/hardware/runs/a100/1_2/build/shared_memory_load_throughput
+$ ncu --clock-control base --cache-control none --metrics gpc__cycles_elapsed.max --log-file /home/jsr10062/repos/gasp/hardware/runs/a100/1_2/shared_mem_load_throughput_cycles/ncu.log /home/jsr10062/repos/gasp/hardware/runs/a100/1_2/build/shared_memory_load_throughput --gpu a100 --out-dir /home/jsr10062/repos/gasp/hardware/runs/a100/1_2/shared_mem_load_throughput_cycles
+loads_only       warps/SM  1: 5.9395 cycles/load, 5.9395 cycles/access
+loads_only       warps/SM  2: 2.9709 cycles/load, 2.9709 cycles/access
+loads_only       warps/SM  4: 1.5027 cycles/load, 1.5027 cycles/access
+loads_only       warps/SM  8: 1.0185 cycles/load, 1.0185 cycles/access
+loads_only       warps/SM 16: 1.0033 cycles/load, 1.0033 cycles/access
+loads_only       warps/SM 32: 1.0014 cycles/load, 1.0014 cycles/access
+loads_only       warps/SM 64: 1.0007 cycles/load, 1.0007 cycles/access
+10loads_1store   warps/SM  1: 7.6031 cycles/load, 6.9119 cycles/access
+10loads_1store   warps/SM  2: 3.8027 cycles/load, 3.4570 cycles/access
+10loads_1store   warps/SM  4: 1.9036 cycles/load, 1.7306 cycles/access
+10loads_1store   warps/SM  8: 1.1134 cycles/load, 1.0122 cycles/access
+10loads_1store   warps/SM 16: 1.1047 cycles/load, 1.0043 cycles/access
+10loads_1store   warps/SM 32: 1.1021 cycles/load, 1.0019 cycles/access
+10loads_1store   warps/SM 64: 1.1011 cycles/load, 1.0010 cycles/access
+Saved: /home/jsr10062/repos/gasp/hardware/runs/a100/1_2/shared_mem_load_throughput_cycles/shared_mem_load_throughput_cycles.a100.run.json
+{
+  "benchmark": "shared_memory_load_throughput.cu",
+  "parameter": "shared_mem_load_throughput_cycles",
+  "value": 1.0007,
+  "unit": "SM cycles per warp shared load instruction, at the plateau",
+  "plateau_ok": true,
+  "gpu": "a100",
+  "architecture": "ampere",
+  "arch": "sm_80",
+  "device": {
+    "name": "NVIDIA A100-SXM4-40GB",
+    "sms": 108,
+    "max_warps_per_sm": 64
+  },
+  "groups_per_warp": 256,
+  "loads_per_group": 16,
+  "mixed_loads_per_group": 10,
+  "mixed_stores_per_group": 1,
+  "max_blocks": 216,
+  "reps": 200,
+  "plateaus": {
+    "loads_only": {"cycles_per_load": 1.0007, "cycles_per_access": 1.0007, "plateau_ok": true},
+    "10loads_1store": {"cycles_per_load": 1.1011, "cycles_per_access": 1.0010, "plateau_ok": true}
+  },
+  "configs": [
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 1, "span_cycles": 24770.0000, "overhead_cycles": 442.0000, "cycles_per_load": 5.9395, "cycles_per_access": 5.9395, "rep_spread": 0.0027, "sms_measured": 108},
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 2, "span_cycles": 24762.0000, "overhead_cycles": 424.5000, "cycles_per_load": 2.9709, "cycles_per_access": 2.9709, "rep_spread": 0.0042, "sms_measured": 108},
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 4, "span_cycles": 25004.0000, "overhead_cycles": 383.0000, "cycles_per_load": 1.5027, "cycles_per_access": 1.5027, "rep_spread": 0.0051, "sms_measured": 108},
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 8, "span_cycles": 33773.0000, "overhead_cycles": 398.5000, "cycles_per_load": 1.0185, "cycles_per_access": 1.0185, "rep_spread": 0.0027, "sms_measured": 108},
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 16, "span_cycles": 66189.0000, "overhead_cycles": 435.5000, "cycles_per_load": 1.0033, "cycles_per_access": 1.0033, "rep_spread": 0.0018, "sms_measured": 108},
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 32, "span_cycles": 131765.5000, "overhead_cycles": 506.5000, "cycles_per_load": 1.0014, "cycles_per_access": 1.0014, "rep_spread": 0.0008, "sms_measured": 108},
+    {"shape": "loads_only", "loads_per_group": 16, "stores_per_group": 0, "warps_per_sm": 64, "span_cycles": 262887.0000, "overhead_cycles": 563.5000, "cycles_per_load": 1.0007, "cycles_per_access": 1.0007, "rep_spread": 0.0001, "sms_measured": 108},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 1, "span_cycles": 19906.0000, "overhead_cycles": 442.0000, "cycles_per_load": 7.6031, "cycles_per_access": 6.9119, "rep_spread": 0.0027, "sms_measured": 108},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 2, "span_cycles": 19894.5000, "overhead_cycles": 424.5000, "cycles_per_load": 3.8027, "cycles_per_access": 3.4570, "rep_spread": 0.0049, "sms_measured": 108},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 4, "span_cycles": 19876.0000, "overhead_cycles": 383.0000, "cycles_per_load": 1.9036, "cycles_per_access": 1.7306, "rep_spread": 0.0064, "sms_measured": 108},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 8, "span_cycles": 23201.5000, "overhead_cycles": 398.5000, "cycles_per_load": 1.1134, "cycles_per_access": 1.0122, "rep_spread": 0.0044, "sms_measured": 108},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 16, "span_cycles": 45686.0000, "overhead_cycles": 435.5000, "cycles_per_load": 1.1047, "cycles_per_access": 1.0043, "rep_spread": 0.0017, "sms_measured": 108},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 32, "span_cycles": 90787.0000, "overhead_cycles": 506.5000, "cycles_per_load": 1.1021, "cycles_per_access": 1.0019, "rep_spread": 0.0011, "sms_measured": 108},
+    {"shape": "10loads_1store", "loads_per_group": 10, "stores_per_group": 1, "warps_per_sm": 64, "span_cycles": 180960.5000, "overhead_cycles": 563.5000, "cycles_per_load": 1.1011, "cycles_per_access": 1.0010, "rep_spread": 0.0003, "sms_measured": 108}
+  ],
+  "clock": {"sm_clock_ghz": 1.0950},
+  "cuda_version": "12.6",
+  "driver_api_version": "13.3",
+  "timestamp": "2026-11-18T14:36:13Z"
+}

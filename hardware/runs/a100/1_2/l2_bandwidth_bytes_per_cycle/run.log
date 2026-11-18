@@ -1,0 +1,45 @@
+$ nvcc -O3 -std=c++17 -arch=sm_80 /home/jsr10062/repos/gasp/hardware/microbenchmarks/gasp-bm/l2_bandwidth.cu -o /home/jsr10062/repos/gasp/hardware/runs/a100/1_2/build/l2_bandwidth
+$ ncu --clock-control base --cache-control none --metrics gpc__cycles_elapsed.max --log-file /home/jsr10062/repos/gasp/hardware/runs/a100/1_2/l2_bandwidth_bytes_per_cycle/ncu.log /home/jsr10062/repos/gasp/hardware/runs/a100/1_2/build/l2_bandwidth --gpu a100 --out-dir /home/jsr10062/repos/gasp/hardware/runs/a100/1_2/l2_bandwidth_bytes_per_cycle
+GPU: NVIDIA A100-SXM4-40GB (sm_80), SMs: 108, L2: 40.0 MB (device-reported), up to 864 blocks of 256 threads
+buffer 20% of L2,  864 blocks: 2137.36 bytes/cycle (2338.1 GB/s)
+buffer 30% of L2,  864 blocks: 1770.67 bytes/cycle (1936.7 GB/s)
+buffer 40% of L2,  864 blocks: 1709.08 bytes/cycle (1869.2 GB/s)
+buffer 50% of L2,  864 blocks: 1684.00 bytes/cycle (1841.9 GB/s)
+buffer 40% of L2,   27 blocks: 905.90 bytes/cycle (991.9 GB/s)
+buffer 40% of L2,   54 blocks: 1631.77 bytes/cycle (1786.4 GB/s)
+buffer 40% of L2,  108 blocks: 2023.54 bytes/cycle (2215.2 GB/s)
+buffer 40% of L2,  216 blocks: 2117.49 bytes/cycle (2317.4 GB/s)
+buffer 40% of L2,  432 blocks: 2131.72 bytes/cycle (2332.9 GB/s)
+WARNING: the rate is still rising with the number of blocks, so this is not a whole-GPU limit (it may be per SM).
+
+L2 bandwidth: 1709.08 bytes/cycle (1869.2 GB/s at 1.094 GHz)
+Saved: /home/jsr10062/repos/gasp/hardware/runs/a100/1_2/l2_bandwidth_bytes_per_cycle/l2_bandwidth_bytes_per_cycle.a100.run.json
+{
+  "benchmark": "l2_bandwidth.cu",
+  "parameter": "l2_bandwidth_bytes_per_cycle",
+  "value": 1709.0817,
+  "unit": "bytes/cycle",
+  "working_sets_agree": true,
+  "saturated": false,
+  "gpu": "a100",
+  "gpu_name": "NVIDIA A100-SXM4-40GB",
+  "arch": "sm_80",
+  "num_sms": 108,
+  "l2_cache_bytes": 41943040,
+  "l2_cache_kb_assumed": 40960,
+  "reps": 100,
+  "configs": [
+    {"working_set_pct_of_l2": 20, "working_set_bytes": 8388608, "blocks": 864, "passes_per_block": 4, "bytes_per_cycle": 2137.3573, "bytes_per_cycle_per_block": 2.4738, "gb_per_s": 2338.1099, "sm_clock_ghz": 1.0941, "rep_spread": 0.0391},
+    {"working_set_pct_of_l2": 30, "working_set_bytes": 12582912, "blocks": 864, "passes_per_block": 4, "bytes_per_cycle": 1770.6651, "bytes_per_cycle_per_block": 2.0494, "gb_per_s": 1936.7155, "sm_clock_ghz": 1.0938, "rep_spread": 0.0552},
+    {"working_set_pct_of_l2": 40, "working_set_bytes": 16777216, "blocks": 864, "passes_per_block": 4, "bytes_per_cycle": 1709.0817, "bytes_per_cycle_per_block": 1.9781, "gb_per_s": 1869.1947, "sm_clock_ghz": 1.0938, "rep_spread": 0.0239},
+    {"working_set_pct_of_l2": 50, "working_set_bytes": 20971520, "blocks": 864, "passes_per_block": 4, "bytes_per_cycle": 1683.9972, "bytes_per_cycle_per_block": 1.9491, "gb_per_s": 1841.8622, "sm_clock_ghz": 1.0938, "rep_spread": 0.0169},
+    {"working_set_pct_of_l2": 40, "working_set_bytes": 16777216, "blocks": 27, "passes_per_block": 4, "bytes_per_cycle": 905.9002, "bytes_per_cycle_per_block": 33.5519, "gb_per_s": 991.8913, "sm_clock_ghz": 1.0949, "rep_spread": 0.0103},
+    {"working_set_pct_of_l2": 40, "working_set_bytes": 16777216, "blocks": 54, "passes_per_block": 4, "bytes_per_cycle": 1631.7699, "bytes_per_cycle_per_block": 30.2180, "gb_per_s": 1786.4150, "sm_clock_ghz": 1.0948, "rep_spread": 0.0178},
+    {"working_set_pct_of_l2": 40, "working_set_bytes": 16777216, "blocks": 108, "passes_per_block": 4, "bytes_per_cycle": 2023.5351, "bytes_per_cycle_per_block": 18.7364, "gb_per_s": 2215.2039, "sm_clock_ghz": 1.0947, "rep_spread": 0.0120},
+    {"working_set_pct_of_l2": 40, "working_set_bytes": 16777216, "blocks": 216, "passes_per_block": 4, "bytes_per_cycle": 2117.4899, "bytes_per_cycle_per_block": 9.8032, "gb_per_s": 2317.4254, "sm_clock_ghz": 1.0945, "rep_spread": 0.0057},
+    {"working_set_pct_of_l2": 40, "working_set_bytes": 16777216, "blocks": 432, "passes_per_block": 4, "bytes_per_cycle": 2131.7219, "bytes_per_cycle_per_block": 4.9345, "gb_per_s": 2332.9110, "sm_clock_ghz": 1.0944, "rep_spread": 0.0033}
+  ],
+  "clock": {"sm_clock_ghz": 1.0938},
+  "cuda_version": "12.6",
+  "timestamp": "2026-11-18T14:37:59Z"
+}
