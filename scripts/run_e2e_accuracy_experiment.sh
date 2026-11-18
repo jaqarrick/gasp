@@ -1,8 +1,8 @@
 #!/bin/bash
 # Run one benchmark config end to end (predict, then measure under ncu) and save the JSON results.
 # --dry-run only predicts: no --run, so no GPU or ncu is needed.
-# --config <path> runs that config instead of benchmarks/<benchmark>/<benchmark>.toml,
-# such as one from benchmarks/<benchmark>/configs/.
+# --config <path> runs that config instead of benchmarks/<benchmark>/configs/<benchmark>.toml,
+# such as another one from benchmarks/<benchmark>/configs/.
 # --out-dir <dir> saves the results in <dir> instead of a new
 # experiments/results/e2e/<gpu>/<benchmark>_<timestamp>/ (scripts/batch_experiment.sh uses it).
 # --profile <path> uses that hardware profile (such as one from make microbenchmarks)
@@ -74,11 +74,11 @@ fi
 cd "$(dirname "$0")/.."
 
 BMK_DIR="./benchmarks/$BMK"
-BMK_CONFIG="${CONFIG:-$BMK_DIR/$BMK.toml}"
+BMK_CONFIG="${CONFIG:-$BMK_DIR/configs/$BMK.toml}"
 echo "Running $BMK on $GPU with $BMK_CONFIG${PROFILE:+ and profile $PROFILE}"
 
 # First check if the benchmark config and path exists in ./benchmarks
-# e.g. argument is "mm" we look for mm.toml in ./benchmarks/mm/
+# e.g. argument is "mm" we look for mm.toml in ./benchmarks/mm/configs/
 if [ ! -d "$BMK_DIR" ]; then
     echo "error: benchmark directory $BMK_DIR not found" >&2
     exit 1

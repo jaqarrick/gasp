@@ -213,4 +213,7 @@ def run(
         t_overlap=model.t_overlap,
         t_exec=t_exec,
         t_gpu=t_exec,
+        itilp_max=itilp_max,
+        itilp_capped=m.ilp * n > itilp_max,
+        itmlp_capped=m.mlp * mwp_cp > mwp_peak_bw,
     )

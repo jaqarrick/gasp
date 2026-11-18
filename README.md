@@ -53,10 +53,10 @@ Pick kernels out of a file that holds several. Without a kernel name, GASP stops
 make run ARGS="--gpu b200 kernels.cu::vecadd_good kernels.cu::vecadd_poor"
 ```
 
-Give each kernel its own settings with a TOML file (see [`vecadd.toml`](benchmarks/vecadd/vecadd.toml)):
+Give each kernel its own settings with a TOML file (see [`vecadd.toml`](benchmarks/vecadd/configs/vecadd.toml)):
 
 ```bash
-make run ARGS="--gpu b200 --config benchmarks/vecadd/vecadd.toml"
+make run ARGS="--gpu b200 --config benchmarks/vecadd/configs/vecadd.toml"
 ```
 
 ```toml
@@ -147,7 +147,7 @@ make run ARGS="--gpu rtx2080ti --run benchmarks/vecadd/vecadd_good.cu benchmarks
 `--json` writes one JSON document to stdout and sends everything else (tables, warnings, info) to stderr. 
 
 ```bash
-make run ARGS="--gpu rtx2080ti --run --json --config benchmarks/vecadd/vecadd.toml" > result.json
+make run ARGS="--gpu rtx2080ti --run --json --config benchmarks/vecadd/configs/vecadd.toml" > result.json
 ```
 
 
@@ -156,8 +156,8 @@ make run ARGS="--gpu rtx2080ti --run --json --config benchmarks/vecadd/vecadd.to
 An override replaces a group of the model's static inputs with what ncu measured, to see how much of the error that input causes. Profile once and save the measurements, then replay them with any override. Replaying needs no GPU:
 
 ```bash
-make run ARGS="--gpu rtx2080ti --run --config benchmarks/vecadd/vecadd.toml --save-metrics vecadd.metrics.json"
-make run ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --metrics vecadd.metrics.json --override cache=profiled"
+make run ARGS="--gpu rtx2080ti --run --config benchmarks/vecadd/configs/vecadd.toml --save-metrics vecadd.metrics.json"
+make run ARGS="--gpu rtx2080ti --config benchmarks/vecadd/configs/vecadd.toml --metrics vecadd.metrics.json --override cache=profiled"
 ```
 
 `--override GROUP=SOURCE` is repeatable. A group not named stays static.
@@ -174,7 +174,17 @@ make run ARGS="--gpu rtx2080ti --config benchmarks/vecadd/vecadd.toml --metrics 
 - The metrics file holds ncu's raw values for every run, keyed by kernel name. GASP stops if the GPU, a kernel name, or a kernel's block or grid size differs from the file, or if a metric a `profiled` override needs is missing.
 - `--metrics` also prints the predicted vs measured table from the file. It can't be combined with `--run`.
 
-The full ablation, one row per override set, is in [`experiments/ablation`](experiments/ablation/README.md): `make ablation ARGS="..."`.
+The full ablation, one row per override set, is in [`experiments/ablation`](experiments/ablation/README.md): `make ablation ARGS="..."` for one config, `make batch-ablation-experiment GPU=<gpu>` to measure and ablate every config on a GPU, and `make ablation-results BATCH=<dir>` for the error decomposition.
+
+### Running every experiment
+
+```sh
+make all-experiments GPU=rtx2080ti
+```
+
+This runs the ablation batch on `mm`, `bank_conflict`, `transpose` and `l2`, then the e2e batch on every benchmark. It needs the GPU. `ABLATION_BMKS='mm transpose'` replaces the ablation's list.
+
+**It asks for two descriptions at the start, one per batch, before anything runs.** After you answer them it runs to the end without stopping for input. To skip the questions, pass both: `ABLATION_DESC='<text>' E2E_DESC='<text>'`. Without a terminal (e.g. `nohup`) you must pass both, or it stops right away with an error. If the ablation batch fails, the e2e batch doesn't start. See [`docs/experiments.md`](docs/experiments.md) section 7.
 
 ### Models
 
@@ -183,8 +193,8 @@ Todo
 
 ```bash
 make build
-make docker-run ARGS="--gpu b200 --config benchmarks/vecadd/vecadd.toml"
-make docker-run DOCKER_FLAGS="--gpus all" ARGS="--gpu rtx2080ti --run --config benchmarks/vecadd/vecadd.toml"
+make docker-run ARGS="--gpu b200 --config benchmarks/vecadd/configs/vecadd.toml"
+make docker-run DOCKER_FLAGS="--gpus all" ARGS="--gpu rtx2080ti --run --config benchmarks/vecadd/configs/vecadd.toml"
 ```
 
 - `docker-run` mounts only `benchmarks/` and `hardware/`. Kernels and configs must be there, or already be in the image from the last `make build`.
@@ -193,7 +203,7 @@ make docker-run DOCKER_FLAGS="--gpus all" ARGS="--gpu rtx2080ti --run --config b
 - Traces are lost when the container exits unless they go to a mounted path, such as `--trace-file benchmarks/traces.log`.
 - `--run` needs a GPU in the container, which `DOCKER_FLAGS="--gpus all"` requests. This needs the NVIDIA container runtime, and running `ncu` in a container hasn't been tested yet.
 - The Dev Container has no GPU access, so `--run` isn't available there.
-- Replaying a metrics file (`--metrics`, `--override`) needs no GPU, so it works in any container. The file has to be under `benchmarks/` or `hardware/` to be visible to `docker-run`. `--save-metrics` has to write to one of those paths too, or the file is lost with the container. `make ablation` runs locally only.
+- Replaying a metrics file (`--metrics`, `--override`) needs no GPU, so it works in any container. The file has to be under `benchmarks/` or `hardware/` to be visible to `docker-run`. `--save-metrics` has to write to one of those paths too, or the file is lost with the container. `make ablation`, `make batch-ablation-experiment` and `make ablation-results` run locally only.
 
 ### Options
 

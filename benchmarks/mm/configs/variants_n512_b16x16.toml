@@ -1,0 +1,45 @@
+# basic vs five mm variants, M = N = K = 512, block 16x16; reuse = L1 hit share by 32-byte sectors
+
+[defaults]
+problem_size = 512
+footprint = 3145728
+block_size = [16, 16]
+grid_size = [32, 32]
+params = { M = 512, N = 512, K = 512 }
+program_args = ["512", "512", "512", "16", "16"]
+
+[[kernel]]
+name = "basic"
+file = "benchmarks/mm/mm_basic.cu"
+loop_counts = [32, 0, 0]
+reuse = 0.875
+
+[[kernel]]
+name = "uncoalesced"
+file = "benchmarks/mm/mm_uncoalesced.cu"
+loop_counts = [32, 0, 0]
+reuse = 0.9706
+
+[[kernel]]
+name = "double"
+file = "benchmarks/mm/mm_double.cu"
+loop_counts = [32, 0, 0]
+reuse = 0.875
+
+[[kernel]]
+name = "bounds"
+file = "benchmarks/mm/mm_bounds.cu"
+loop_counts = [128, 0]
+reuse = 0.875
+
+[[kernel]]
+name = "sfu"
+file = "benchmarks/mm/mm_sfu.cu"
+loop_counts = [128, 0]
+reuse = 0.875
+
+[[kernel]]
+name = "tiled"
+file = "benchmarks/mm/mm_tiled.cu"
+loop_counts = [32]
+reuse = 0

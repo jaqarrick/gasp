@@ -712,6 +712,7 @@ def test_gasperf_matches_gpuperf(build):
         sfu_pipe_time=got.sfu_pipe_time,
         launch_overhead=got.launch_overhead,
         t_gpu=got.t_gpu,
+        itmlp_capped=got.itmlp_capped,
     )
 
 

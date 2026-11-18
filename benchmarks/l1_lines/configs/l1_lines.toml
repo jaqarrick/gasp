@@ -1,0 +1,72 @@
+# sectors vs 128-byte lines per warp request, L1-resident reads; name = sectors and lines per request
+
+[defaults]
+file = "benchmarks/l1_lines/l1_lines.cu"
+problem_size = 1048576
+block_size = 256
+grid_size = 4096
+footprint = 4227072
+
+[[kernel]]
+name = "contiguous"
+kernel = "l1_lines"
+loop_counts = [64]
+program_args = ["1048576", "32", "32", "0", "256"]
+params = { N = 1048576, group = 32, gap = 32, offset = 0, reads = 256 }
+reuse = 0.9961
+
+[[kernel]]
+name = "s8_l2_stride2"
+kernel = "l1_lines"
+loop_counts = [64]
+program_args = ["1048576", "1", "2", "0", "256"]
+params = { N = 1048576, group = 1, gap = 2, offset = 0, reads = 256 }
+reuse = 0.9981
+
+[[kernel]]
+name = "s8_l8_groups4"
+kernel = "l1_lines"
+loop_counts = [64]
+program_args = ["1048576", "4", "32", "0", "256"]
+params = { N = 1048576, group = 4, gap = 32, offset = 0, reads = 256 }
+reuse = 0.9981
+
+[[kernel]]
+name = "s16_l4_stride4"
+kernel = "l1_lines"
+loop_counts = [64]
+program_args = ["1048576", "1", "4", "0", "256"]
+params = { N = 1048576, group = 1, gap = 4, offset = 0, reads = 256 }
+reuse = 0.999
+
+[[kernel]]
+name = "s16_l16_groups2"
+kernel = "l1_lines"
+loop_counts = [64]
+program_args = ["1048576", "2", "32", "0", "256"]
+params = { N = 1048576, group = 2, gap = 32, offset = 0, reads = 256 }
+reuse = 0.999
+
+[[kernel]]
+name = "s32_l8_stride8"
+kernel = "l1_lines"
+loop_counts = [64]
+program_args = ["1048576", "1", "8", "0", "256"]
+params = { N = 1048576, group = 1, gap = 8, offset = 0, reads = 256 }
+reuse = 0.9995
+
+[[kernel]]
+name = "s32_l32_stride32"
+kernel = "l1_lines"
+loop_counts = [64]
+program_args = ["1048576", "1", "32", "0", "256"]
+params = { N = 1048576, group = 1, gap = 32, offset = 0, reads = 256 }
+reuse = 0.9995
+
+[[kernel]]
+name = "s5_l2_misaligned"
+kernel = "l1_lines"
+loop_counts = [64]
+program_args = ["1048576", "32", "32", "1", "256"]
+params = { N = 1048576, group = 32, gap = 32, offset = 1, reads = 256 }
+reuse = 0.9969

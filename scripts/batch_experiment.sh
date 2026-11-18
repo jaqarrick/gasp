@@ -13,6 +13,8 @@
 #   experiments/results/e2e/<gpu>/batch_<timestamp>/<benchmark>_<config>/
 #   experiments/results/e2e/<gpu>/batch_<timestamp>/experiment.txt
 #   experiments/results/e2e/<gpu>/batch_<timestamp>/summary.txt
+# summary.txt holds the pass/fail list and the results table from scripts/read_batch.py
+# (GASPerf only); it is printed at the end of the run.
 #
 # Example usage:
 #   scripts/batch_experiment.sh [--dry-run] [--profile <path>] [--description <text>] <gpu> [benchmark ...]
@@ -192,6 +194,10 @@ done
     echo "profile: ${PROFILE:-built-in for $GPU}"
     [ "${#PASSED[@]}" -eq 0 ] || printf '  passed: %s\n' "${PASSED[@]}"
     [ "${#FAILED[@]}" -eq 0 ] || printf '  failed: %s\n' "${FAILED[@]}"
+    echo
+    echo "results (GASPerf; make batch-results BATCH=$BATCH_DIR ARGS='--model all' for every model):"
+    # read_batch exits 1 when a config left no result.json; the FAILED check below already covers that
+    .venv/bin/python scripts/read_batch.py "$BATCH_DIR" 2>&1 || true
 } > "$BATCH_DIR/summary.txt"
 
 echo "finished:    $(date '+%Y-%m-%d %H:%M:%S %Z')" >> "$BATCH_DIR/experiment.txt"

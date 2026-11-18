@@ -1,0 +1,24 @@
+# basic vs tiled mm, M = N = K = 1000; basic 16x16, tiled 16x16 (fixed tile); reuse = L1 hit share by 32-byte sectors; N not a multiple of 16, so edge blocks and remainders run
+
+[defaults]
+problem_size = 1000
+footprint = 12000000
+block_size = [16, 16]
+grid_size = [63, 63]
+params = { M = 1000, N = 1000, K = 1000 }
+program_args = ["1000", "1000", "1000", "16", "16"]
+
+[[kernel]]
+name = "basic"
+file = "benchmarks/mm/mm_basic.cu"
+loop_counts = [62, 0, 0]
+reuse = 0.875
+
+[[kernel]]
+name = "tiled"
+file = "benchmarks/mm/mm_tiled.cu"
+block_size = [16, 16]
+grid_size = [63, 63]
+program_args = ["1000", "1000", "1000", "16", "16"]
+loop_counts = [63]
+reuse = 0
