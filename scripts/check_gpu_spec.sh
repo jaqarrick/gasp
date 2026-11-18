@@ -3,6 +3,7 @@
 #
 #   scripts/check_gpu_spec.sh hardware/profiles/titanv.json
 #   scripts/check_gpu_spec.sh            # just print what the GPU reports
+#   scripts/check_gpu_spec.sh --output spec.txt [profile]   # write to spec.txt instead
 #
 # Needs nvcc (module load cuda-12.4 on the cuda machines) and python3.
 # simd_width, sfu_width, l1_shared_array_bytes and shared_mem_carveouts_bytes are
@@ -11,7 +12,31 @@
 # base clock, which a microbenchmark run reports as "SM clock: median".
 set -euo pipefail
 
-profile="${1:-}"
+profile=""
+output=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --output)
+            [[ $# -ge 2 ]] || { echo "--output needs a file path" >&2; exit 2; }
+            output="$2"
+            shift 2
+            ;;
+        --output=*)
+            output="${1#--output=}"
+            shift
+            ;;
+        *)
+            profile="$1"
+            shift
+            ;;
+    esac
+done
+
+if [[ -n "$output" ]]; then
+    mkdir -p "$(dirname "$output")"
+    exec > "$output"
+fi
+
 dir="$(mktemp -d)"
 trap 'rm -rf "$dir"' EXIT
 

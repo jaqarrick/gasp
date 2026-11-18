@@ -15,7 +15,7 @@ DRY_RUN ?=
 BATCH ?=
 REPLAY ?=
 
-.PHONY: all build install run test lint lint-fix format pre-commit clean docker-clean docker-run help microbenchmarks microbenchmarks-hpmll microbenchmarks-gpu-benches check_spec ablation batch-ablation-experiment ablation-results batch-e2e-experiment batch-results all-experiments
+.PHONY: all build install run test lint lint-fix format pre-commit clean docker-clean docker-run help microbenchmarks microbenchmarks-hpmll microbenchmarks-gpu-benches check_spec gpu-spec ablation batch-ablation-experiment ablation-results batch-e2e-experiment batch-results all-experiments
 
 $(VENV):
 	PYTHON=$(PYTHON) ./scripts/init_python.sh
@@ -95,6 +95,9 @@ microbenchmarks-gpu-benches:
 check_spec:
 	./scripts/check_gpu_spec.sh $(PROFILE)
 
+gpu-spec:
+	./scripts/check_gpu_spec.sh $(if $(OUTPUT),--output $(OUTPUT)) $(PROFILE)
+
 # FOR DOCKER
 build:
 	docker build --platform $(PLATFORM) -t $(IMAGE) .
@@ -127,6 +130,7 @@ help:
 	@echo "make microbenchmarks-hpmll GPU=.. VERSION=.. - run the HPMLL benchmarks that match profile fields, build a profile"
 	@echo "make microbenchmarks-gpu-benches GPU=.. VERSION=.. - DRAM bandwidth from gpu-stream, compare with the profiles"
 	@echo "make check_spec PROFILE=..       - compare a profile's spec fields with this machine's GPU"
+	@echo "make gpu-spec [PROFILE=..] [OUTPUT=..] - print this machine's GPU spec (or compare with PROFILE); OUTPUT=<path> writes it to that file"
 	@echo "make lint                       - lint Python code"
 	@echo "make format                      - format Python code"
 	@echo "make pre-commit                  - run all pre-commit hooks on all files"
