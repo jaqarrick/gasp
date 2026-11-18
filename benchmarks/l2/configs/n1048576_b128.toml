@@ -1,0 +1,21 @@
+# DRAM stream vs L2-resident reads, loads skip L1 (-dlcm=cg), N = 1048576, block 128
+
+[defaults]
+problem_size = 1048576
+block_size = 128
+grid_size = 8192
+params = { N = 1048576, reads = 64 }
+program_args = ["1048576", "64"]
+nvcc_flags = ["-Xptxas", "-dlcm=cg"]
+
+[[kernel]]
+name = "dram_stream"
+file = "benchmarks/l2/dram_stream.cu"
+loop_counts = [16]
+footprint = 272629760
+
+[[kernel]]
+name = "l2_resident"
+file = "benchmarks/l2/l2_resident.cu"
+loop_counts = [16]
+footprint = 6291456

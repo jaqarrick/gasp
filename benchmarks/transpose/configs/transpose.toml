@@ -1,10 +1,4 @@
-# gasp --gpu rtx2080ti --config benchmarks/transpose/configs/transpose.toml
-#
-# N x N float transpose through a 32x32 shared tile, N = 4096: 32x32 blocks over a
-# 128x128 grid, one tile per block, no loops. The two kernels make the same global
-# accesses; naive has a 32-way bank conflict on its one shared load per thread,
-# padded has none. Pico reports 31 extra shared accesses per warp for naive, 0 for
-# padded.
+# naive (32-way bank conflict) vs padded transpose, n = 4096, block 32x32 (fixed tile)
 
 [defaults]
 problem_size = 4096
@@ -12,6 +6,7 @@ block_size = [32, 32]
 grid_size = [128, 128]
 params = { n = 4096 }
 program_args = ["4096"]
+footprint = 134217728
 
 [[kernel]]
 name = "naive"

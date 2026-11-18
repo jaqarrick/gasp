@@ -1,0 +1,24 @@
+# basic vs tiled mm, M = N = K = 256; basic 16x16, tiled 16x16 (fixed tile); reuse = L1 hit share by 32-byte sectors
+
+[defaults]
+problem_size = 256
+footprint = 786432
+block_size = [16, 16]
+grid_size = [16, 16]
+params = { M = 256, N = 256, K = 256 }
+program_args = ["256", "256", "256", "16", "16"]
+
+[[kernel]]
+name = "basic"
+file = "benchmarks/mm/mm_basic.cu"
+loop_counts = [16, 0, 0]
+reuse = 0.875
+
+[[kernel]]
+name = "tiled"
+file = "benchmarks/mm/mm_tiled.cu"
+block_size = [16, 16]
+grid_size = [16, 16]
+program_args = ["256", "256", "256", "16", "16"]
+loop_counts = [16]
+reuse = 0

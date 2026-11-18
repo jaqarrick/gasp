@@ -1,0 +1,18 @@
+# SFU-bound vs SFU-free loop, N = 1048576, block 128, n = 256 steps
+
+[defaults]
+problem_size = 1048576
+block_size = 128
+grid_size = 8192
+params = { N = 1048576, n = 256 }
+program_args = ["1048576", "256"]
+
+[[kernel]]
+name = "sfu_bound"
+file = "benchmarks/sfu/sfu_bound.cu"
+loop_counts = [256]
+
+[[kernel]]
+name = "sfu_free"
+file = "benchmarks/sfu/sfu_free.cu"
+loop_counts = [256]

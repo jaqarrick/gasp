@@ -1,0 +1,17 @@
+# naive (32-way bank conflict) vs padded transpose, n = 512, block 32x32 (fixed tile)
+
+[defaults]
+problem_size = 512
+block_size = [32, 32]
+grid_size = [16, 16]
+params = { n = 512 }
+program_args = ["512"]
+footprint = 2097152
+
+[[kernel]]
+name = "naive"
+file = "benchmarks/transpose/transpose_naive.cu"
+
+[[kernel]]
+name = "padded"
+file = "benchmarks/transpose/transpose_padded.cu"

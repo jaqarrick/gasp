@@ -1,0 +1,18 @@
+# divergent (threadIdx.x & 1) vs uniform (blockIdx.x & 1) branch, N = 262144, block 256, n = 256 multiply-add steps per side
+
+[defaults]
+problem_size = 262144
+block_size = 256
+grid_size = 1024
+params = { N = 262144, n = 256 }
+program_args = ["262144", "256"]
+
+[[kernel]]
+name = "divergent"
+file = "benchmarks/divergence/branch_divergent.cu"
+loop_counts = [256, 256]
+
+[[kernel]]
+name = "uniform"
+file = "benchmarks/divergence/branch_uniform.cu"
+loop_counts = [256, 256]

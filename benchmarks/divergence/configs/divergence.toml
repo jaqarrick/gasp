@@ -1,13 +1,4 @@
-# gasp --gpu rtx2080ti --run --config benchmarks/divergence/configs/divergence.toml
-#
-# The same work per thread, n = 256 multiply-add steps, chosen by a branch: one side
-# runs x = x * 1.01f + 0.5f, the other x = x * 0.99f - 0.25f. divergent branches on
-# threadIdx.x & 1, so every warp runs both loops; uniform branches on blockIdx.x & 1,
-# so every warp runs one. Expected: uniform about 2x faster, and GASP's Divergent
-# Insts about one loop's worth for divergent, 0 for uniform.
-#
-# #pragma unroll 1 keeps each loop a single loop. loop_counts are the two loops in
-# code order (the * 1.01f side, then the * 0.99f side), n steps each; change them with n.
+# divergent (threadIdx.x & 1) vs uniform (blockIdx.x & 1) branch, N = 1048576, block 256, n = 256 multiply-add steps per side
 
 [defaults]
 problem_size = 1048576

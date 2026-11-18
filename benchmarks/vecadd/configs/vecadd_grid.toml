@@ -1,8 +1,7 @@
-# Try two different launch configs to judge launch overhead
+# good vs grid-stride vecadd, N = 1000000, block 256; stride runs 272 blocks (4 per SM on the 2080 Ti), longest thread 15 trips
 
 [defaults]
 problem_size = 1000000
-# distinct global bytes for the cache model: a, b and c, 1000000 floats each
 footprint = 12000000
 block_size = 256
 program_args = ["1000000"]
