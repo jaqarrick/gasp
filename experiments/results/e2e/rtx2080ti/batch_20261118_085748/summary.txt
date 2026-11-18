@@ -1,0 +1,15 @@
+config sweeps on rtx2080ti: 1 passed, 0 failed
+profile: built-in for rtx2080ti
+  passed: l1_lines/l1_lines
+
+results (GASPerf; make batch-results BATCH=./experiments/results/e2e/rtx2080ti/batch_20261118_085748 ARGS='--model all' for every model):
+config             kernel            block  grid  problem_size  model    t_gpu_pred  t_gpu_meas  t_gpu_err_pct  speedup_pred  speedup_meas  speedup_err_pct
+-----------------  ----------------  -----  ----  ------------  -------  ----------  ----------  -------------  ------------  ------------  ---------------
+l1_lines_l1_lines  contiguous        256    4096  1,048,576     GASPerf     321,380     279,433         15.012         1.000         1.000            0.000
+l1_lines_l1_lines  s8_l2_stride2     256    4096  1,048,576     GASPerf   1,995,652     506,974            294         0.161         0.551          -70.783
+l1_lines_l1_lines  s8_l8_groups4     256    4096  1,048,576     GASPerf   1,995,652   2,004,846         -0.459         0.161         0.139           15.541
+l1_lines_l1_lines  s16_l4_stride4    256    4096  1,048,576     GASPerf   3,978,774   1,005,923            296         0.081         0.278          -70.922
+l1_lines_l1_lines  s16_l16_groups2   256    4096  1,048,576     GASPerf   3,978,774   4,003,523         -0.618         0.081         0.070           15.727
+l1_lines_l1_lines  s32_l8_stride8    256    4096  1,048,576     GASPerf   7,945,290   2,005,839            296         0.040         0.139          -70.965
+l1_lines_l1_lines  s32_l32_stride32  256    4096  1,048,576     GASPerf   7,945,290   8,001,302         -0.700         0.040         0.035           15.822
+l1_lines_l1_lines  s5_l2_misaligned  256    4096  1,048,576     GASPerf   1,252,161     280,053            347         0.257         0.998          -74.277

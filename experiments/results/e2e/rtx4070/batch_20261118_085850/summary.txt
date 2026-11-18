@@ -1,0 +1,15 @@
+config sweeps on rtx4070: 1 passed, 0 failed
+profile: built-in for rtx4070
+  passed: l1_lines/l1_lines
+
+results (GASPerf; make batch-results BATCH=./experiments/results/e2e/rtx4070/batch_20261118_085850 ARGS='--model all' for every model):
+config             kernel            block  grid  problem_size  model    t_gpu_pred  t_gpu_meas  t_gpu_err_pct  speedup_pred  speedup_meas  speedup_err_pct
+-----------------  ----------------  -----  ----  ------------  -------  ----------  ----------  -------------  ------------  ------------  ---------------
+l1_lines_l1_lines  contiguous        256    4096  1,048,576     GASPerf     467,454     384,727         21.503         1.000         1.000            0.000
+l1_lines_l1_lines  s8_l2_stride2     256    4096  1,048,576     GASPerf   1,546,585     384,607            302         0.302         1.000          -69.784
+l1_lines_l1_lines  s8_l8_groups4     256    4096  1,048,576     GASPerf   1,546,585   1,481,481          4.394         0.302         0.260           16.388
+l1_lines_l1_lines  s16_l4_stride4    256    4096  1,048,576     GASPerf   3,085,351     745,010            314         0.152         0.516          -70.661
+l1_lines_l1_lines  s16_l16_groups2   256    4096  1,048,576     GASPerf   3,085,351   2,956,262          4.367         0.152         0.130           16.419
+l1_lines_l1_lines  s32_l8_stride8    256    4096  1,048,576     GASPerf   6,163,269   1,482,155            316         0.076         0.260          -70.781
+l1_lines_l1_lines  s32_l32_stride32  256    4096  1,048,576     GASPerf   6,163,269   5,905,601          4.363         0.076         0.065           16.423
+l1_lines_l1_lines  s5_l2_misaligned  256    4096  1,048,576     GASPerf     969,803     384,390            152         0.482         1.001          -51.841

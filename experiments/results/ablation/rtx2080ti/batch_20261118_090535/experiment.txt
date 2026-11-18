@@ -1,0 +1,83 @@
+description: ablation: all benchmarks
+
+started:     2026-11-18 09:05:35 EST
+gpu:         rtx2080ti
+device:      NVIDIA GeForce RTX 2080 Ti, 595.104.02
+unknown
+nvcc:        Cuda compilation tools, release 12.4, V12.4.131
+host:        cuda2.cims.nyu.edu
+profile:     hardware/profiles/rtx2080ti.json (built-in for rtx2080ti)
+profile sha: 12aeb646c8ab682e7e10916fec74e27fc6c8b4dcca7777283d795460baa074d6
+mode:        ablation (measure with ncu, then every ablation row)
+commit:      3f4533c on feat/prepare-gasp-experiments (uncommitted changes)
+command:     ./scripts/batch_ablation.sh --description ablation: all benchmarks rtx2080ti
+benchmarks:  bank_conflict divergence l1_lines l2 mm sfu transpose vecadd
+configs:
+  benchmarks/bank_conflict/configs/bank_conflict_loop_fill.toml
+  benchmarks/bank_conflict/configs/bank_conflict.toml
+  benchmarks/divergence/configs/divergence.toml
+  benchmarks/divergence/configs/n1048576_b1024.toml
+  benchmarks/divergence/configs/n1048576_b128.toml
+  benchmarks/divergence/configs/n1048576_b512.toml
+  benchmarks/divergence/configs/n1048576_b64.toml
+  benchmarks/divergence/configs/n262144_b256.toml
+  benchmarks/divergence/configs/n4194304_b256.toml
+  benchmarks/divergence/configs/n65536_b256.toml
+  benchmarks/l1_lines/configs/l1_lines.toml
+  benchmarks/l2/configs/l2.toml
+  benchmarks/l2/configs/n1048576_b1024.toml
+  benchmarks/l2/configs/n1048576_b128.toml
+  benchmarks/l2/configs/n1048576_b512.toml
+  benchmarks/l2/configs/n1048576_b64.toml
+  benchmarks/mm/configs/mm_basic.toml
+  benchmarks/mm/configs/mm.toml
+  benchmarks/mm/configs/n1000_b16x16.toml
+  benchmarks/mm/configs/n1024_b16x16.toml
+  benchmarks/mm/configs/n1024_b32x32.toml
+  benchmarks/mm/configs/n1024_b32x8.toml
+  benchmarks/mm/configs/n1024_b8x8.toml
+  benchmarks/mm/configs/n2048_b16x16.toml
+  benchmarks/mm/configs/n2048_b32x32.toml
+  benchmarks/mm/configs/n2048_b32x8.toml
+  benchmarks/mm/configs/n2048_b8x8.toml
+  benchmarks/mm/configs/n256_b16x16.toml
+  benchmarks/mm/configs/n256_b32x32.toml
+  benchmarks/mm/configs/n256_b32x8.toml
+  benchmarks/mm/configs/n256_b8x8.toml
+  benchmarks/mm/configs/n512_b16x16.toml
+  benchmarks/mm/configs/n512_b32x32.toml
+  benchmarks/mm/configs/n512_b32x8.toml
+  benchmarks/mm/configs/n512_b8x8.toml
+  benchmarks/mm/configs/variants_n1000_b16x16.toml
+  benchmarks/mm/configs/variants_n2048_b16x16.toml
+  benchmarks/mm/configs/variants_n512_b16x16.toml
+  benchmarks/sfu/configs/n1048576_b1024.toml
+  benchmarks/sfu/configs/n1048576_b128.toml
+  benchmarks/sfu/configs/n1048576_b512.toml
+  benchmarks/sfu/configs/n1048576_b64.toml
+  benchmarks/sfu/configs/n262144_b256.toml
+  benchmarks/sfu/configs/n4194304_b256.toml
+  benchmarks/sfu/configs/n65536_b256.toml
+  benchmarks/sfu/configs/sfu.toml
+  benchmarks/transpose/configs/n1024_b32x32.toml
+  benchmarks/transpose/configs/n2048_b32x32.toml
+  benchmarks/transpose/configs/n512_b32x32.toml
+  benchmarks/transpose/configs/transpose.toml
+  benchmarks/vecadd/configs/n1000000_b1024.toml
+  benchmarks/vecadd/configs/n1000000_b128.toml
+  benchmarks/vecadd/configs/n1000000_b256.toml
+  benchmarks/vecadd/configs/n1000000_b512.toml
+  benchmarks/vecadd/configs/n1000000_b64.toml
+  benchmarks/vecadd/configs/n16777216_b1024.toml
+  benchmarks/vecadd/configs/n16777216_b128.toml
+  benchmarks/vecadd/configs/n16777216_b256.toml
+  benchmarks/vecadd/configs/n16777216_b512.toml
+  benchmarks/vecadd/configs/n16777216_b64.toml
+  benchmarks/vecadd/configs/n65536_b1024.toml
+  benchmarks/vecadd/configs/n65536_b128.toml
+  benchmarks/vecadd/configs/n65536_b256.toml
+  benchmarks/vecadd/configs/n65536_b512.toml
+  benchmarks/vecadd/configs/n65536_b64.toml
+  benchmarks/vecadd/configs/vecadd_grid.toml
+  benchmarks/vecadd/configs/vecadd.toml
+finished:    2026-11-18 10:22:30 EST

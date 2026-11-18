@@ -1,0 +1,136 @@
+ablation on titanv: 67 passed, 0 failed
+profile: built-in for titanv
+  passed: bank_conflict/bank_conflict_loop_fill
+  passed: bank_conflict/bank_conflict
+  passed: divergence/divergence
+  passed: divergence/n1048576_b1024
+  passed: divergence/n1048576_b128
+  passed: divergence/n1048576_b512
+  passed: divergence/n1048576_b64
+  passed: divergence/n262144_b256
+  passed: divergence/n4194304_b256
+  passed: divergence/n65536_b256
+  passed: l1_lines/l1_lines
+  passed: l2/l2
+  passed: l2/n1048576_b1024
+  passed: l2/n1048576_b128
+  passed: l2/n1048576_b512
+  passed: l2/n1048576_b64
+  passed: mm/mm_basic
+  passed: mm/mm
+  passed: mm/n1000_b16x16
+  passed: mm/n1024_b16x16
+  passed: mm/n1024_b32x32
+  passed: mm/n1024_b32x8
+  passed: mm/n1024_b8x8
+  passed: mm/n2048_b16x16
+  passed: mm/n2048_b32x32
+  passed: mm/n2048_b32x8
+  passed: mm/n2048_b8x8
+  passed: mm/n256_b16x16
+  passed: mm/n256_b32x32
+  passed: mm/n256_b32x8
+  passed: mm/n256_b8x8
+  passed: mm/n512_b16x16
+  passed: mm/n512_b32x32
+  passed: mm/n512_b32x8
+  passed: mm/n512_b8x8
+  passed: mm/variants_n1000_b16x16
+  passed: mm/variants_n2048_b16x16
+  passed: mm/variants_n512_b16x16
+  passed: sfu/n1048576_b1024
+  passed: sfu/n1048576_b128
+  passed: sfu/n1048576_b512
+  passed: sfu/n1048576_b64
+  passed: sfu/n262144_b256
+  passed: sfu/n4194304_b256
+  passed: sfu/n65536_b256
+  passed: sfu/sfu
+  passed: transpose/n1024_b32x32
+  passed: transpose/n2048_b32x32
+  passed: transpose/n512_b32x32
+  passed: transpose/transpose
+  passed: vecadd/n1000000_b1024
+  passed: vecadd/n1000000_b128
+  passed: vecadd/n1000000_b256
+  passed: vecadd/n1000000_b512
+  passed: vecadd/n1000000_b64
+  passed: vecadd/n16777216_b1024
+  passed: vecadd/n16777216_b128
+  passed: vecadd/n16777216_b256
+  passed: vecadd/n16777216_b512
+  passed: vecadd/n16777216_b64
+  passed: vecadd/n65536_b1024
+  passed: vecadd/n65536_b128
+  passed: vecadd/n65536_b256
+  passed: vecadd/n65536_b512
+  passed: vecadd/n65536_b64
+  passed: vecadd/vecadd_grid
+  passed: vecadd/vecadd
+
+error decomposition (GASPerf; make ablation-results BATCH=./experiments/results/ablation/titanv/batch_20261118_090628 ARGS='--model all' for every model):
+gpu     benchmark      model    row                  kernels  abs_err_mean  abs_err_median  speedups  abs_speedup_err_mean  abs_speedup_err_median  itilp_capped  itmlp_capped
+------  -------------  -------  -------------------  -------  ------------  --------------  --------  --------------------  ----------------------  ------------  ------------
+titanv  bank_conflict  GASPerf  all-static                12           112          94.082        10                   124                  21.215            12             0
+titanv  bank_conflict  GASPerf  crude                     12        59.826          64.687        10                   784                     474            12             0
+titanv  bank_conflict  GASPerf  profiled-cache            12           112          94.082        10                   124                  21.215            12             0
+titanv  bank_conflict  GASPerf  profiled-coalescing       12           112          94.082        10                   124                  21.215            12             0
+titanv  bank_conflict  GASPerf  profiled-bank             12        87.826          93.276        10                16.359                  16.702            12             0
+titanv  bank_conflict  GASPerf  profiled-counts           12           111          93.802        10                   125                  22.245            12             0
+titanv  bank_conflict  GASPerf  all-profiled              12        87.017          92.871        10                17.225                  17.571            12             0
+titanv  divergence     GASPerf  all-static                16        65.121          78.574         8                 3.740                   0.621            16             0
+titanv  divergence     GASPerf  crude                     16        65.121          78.574         8                 3.740                   0.621            16             0
+titanv  divergence     GASPerf  profiled-cache            16        65.121          78.574         8                 3.740                   0.621            16             0
+titanv  divergence     GASPerf  profiled-coalescing       16        65.121          78.574         8                 3.740                   0.621            16             0
+titanv  divergence     GASPerf  profiled-bank             16        65.121          78.574         8                 3.740                   0.621            16             0
+titanv  divergence     GASPerf  profiled-counts           16        67.420          79.263         8                 1.278                   0.521            16             0
+titanv  divergence     GASPerf  all-profiled              16        67.420          79.263         8                 1.278                   0.521            16             0
+titanv  l1_lines       GASPerf  all-static                 8           144             119         7                50.791                  55.944             8             0
+titanv  l1_lines       GASPerf  crude                      8        55.528          57.788         7                   519                     372             8             0
+titanv  l1_lines       GASPerf  profiled-cache             8           144             118         7                50.679                  56.032             8             0
+titanv  l1_lines       GASPerf  profiled-coalescing        8           145             119         7                50.678                  55.978             8             0
+titanv  l1_lines       GASPerf  profiled-bank              8           144             119         7                50.791                  55.944             8             0
+titanv  l1_lines       GASPerf  profiled-counts            8           144             119         7                50.790                  55.944             8             0
+titanv  l1_lines       GASPerf  all-profiled               8           145             118         7                50.565                  56.067             8             0
+titanv  l2             GASPerf  all-static                10         6.105           5.655         5                 2.071                   0.755            10             0
+titanv  l2             GASPerf  crude                     10         6.105           5.655         5                 2.071                   0.755            10             0
+titanv  l2             GASPerf  profiled-cache            10        14.508          14.541         5                22.963                  22.632            10             0
+titanv  l2             GASPerf  profiled-coalescing       10         4.413           5.567         5                 3.390                   3.938            10             0
+titanv  l2             GASPerf  profiled-bank             10         6.105           5.655         5                 2.071                   0.755            10             0
+titanv  l2             GASPerf  profiled-counts           10         6.105           5.655         5                 2.071                   0.755            10             0
+titanv  l2             GASPerf  all-profiled              10         8.205           5.940         5                 6.426                   1.969            10             0
+titanv  mm             GASPerf  all-static                58        23.617          24.764        36                28.633                  32.260            58             0
+titanv  mm             GASPerf  crude                     58        26.735          30.062        36                67.710                  35.831            58             0
+titanv  mm             GASPerf  profiled-cache            58        23.357          24.042        36                27.454                  28.856            58             0
+titanv  mm             GASPerf  profiled-coalescing       58        23.248          24.764        36                29.118                  35.389            58             0
+titanv  mm             GASPerf  profiled-bank             58        23.715          24.764        36                27.842                  31.557            58             0
+titanv  mm             GASPerf  profiled-counts           58        22.514          22.591        36                28.246                  31.459            58             0
+titanv  mm             GASPerf  all-profiled              58        22.117          22.286        36                26.839                  30.757            58             0
+titanv  sfu            GASPerf  all-static                16        11.284           9.617         8                17.727                  17.208            16             0
+titanv  sfu            GASPerf  crude                     16        11.284           9.617         8                17.727                  17.208            16             0
+titanv  sfu            GASPerf  profiled-cache            16        11.284           9.617         8                17.727                  17.208            16             0
+titanv  sfu            GASPerf  profiled-coalescing       16        11.284           9.617         8                17.727                  17.208            16             0
+titanv  sfu            GASPerf  profiled-bank             16        11.284           9.617         8                17.727                  17.208            16             0
+titanv  sfu            GASPerf  profiled-counts           16        11.284           9.617         8                17.727                  17.208            16             0
+titanv  sfu            GASPerf  all-profiled              16        11.284           9.617         8                17.727                  17.208            16             0
+titanv  transpose      GASPerf  all-static                 8        26.002          19.046         4                52.718                  53.725             8             0
+titanv  transpose      GASPerf  crude                      8        32.463          33.008         4                27.525                  27.047             8             0
+titanv  transpose      GASPerf  profiled-cache             8        26.002          19.046         4                52.718                  53.725             8             0
+titanv  transpose      GASPerf  profiled-coalescing        8        26.002          19.046         4                52.718                  53.725             8             0
+titanv  transpose      GASPerf  profiled-bank              8        26.495          19.258         4                54.548                  55.582             8             0
+titanv  transpose      GASPerf  profiled-counts            8        26.002          19.046         4                52.718                  53.725             8             0
+titanv  transpose      GASPerf  all-profiled               8        26.495          19.258         4                54.548                  55.582             8             0
+titanv  vecadd         GASPerf  all-static                34        31.540          15.738        17                 2.329                   1.623            34             0
+titanv  vecadd         GASPerf  crude                     34        31.540          15.738        17                 2.329                   1.623            34             0
+titanv  vecadd         GASPerf  profiled-cache            34        31.531          16.037        17                 2.339                   1.623            34             0
+titanv  vecadd         GASPerf  profiled-coalescing       34        31.534          15.701        17                 2.315                   1.623            34             0
+titanv  vecadd         GASPerf  profiled-bank             34        31.540          15.738        17                 2.329                   1.623            34             0
+titanv  vecadd         GASPerf  profiled-counts           34        31.649          15.759        17                 2.609                   1.623            34             0
+titanv  vecadd         GASPerf  all-profiled              34        31.638          16.117        17                 2.601                   1.623            34             0
+titanv  all            GASPerf  all-static               162        39.687          21.178        95                32.191                  17.201           162             0
+titanv  all            GASPerf  crude                    162        32.891          26.823        95                   150                  17.216           162             0
+titanv  all            GASPerf  profiled-cache           162        40.105          23.012        95                32.838                  18.384           162             0
+titanv  all            GASPerf  profiled-coalescing      162        39.472          21.178        95                32.434                  17.091           162             0
+titanv  all            GASPerf  profiled-bank            162        37.979          21.178        95                20.645                  16.549           162             0
+titanv  all            GASPerf  profiled-counts          162        39.484          21.621        95                31.964                  17.201           162             0
+titanv  all            GASPerf  all-profiled             162        37.741          20.916        95                20.411                  16.811           162             0

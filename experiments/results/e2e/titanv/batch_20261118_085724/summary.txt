@@ -1,0 +1,15 @@
+config sweeps on titanv: 1 passed, 0 failed
+profile: built-in for titanv
+  passed: l1_lines/l1_lines
+
+results (GASPerf; make batch-results BATCH=./experiments/results/e2e/titanv/batch_20261118_085724 ARGS='--model all' for every model):
+config             kernel            block  grid  problem_size  model    t_gpu_pred  t_gpu_meas  t_gpu_err_pct  speedup_pred  speedup_meas  speedup_err_pct
+-----------------  ----------------  -----  ----  ------------  -------  ----------  ----------  -------------  ------------  ------------  ---------------
+l1_lines_l1_lines  contiguous        256    4096  1,048,576     GASPerf     243,497     181,895         33.867         1.000         1.000            0.000
+l1_lines_l1_lines  s8_l2_stride2     256    4096  1,048,576     GASPerf     879,192     220,715            298         0.277         0.824          -66.394
+l1_lines_l1_lines  s8_l8_groups4     256    4096  1,048,576     GASPerf     879,192     858,841          2.370         0.277         0.212           30.768
+l1_lines_l1_lines  s16_l4_stride4    256    4096  1,048,576     GASPerf   1,752,691     432,977            305         0.139         0.420          -66.930
+l1_lines_l1_lines  s16_l16_groups2   256    4096  1,048,576     GASPerf   1,752,691   1,710,211          2.484         0.139         0.106           30.622
+l1_lines_l1_lines  s32_l8_stride8    256    4096  1,048,576     GASPerf   3,499,946     859,995            307         0.070         0.212          -67.107
+l1_lines_l1_lines  s32_l32_stride32  256    4096  1,048,576     GASPerf   3,499,946   3,611,255         -3.082         0.070         0.050           38.124
+l1_lines_l1_lines  s5_l2_misaligned  256    4096  1,048,576     GASPerf     551,800     182,133            203         0.441         0.999          -55.814

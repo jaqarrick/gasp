@@ -1,0 +1,136 @@
+ablation on rtx4070: 67 passed, 0 failed
+profile: built-in for rtx4070
+  passed: bank_conflict/bank_conflict_loop_fill
+  passed: bank_conflict/bank_conflict
+  passed: divergence/divergence
+  passed: divergence/n1048576_b1024
+  passed: divergence/n1048576_b128
+  passed: divergence/n1048576_b512
+  passed: divergence/n1048576_b64
+  passed: divergence/n262144_b256
+  passed: divergence/n4194304_b256
+  passed: divergence/n65536_b256
+  passed: l1_lines/l1_lines
+  passed: l2/l2
+  passed: l2/n1048576_b1024
+  passed: l2/n1048576_b128
+  passed: l2/n1048576_b512
+  passed: l2/n1048576_b64
+  passed: mm/mm_basic
+  passed: mm/mm
+  passed: mm/n1000_b16x16
+  passed: mm/n1024_b16x16
+  passed: mm/n1024_b32x32
+  passed: mm/n1024_b32x8
+  passed: mm/n1024_b8x8
+  passed: mm/n2048_b16x16
+  passed: mm/n2048_b32x32
+  passed: mm/n2048_b32x8
+  passed: mm/n2048_b8x8
+  passed: mm/n256_b16x16
+  passed: mm/n256_b32x32
+  passed: mm/n256_b32x8
+  passed: mm/n256_b8x8
+  passed: mm/n512_b16x16
+  passed: mm/n512_b32x32
+  passed: mm/n512_b32x8
+  passed: mm/n512_b8x8
+  passed: mm/variants_n1000_b16x16
+  passed: mm/variants_n2048_b16x16
+  passed: mm/variants_n512_b16x16
+  passed: sfu/n1048576_b1024
+  passed: sfu/n1048576_b128
+  passed: sfu/n1048576_b512
+  passed: sfu/n1048576_b64
+  passed: sfu/n262144_b256
+  passed: sfu/n4194304_b256
+  passed: sfu/n65536_b256
+  passed: sfu/sfu
+  passed: transpose/n1024_b32x32
+  passed: transpose/n2048_b32x32
+  passed: transpose/n512_b32x32
+  passed: transpose/transpose
+  passed: vecadd/n1000000_b1024
+  passed: vecadd/n1000000_b128
+  passed: vecadd/n1000000_b256
+  passed: vecadd/n1000000_b512
+  passed: vecadd/n1000000_b64
+  passed: vecadd/n16777216_b1024
+  passed: vecadd/n16777216_b128
+  passed: vecadd/n16777216_b256
+  passed: vecadd/n16777216_b512
+  passed: vecadd/n16777216_b64
+  passed: vecadd/n65536_b1024
+  passed: vecadd/n65536_b128
+  passed: vecadd/n65536_b256
+  passed: vecadd/n65536_b512
+  passed: vecadd/n65536_b64
+  passed: vecadd/vecadd_grid
+  passed: vecadd/vecadd
+
+error decomposition (GASPerf; make ablation-results BATCH=./experiments/results/ablation/rtx4070/batch_20261118_090605 ARGS='--model all' for every model):
+gpu      benchmark      model    row                  kernels  abs_err_mean  abs_err_median  speedups  abs_speedup_err_mean  abs_speedup_err_median  itilp_capped  itmlp_capped
+-------  -------------  -------  -------------------  -------  ------------  --------------  --------  --------------------  ----------------------  ------------  ------------
+rtx4070  bank_conflict  GASPerf  all-static                12        65.356          83.512        10                   253                  52.636            12             0
+rtx4070  bank_conflict  GASPerf  crude                     12        53.033          61.855        10                   454                     260            12             0
+rtx4070  bank_conflict  GASPerf  profiled-cache            12        65.356          83.512        10                   253                  52.636            12             0
+rtx4070  bank_conflict  GASPerf  profiled-coalescing       12        65.356          83.512        10                   253                  52.636            12             0
+rtx4070  bank_conflict  GASPerf  profiled-bank             12        77.560          93.117        10                51.476                  52.225            12             0
+rtx4070  bank_conflict  GASPerf  profiled-counts           12        65.356          83.512        10                   253                  52.636            12             0
+rtx4070  bank_conflict  GASPerf  all-profiled              12        77.560          93.117        10                51.476                  52.225            12             0
+rtx4070  divergence     GASPerf  all-static                16        18.656          12.870         8                 3.238                   1.731            16             0
+rtx4070  divergence     GASPerf  crude                     16        18.656          12.870         8                 3.238                   1.731            16             0
+rtx4070  divergence     GASPerf  profiled-cache            16        18.656          12.870         8                 3.238                   1.731            16             0
+rtx4070  divergence     GASPerf  profiled-coalescing       16        18.656          12.870         8                 3.238                   1.731            16             0
+rtx4070  divergence     GASPerf  profiled-bank             16        18.656          12.870         8                 3.238                   1.731            16             0
+rtx4070  divergence     GASPerf  profiled-counts           16        18.655          12.870         8                 3.337                   1.829            16             0
+rtx4070  divergence     GASPerf  all-profiled              16        18.655          12.870         8                 3.337                   1.829            16             0
+rtx4070  l1_lines       GASPerf  all-static                 8           140          86.912         7                44.634                  51.795             8             0
+rtx4070  l1_lines       GASPerf  crude                      8        51.904          52.930         7                   397                     286             8             0
+rtx4070  l1_lines       GASPerf  profiled-cache             8           140          86.642         7                44.558                  51.869             8             0
+rtx4070  l1_lines       GASPerf  profiled-coalescing        8           140          87.010         7                44.537                  51.832             8             0
+rtx4070  l1_lines       GASPerf  profiled-bank              8           140          86.912         7                44.634                  51.795             8             0
+rtx4070  l1_lines       GASPerf  profiled-counts            8           140          86.910         7                44.634                  51.795             8             0
+rtx4070  l1_lines       GASPerf  all-profiled               8           140          86.738         7                44.461                  51.906             8             0
+rtx4070  l2             GASPerf  all-static                10         9.898           8.943         5                 7.268                   5.408            10             0
+rtx4070  l2             GASPerf  crude                     10         9.898           8.943         5                 7.268                   5.408            10             0
+rtx4070  l2             GASPerf  profiled-cache            10        11.643          11.048         5                11.642                  10.781            10             0
+rtx4070  l2             GASPerf  profiled-coalescing       10         9.898           8.943         5                 7.268                   5.408            10             0
+rtx4070  l2             GASPerf  profiled-bank             10         9.898           8.943         5                 7.268                   5.408            10             0
+rtx4070  l2             GASPerf  profiled-counts           10         9.898           8.943         5                 7.268                   5.408            10             0
+rtx4070  l2             GASPerf  all-profiled              10        11.643          11.048         5                11.642                  10.781            10             0
+rtx4070  mm             GASPerf  all-static                58        19.542          13.088        36                22.389                  21.480            58             0
+rtx4070  mm             GASPerf  crude                     58        20.773          13.935        36                51.293                  21.633            58             0
+rtx4070  mm             GASPerf  profiled-cache            58        19.318          13.077        36                21.803                  21.257            58             0
+rtx4070  mm             GASPerf  profiled-coalescing       58        18.962          13.088        36                22.878                  21.633            58             0
+rtx4070  mm             GASPerf  profiled-bank             58        19.542          13.088        36                22.389                  21.480            58             0
+rtx4070  mm             GASPerf  profiled-counts           58        19.072          13.095        36                21.372                  20.313            58             0
+rtx4070  mm             GASPerf  all-profiled              58        18.331          13.088        36                21.412                  20.224            58             0
+rtx4070  sfu            GASPerf  all-static                16         4.379           2.783         8                 1.159                   0.985            16             0
+rtx4070  sfu            GASPerf  crude                     16         4.379           2.783         8                 1.159                   0.985            16             0
+rtx4070  sfu            GASPerf  profiled-cache            16         4.379           2.783         8                 1.159                   0.985            16             0
+rtx4070  sfu            GASPerf  profiled-coalescing       16         4.379           2.783         8                 1.159                   0.985            16             0
+rtx4070  sfu            GASPerf  profiled-bank             16         4.379           2.783         8                 1.159                   0.985            16             0
+rtx4070  sfu            GASPerf  profiled-counts           16         4.379           2.783         8                 1.159                   0.985            16             0
+rtx4070  sfu            GASPerf  all-profiled              16         4.379           2.783         8                 1.159                   0.985            16             0
+rtx4070  transpose      GASPerf  all-static                 8        12.537          10.995         4                21.778                  17.523             8             0
+rtx4070  transpose      GASPerf  crude                      8        28.902          32.971         4                31.429                  33.825             8             0
+rtx4070  transpose      GASPerf  profiled-cache             8        12.537          10.995         4                21.778                  17.523             8             0
+rtx4070  transpose      GASPerf  profiled-coalescing        8        12.537          10.995         4                21.778                  17.523             8             0
+rtx4070  transpose      GASPerf  profiled-bank              8        12.736          11.595         4                22.218                  17.825             8             0
+rtx4070  transpose      GASPerf  profiled-counts            8        12.537          10.995         4                21.778                  17.523             8             0
+rtx4070  transpose      GASPerf  all-profiled               8        12.736          11.595         4                22.218                  17.825             8             0
+rtx4070  vecadd         GASPerf  all-static                34        27.432          31.146        17                 4.336                   2.320            34             0
+rtx4070  vecadd         GASPerf  crude                     34        27.432          31.146        17                 4.336                   2.320            34             0
+rtx4070  vecadd         GASPerf  profiled-cache            34        27.565          31.132        17                 4.367                   2.018            34             0
+rtx4070  vecadd         GASPerf  profiled-coalescing       34        27.432          31.146        17                 4.336                   2.320            34             0
+rtx4070  vecadd         GASPerf  profiled-bank             34        27.432          31.146        17                 4.336                   2.320            34             0
+rtx4070  vecadd         GASPerf  profiled-counts           34        27.260          31.134        17                 4.603                   4.865            34             0
+rtx4070  vecadd         GASPerf  all-profiled              34        27.385          31.040        17                 4.385                   2.320            34             0
+rtx4070  all            GASPerf  all-static               162        28.008          13.082        95                40.811                  13.461           162             0
+rtx4070  all            GASPerf  crude                    162        23.999          14.377        95                99.288                  13.172           162             0
+rtx4070  all            GASPerf  profiled-cache           162        28.059          13.095        95                40.820                  13.405           162             0
+rtx4070  all            GASPerf  profiled-coalescing      162        27.828          13.082        95                40.990                  13.461           162             0
+rtx4070  all            GASPerf  profiled-bank            162        28.922          13.088        95                19.656                  14.226           162             0
+rtx4070  all            GASPerf  profiled-counts          162        27.804          13.088        95                40.482                  13.187           162             0
+rtx4070  all            GASPerf  all-profiled             162        28.609          13.589        95                19.520                  13.781           162             0
