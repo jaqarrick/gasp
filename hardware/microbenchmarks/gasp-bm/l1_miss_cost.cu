@@ -1,4 +1,23 @@
-// how many extra L1 cycles a global load request costs when it misses L1 and is served by L2.
+// this microbenchmark measures how many extra L1 cycles a global load request costs when it misses L1 and is served by L2.
+//
+// Each SM reads a slice of a global array, at most half of L1, so after a warm
+// pass those loads become L1 hits. Some loads in every group are instead sent to
+// a 1 MB array that stays in L2, using ld.global.cg so they skip L1 and are
+// always L1 misses. Warps issue UNROLL independent loads per group (addresses
+// come from the loop counter, never from loaded data). The span per SM is
+// taken with clock64 around the timed loop; cost = span / load requests issued
+// on the SM.
+//
+// For sweep: misses per group of UNROLL loads (0, 1, 2, 4, 8) and warps per SM
+// (1..max warps per block). For each miss count the lowest cost over the warp
+// counts is its plateau. A line is then fitted through (miss fraction, plateau
+// cost): cycles per request = intercept + slope * miss fraction.
+//
+// The profile value is the slope, which represents the extra cycles one request costs when it
+// misses L1 instead of hitting. The intercept is the cost of one L1 hit. Every
+// configuration's cost is in the JSON.
+//
+// Usage: l1_miss_cost [--reps N] [--gpu NAME] [--out-dir DIR] [--l1-bytes B] [--sms N]
 
 #include <algorithm>
 #include <cmath>
@@ -16,34 +35,39 @@
 #include "common.h"
 
 constexpr int WARP_THREADS = 32;
-constexpr int MAX_BLOCK_WARPS = 32;
-constexpr int UNROLL = 8;
-constexpr int ITERATIONS = 512;
+constexpr int MAX_BLOCK_WARPS = 32; // hardware limit of 1024 threads per block
+constexpr int UNROLL = 8; // independent loads in flight per warp
+constexpr int ITERATIONS = 512; // timed groups per warp: 4096 loads
 constexpr int WARMUP_LAUNCHES = 3;
 constexpr int DEFAULT_REPS = 100;
 constexpr int DEFAULT_L1_BYTES = 64 * 1024;
-constexpr int DEFAULT_SMS = 4;
+constexpr int DEFAULT_SMS = 4; // blocks launched, one per SM
 constexpr uint32_t MISS_BYTES = 1u << 20;  // stays in L2 on every target GPU
 constexpr double PLATEAU_TOLERANCE = 0.02;
-constexpr int TIMING_FIELDS = 4;
-constexpr int MISS_COUNTS[] = {0, 1, 2, 4, 8};
+constexpr int TIMING_FIELDS = 4; // start, end, smid, warps
+constexpr int MISS_COUNTS[] = {0, 1, 2, 4, 8}; // L2 loads per group of UNROLL
 
 static const char* PARAMETER = "l1_miss_cycles_per_request";
 static const char* SCHEMA_VERSION = "1.0.0";
 static const char* BENCH_VERSION = "1.0.0";
 
+// Default cache policy (ld.global), so the load hits in L1. Used for warm pass and hit loads
 __device__ __forceinline__ uint32_t load_l1(const char* p) {
     uint32_t a;
     asm volatile("ld.global.u32 %0, [%1];" : "=r"(a) : "l"(p));
     return a;
 }
 
+// ld.global.cg caches in L2 only, so this load misses L1 and is served by L2
 __device__ __forceinline__ uint32_t load_l2(const char* p) {
     uint32_t a; // .cg - cache global
     asm volatile("ld.global.cg.u32 %0, [%1];" : "=r"(a) : "l"(p));
     return a;
 }
 
+// One block per SM. slice is indexed by smid, so each SM warms and reads its
+// own part of hits. In every group of "unroll" loads, the first MISSES go to the
+// L2 array and the rest to L1. A warp load is 32 lanes * 4 bytes = one 128 byte row.
 template <int MISSES>
 __global__ void miss_kernel(const char* __restrict__ hits, uint32_t slice_bytes,
                             const char* __restrict__ misses, uint32_t* sink,
@@ -54,11 +78,12 @@ __global__ void miss_kernel(const char* __restrict__ hits, uint32_t slice_bytes,
     const uint32_t smid = read_smid();
     const char* slice = hits + static_cast<size_t>(smid) * slice_bytes;
     const uint32_t row_bytes = WARP_THREADS * 4;
-    const uint32_t hit_mask = slice_bytes / row_bytes - 1;
-    const uint32_t miss_mask = MISS_BYTES / row_bytes - 1;
+    const uint32_t hit_mask = slice_bytes / row_bytes - 1; // rows in slice - 1
+    const uint32_t miss_mask = MISS_BYTES / row_bytes - 1; // rows in L2 array - 1
     const uint32_t lane_offset = lane * 4;
 
     uint32_t acc = 0;
+    // warm pass, loading the whole slice into L1
     for (uint32_t r = warp; r <= hit_mask; r += warps) {
         acc ^= load_l1(slice + r * row_bytes + lane_offset);
     }
@@ -69,6 +94,7 @@ __global__ void miss_kernel(const char* __restrict__ hits, uint32_t slice_bytes,
     __syncthreads();
 
     uint32_t row = warp;
+    // start the L2 rows at a different place for each SM and warp
     uint32_t miss_row = (smid * 997u + warp) & miss_mask;
 #pragma unroll 1
     for (int it = 0; it < ITERATIONS; ++it) {
@@ -76,13 +102,16 @@ __global__ void miss_kernel(const char* __restrict__ hits, uint32_t slice_bytes,
 #pragma unroll
         for (int u = 0; u < UNROLL; ++u) {
             if (u < MISSES) {
+                // L1 miss, L2 hit
                 const uint32_t r = (miss_row + u * warps) & miss_mask;
                 v[u] = load_l2(misses + r * row_bytes + lane_offset);
             } else {
+                // L1 hit
                 const uint32_t r = (row + u * warps) & hit_mask;
                 v[u] = load_l1(slice + r * row_bytes + lane_offset);
             }
         }
+        // use all loaded values only after every load in the group is issued
 #pragma unroll
         for (int u = 0; u < UNROLL; ++u) acc ^= v[u];
         row = (row + UNROLL * warps) & hit_mask;
@@ -98,7 +127,7 @@ __global__ void miss_kernel(const char* __restrict__ hits, uint32_t slice_bytes,
         t[2] = smid;
         t[3] = warps;
     }
-    if (acc == 0x9e3779b9u) sink[0] = acc;
+    if (acc == 0x9e3779b9u) sink[0] = acc;  // keeps acc live
 }
 
 template <int MISSES>
@@ -106,6 +135,7 @@ static void launch(int grid, int threads, const char* hits, uint32_t slice,
                    const char* misses, uint32_t* sink, unsigned long long* timing) {
     static bool configured = false;
     if (!configured) {
+        // all of the unified array as L1, because the kernel uses no shared memory
         CUDA_CHECK(cudaFuncSetAttribute(
             miss_kernel<MISSES>, cudaFuncAttributePreferredSharedMemoryCarveout, 0));
         configured = true;
@@ -113,6 +143,7 @@ static void launch(int grid, int threads, const char* hits, uint32_t slice,
     miss_kernel<MISSES><<<grid, threads>>>(hits, slice, misses, sink, timing);
 }
 
+// Pick the instantiation for the runtime miss count
 static void launch_misses(int m, int grid, int threads, const char* hits, uint32_t slice,
                           const char* misses, uint32_t* sink, unsigned long long* timing) {
     switch (m) {
@@ -126,10 +157,10 @@ static void launch_misses(int m, int grid, int threads, const char* hits, uint32
 }
 
 struct Result {
-    int misses;
+    int misses; // L2 loads per group of UNROLL
     int warps_per_sm;
     double cycles_per_request;  // median over reps, of the median over SMs
-    double spread;
+    double spread; // (max - min) / median of the per-rep values
     int sms_measured;
 };
 
@@ -173,9 +204,11 @@ int main(int argc, char** argv) {
         fprintf(stderr, "--sms must be between 1 and %d\n", sms);
         return 1;
     }
+    // one block per SM, so the sweep stops at the block limit of 32 warps
     const int max_warps = std::min(prop.maxThreadsPerMultiProcessor / WARP_THREADS,
                                    MAX_BLOCK_WARPS);
 
+    // slice per SM is the largest power of two up to half of L1
     uint32_t slice = 1;
     while (slice * 2 <= static_cast<uint32_t>(l1_bytes / 2)) slice *= 2;
     if (slice < static_cast<uint32_t>(WARP_THREADS * 4)) {
@@ -183,6 +216,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    // warps per SM: powers of two up to max_warps, plus max_warps itself
     std::vector<int> warp_counts;
     for (int w = 1; w <= max_warps; w *= 2) warp_counts.push_back(w);
     if (warp_counts.back() < max_warps) warp_counts.push_back(max_warps);
@@ -192,6 +226,7 @@ int main(int argc, char** argv) {
     uint32_t* d_sink = nullptr;
     unsigned long long* d_timing = nullptr;
     unsigned long long* d_clock = nullptr;
+    // hits holds one slice for every SM on the GPU, because smid picks the slice
     const size_t hit_bytes = static_cast<size_t>(sms) * slice;
     CUDA_CHECK(cudaMalloc(&d_hits, hit_bytes));
     CUDA_CHECK(cudaMalloc(&d_misses, MISS_BYTES));
@@ -199,6 +234,7 @@ int main(int argc, char** argv) {
     CUDA_CHECK(cudaMalloc(&d_timing, sms_used * TIMING_FIELDS * sizeof(unsigned long long)));
     CUDA_CHECK(cudaMalloc(&d_clock, 2 * sizeof(unsigned long long)));
     {
+        // fill arrays with xorshift random words
         std::vector<uint32_t> fill(std::max(hit_bytes, static_cast<size_t>(MISS_BYTES)) /
                                    sizeof(uint32_t));
         uint32_t x = 2463534242u;
@@ -229,6 +265,7 @@ int main(int argc, char** argv) {
                 CUDA_CHECK(cudaMemcpy(timing.data(), d_timing,
                                       grid * TIMING_FIELDS * sizeof(unsigned long long),
                                       cudaMemcpyDeviceToHost));
+                // per SM: (latest end - earliest start) / requests issued by its blocks
                 std::map<unsigned long long, std::vector<unsigned long long>> per_sm;
                 for (int b = 0; b < grid; ++b) {
                     const unsigned long long* t = &timing[b * TIMING_FIELDS];
@@ -286,6 +323,7 @@ int main(int argc, char** argv) {
         plateaus.push_back({static_cast<double>(m) / UNROLL, best->cycles_per_request, ok});
     }
 
+    // least-squares line through the plateaus
     // cycles per request = intercept + slope times miss fraction
     double sx = 0, sy = 0, sxx = 0, sxy = 0;
     for (const auto& p : plateaus) {
@@ -295,6 +333,7 @@ int main(int argc, char** argv) {
     const double n = static_cast<double>(plateaus.size());
     const double slope = (n * sxy - sx * sy) / (n * sxx - sx * sx);
     const double intercept = (sy - slope * sx) / n;
+    // worst gap between a plateau and the line: how linear the cost really is
     double max_residual = 0;
     for (const auto& p : plateaus) {
         max_residual = std::max(max_residual,
@@ -302,6 +341,7 @@ int main(int argc, char** argv) {
     }
     const double value = slope;
 
+    // SM clock, so cycles can be converted to time
     double sm_clock_ghz = 0.0;
     {
         clock_kernel<<<1, 1>>>(d_clock);
