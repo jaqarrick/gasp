@@ -3,10 +3,9 @@
 // Each SM reads a slice of a global array, at most half of L1, so after a warm
 // pass those loads become L1 hits. Some loads in every group are instead sent to
 // a 1 MB array that stays in L2, using ld.global.cg so they skip L1 and are
-// always L1 misses. Warps issue UNROLL independent loads per group (addresses
-// come from the loop counter, never from loaded data). The span per SM is
-// taken with clock64 around the timed loop; cost = span / load requests issued
-// on the SM.
+// always L1 misses. Warps issue UNROLL independent loads per group. The span per SM is
+// taken with clock64 around the timed loop.
+// cost = span / load requests issued on the SM.
 //
 // For sweep: misses per group of UNROLL loads (0, 1, 2, 4, 8) and warps per SM
 // (1..max warps per block). For each miss count the lowest cost over the warp
