@@ -13,6 +13,8 @@
 #   experiments/results/e2e/<gpu>/batch_<timestamp>/<benchmark>_<config>/
 #   experiments/results/e2e/<gpu>/batch_<timestamp>/experiment.txt
 #   experiments/results/e2e/<gpu>/batch_<timestamp>/summary.txt
+# Under Slurm the folder is batch_<timestamp>_<job id>, so parallel jobs that start in the
+# same second get their own folders. If the folder already exists, the run stops.
 # summary.txt holds the pass/fail list and the results table from scripts/read_batch.py
 # (GASPerf only); it is printed at the end of the run.
 #
@@ -127,8 +129,10 @@ else
 fi
 
 STARTED="$(date '+%Y-%m-%d %H:%M:%S %Z')"
-BATCH_DIR="./experiments/results/e2e/${GPU}/batch_$(date +%Y%m%d_%H%M%S)"
-mkdir -p "$BATCH_DIR"
+BATCH_PARENT="./experiments/results/e2e/${GPU}"
+BATCH_DIR="$BATCH_PARENT/batch_$(date +%Y%m%d_%H%M%S)${SLURM_JOB_ID:+_$SLURM_JOB_ID}"
+mkdir -p "$BATCH_PARENT"
+mkdir "$BATCH_DIR" || { echo "error: $BATCH_DIR already exists" >&2; exit 1; }
 
 # what was run, where and with what, so the batch can be told apart and repeated later
 {

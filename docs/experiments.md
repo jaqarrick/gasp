@@ -75,6 +75,8 @@ experiments/results/e2e/rtx2080ti/batch_<timestamp>/
     ...
 ```
 
+Under Slurm the folder is `batch_<timestamp>_<job id>`, so jobs that run in parallel and start in the same second don't share a folder. A batch never reuses a folder that already exists: it stops with an error instead.
+
 To see the results as a table, one row per config and kernel:
 
 ```sh
