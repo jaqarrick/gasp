@@ -9,6 +9,11 @@
 # A failed config doesn't stop the others. Needs the GPU, nvcc and ncu (no dry run:
 # the ablation compares every row with the measurements).
 #
+# --replay <e2e batch dir> skips the measuring: it runs the ablation on the metrics.json
+# each config of that batch (from scripts/batch_experiment.sh, not a dry run) already
+# saved, and copies its metrics.json and result.json into the new batch. No GPU or ncu,
+# only nvcc. <gpu> has to be the GPU the batch was measured on.
+#
 # Before it starts, it asks for a short description of the experiment and saves it,
 # with the date, GPU, profile, code version and configs, in experiment.txt.
 # --description "<text>" gives it without the prompt (needed without a terminal).
@@ -23,8 +28,9 @@
 # experiments/ablation/read_ablation.py <batch dir> (make ablation-results) reads them.
 #
 # Example usage:
-#   scripts/batch_ablation.sh [--profile <path>] [--description <text>] <gpu> [benchmark ...]
+#   scripts/batch_ablation.sh [--profile <path>] [--replay <e2e batch dir>] [--description <text>] <gpu> [benchmark ...]
 #   scripts/batch_ablation.sh rtx2080ti
+#   scripts/batch_ablation.sh --replay experiments/results/e2e/rtx2080ti/batch_20261117_220527 rtx2080ti bank_conflict transpose l2
 #   scripts/batch_ablation.sh --description "ablation, vecadd smoke test" rtx2080ti vecadd
 #   scripts/batch_ablation.sh --profile hardware/runs/rtx2080ti/1_2/rtx2080ti.1_2.json rtx2080ti
 set -euo pipefail
@@ -33,11 +39,12 @@ set -euo pipefail
 INVOCATION="$0 $*"
 
 usage() {
-    echo "usage: $0 [--profile <path>] [--description <text>] <gpu> [benchmark ...]   (e.g. $0 rtx2080ti mm)" >&2
+    echo "usage: $0 [--profile <path>] [--replay <e2e batch dir>] [--description <text>] <gpu> [benchmark ...]   (e.g. $0 rtx2080ti mm)" >&2
     exit 1
 }
 
 PROFILE=""
+REPLAY=""
 DESCRIPTION=""
 POSITIONAL=()
 while [ "$#" -gt 0 ]; do
@@ -48,6 +55,12 @@ while [ "$#" -gt 0 ]; do
             shift
             ;;
         --profile=*) PROFILE="${1#--profile=}" ;;
+        --replay)
+            [ "$#" -ge 2 ] || { echo "error: --replay needs an e2e batch folder" >&2; usage; }
+            REPLAY="$2"
+            shift
+            ;;
+        --replay=*) REPLAY="${1#--replay=}" ;;
         --description)
             [ "$#" -ge 2 ] || { echo "error: --description needs a text" >&2; usage; }
             DESCRIPTION="$2"
@@ -73,8 +86,17 @@ HW_ARGS="--gpu $GPU"
 if [ -n "$PROFILE" ] && [[ "$PROFILE" != /* ]]; then
     PROFILE="$PWD/$PROFILE"
 fi
+# the same for --replay
+if [ -n "$REPLAY" ] && [[ "$REPLAY" != /* ]]; then
+    REPLAY="$PWD/$REPLAY"
+fi
 
 cd "$(dirname "$0")/.."
+
+if [ -n "$REPLAY" ] && [ ! -d "$REPLAY" ]; then
+    echo "error: --replay folder $REPLAY not found" >&2
+    exit 1
+fi
 
 # check the profile once here, so a bad one doesn't fail every config
 if [ -n "$PROFILE" ]; then
@@ -149,7 +171,11 @@ mkdir -p "$BATCH_DIR"
     if [ -n "$PROFILE_FILE" ] && [ -f "$PROFILE_FILE" ]; then
         echo "profile sha: $(sha256sum "$PROFILE_FILE" | cut -d' ' -f1)"
     fi
-    echo "mode:        ablation (measure with ncu, then every ablation row)"
+    if [ -n "$REPLAY" ]; then
+        echo "mode:        ablation, replayed from the measurements in $REPLAY (no ncu)"
+    else
+        echo "mode:        ablation (measure with ncu, then every ablation row)"
+    fi
     echo "commit:      $(git rev-parse --short HEAD 2>/dev/null || echo unknown) on $(git branch --show-current 2>/dev/null || echo unknown)$( [ -n "$(git status --porcelain 2>/dev/null)" ] && echo " (uncommitted changes)")"
     echo "command:     $INVOCATION"
     echo "benchmarks:  ${BMKS[*]}"
@@ -161,7 +187,7 @@ mkdir -p "$BATCH_DIR"
     done
 } > "$BATCH_DIR/experiment.txt"
 
-echo "Running the ablation for ${BMKS[*]} on $GPU${PROFILE:+ with profile $PROFILE} into $BATCH_DIR"
+echo "Running the ablation for ${BMKS[*]} on $GPU${PROFILE:+ with profile $PROFILE}${REPLAY:+ from $REPLAY} into $BATCH_DIR"
 PASSED=()
 FAILED=()
 for BMK in "${BMKS[@]}"; do
@@ -182,9 +208,24 @@ for BMK in "${BMKS[@]}"; do
     for CONFIG in "${CONFIGS[@]}"; do
         NAME="$BMK/$(basename "$CONFIG" .toml)"
         OUT="$BATCH_DIR/${BMK}_$(basename "$CONFIG" .toml)"
-        # measure first; the ablation needs the metrics.json it saves
-        if ./scripts/run_e2e_accuracy_experiment.sh "${E2E_FLAGS[@]}" \
-            --config "$CONFIG" --out-dir "$OUT" "$BMK" "$GPU" \
+        if [ -n "$REPLAY" ]; then
+            # the measurements from the e2e batch, copied so this batch stands on its own
+            SRC="$REPLAY/${BMK}_$(basename "$CONFIG" .toml)"
+            if [ ! -f "$SRC/metrics.json" ]; then
+                echo "error: no $SRC/metrics.json (config failed in that batch, or it was a dry run)" >&2
+                FAILED+=("$NAME")
+                continue
+            fi
+            mkdir -p "$OUT"
+            cp "$SRC/metrics.json" "$OUT/"
+            [ -f "$SRC/result.json" ] && cp "$SRC/result.json" "$OUT/"
+            MEASURE=(true)
+        else
+            # measure first; the ablation needs the metrics.json it saves
+            MEASURE=(./scripts/run_e2e_accuracy_experiment.sh ${E2E_FLAGS[@]+"${E2E_FLAGS[@]}"} \
+                --config "$CONFIG" --out-dir "$OUT" "$BMK" "$GPU")
+        fi
+        if "${MEASURE[@]}" \
             && make --no-print-directory ablation \
                 ARGS="$HW_ARGS --config $CONFIG --metrics $OUT/metrics.json --out $OUT/ablation.json" \
                 2>&1 | tee "$OUT/ablation.log"; then
@@ -198,6 +239,7 @@ done
 {
     echo "ablation on $GPU: ${#PASSED[@]} passed, ${#FAILED[@]} failed"
     echo "profile: ${PROFILE:-built-in for $GPU}"
+    [ -z "$REPLAY" ] || echo "replayed from: $REPLAY"
     [ "${#PASSED[@]}" -eq 0 ] || printf '  passed: %s\n' "${PASSED[@]}"
     [ "${#FAILED[@]}" -eq 0 ] || printf '  failed: %s\n' "${FAILED[@]}"
     echo

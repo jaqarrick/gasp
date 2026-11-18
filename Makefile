@@ -13,6 +13,7 @@ ABLATION_BMKS ?=
 BMKS ?=
 DRY_RUN ?=
 BATCH ?=
+REPLAY ?=
 
 .PHONY: all build install run test lint lint-fix format pre-commit clean docker-clean docker-run help microbenchmarks microbenchmarks-hpmll microbenchmarks-gpu-benches check_spec ablation batch-ablation-experiment ablation-results batch-e2e-experiment batch-results all-experiments
 
@@ -47,10 +48,11 @@ ablation:
 	$(PY) experiments/ablation/run_ablation.py $(ARGS)
 
 # measure every config with ncu, then run every ablation row on it; needs the GPU.
+# REPLAY=<e2e batch dir> skips the measuring and uses that batch's metrics.json files (no GPU).
 # PROFILE=<path> uses that profile instead of GPU's built-in one; DESC='<text>' as for batch-e2e-experiment
 batch-ablation-experiment:
-	@test -n "$(GPU)" || { echo "usage: make batch-ablation-experiment GPU=<gpu> [BMKS='mm vecadd'] [PROFILE=<path>] [DESC='<text>']"; exit 1; }
-	./scripts/batch_ablation.sh $(if $(PROFILE),--profile $(PROFILE)) $(if $(DESC),--description "$(DESC)") $(GPU) $(BMKS)
+	@test -n "$(GPU)" || { echo "usage: make batch-ablation-experiment GPU=<gpu> [BMKS='mm vecadd'] [PROFILE=<path>] [REPLAY=<e2e batch dir>] [DESC='<text>']"; exit 1; }
+	./scripts/batch_ablation.sh $(if $(PROFILE),--profile $(PROFILE)) $(if $(REPLAY),--replay $(REPLAY)) $(if $(DESC),--description "$(DESC)") $(GPU) $(BMKS)
 
 ablation-results:
 	@test -n "$(BATCH)" || { echo "usage: make ablation-results BATCH=experiments/results/ablation/<gpu>/batch_<timestamp> [ARGS='--csv --model all --records']"; exit 1; }
@@ -115,7 +117,7 @@ help:
 	@echo "make install                       - create venv and install deps"
 	@echo "make run ARGS='...'              - run locally"
 	@echo "make ablation ARGS='...'         - run the ablation from a saved metrics file"
-	@echo "make batch-ablation-experiment GPU=.. [BMKS='..'] [PROFILE=..] [DESC='..'] - measure and ablate every benchmarks/*/configs/*.toml"
+	@echo "make batch-ablation-experiment GPU=.. [BMKS='..'] [PROFILE=..] [REPLAY=..] [DESC='..'] - measure and ablate every benchmarks/*/configs/*.toml (REPLAY=<e2e batch>: no GPU)"
 	@echo "make ablation-results BATCH=.. [ARGS='--csv'] - error decomposition of an ablation batch (GASPerf only unless ARGS='--model all'; ARGS='--records' for every record)"
 	@echo "make test                        - run tests"
 	@echo "make batch-e2e-experiment GPU=.. [BMKS='..'] [DRY_RUN=1] [PROFILE=..] [DESC='..'] - e2e accuracy for every benchmarks/*/configs/*.toml"

@@ -23,6 +23,17 @@ make ablation-results BATCH=experiments/results/ablation/rtx2080ti/batch_<timest
 
 `batch-ablation-experiment` (`scripts/batch_ablation.sh`) takes the same `BMKS`, `PROFILE` and `DESC` as `make batch-e2e-experiment`. Each config gets a folder with the e2e outputs (`metrics.json`, `result.json`, `run.log`) and the ablation's `ablation.json` and `ablation.log`. `ablation-results` (`read_ablation.py`) prints, per benchmark and over all of them, per model and row: the mean and median absolute T_GPU error, the same for the speedup (leaving out each config's reference kernel), and how many kernels had ITILP or ITMLP capped. `ARGS='--csv'`, `--model all` and `--records` work like `make batch-results`. Every row names its GPU, so the CSVs of several GPUs can be concatenated.
 
+## Workflow: replay an e2e batch (no GPU)
+
+An e2e batch (`make batch-e2e-experiment`, not a dry run) already saved a `metrics.json` for every config. `REPLAY` runs the ablation on those instead of measuring again:
+
+```bash
+make batch-ablation-experiment GPU=rtx2080ti BMKS='bank_conflict transpose l2' \
+    REPLAY=experiments/results/e2e/rtx2080ti/batch_20261117_220527
+```
+
+It needs `nvcc` (for the static analysis) but no GPU or ncu, and takes minutes. Each config's `metrics.json` and `result.json` are copied into the new ablation batch, so the batch stands on its own, and its `all-static` row matches the e2e batch exactly, since they share the measurements. `GPU` has to be the GPU the e2e batch was measured on. A config that failed in the e2e batch fails here too. Without `BMKS`, every benchmark is replayed. Replaying again after a model change needs no new measurements, as long as the kernels and launches are the same.
+
 ## Workflow: one config
 
 1. Profile once, on the GPU. This saves the ncu measurements:

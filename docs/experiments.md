@@ -121,6 +121,7 @@ make batch-ablation-experiment GPU=rtx2080ti
 
 - `BMKS='mm vecadd'`, `PROFILE=<path>` and `DESC='<text>'` work as for `batch-e2e-experiment`.
 - There's no `DRY_RUN`: every row is compared with the measurements, so it needs the GPU.
+- `REPLAY=<e2e batch dir>` skips the measuring and uses the `metrics.json` files that e2e batch already saved, so no GPU or ncu is needed (only `nvcc`). `GPU` has to match that batch: `make batch-ablation-experiment GPU=rtx2080ti BMKS='transpose l2' REPLAY=experiments/results/e2e/rtx2080ti/batch_<timestamp>`.
 
 Results go in one folder per batch, like the e2e batch:
 
