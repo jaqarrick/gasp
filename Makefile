@@ -13,7 +13,7 @@ BMKS ?=
 DRY_RUN ?=
 BATCH ?=
 
-.PHONY: all build install run test lint lint-fix format pre-commit clean docker-clean docker-run help microbenchmarks microbenchmarks-hpmll microbenchmarks-gpu-benches check_spec ablation batch-experiment batch-results
+.PHONY: all build install run test lint lint-fix format pre-commit clean docker-clean docker-run help microbenchmarks microbenchmarks-hpmll microbenchmarks-gpu-benches check_spec ablation batch-ablation-experiment ablation-results batch-e2e-experiment batch-results all-experiments
 
 $(VENV):
 	PYTHON=$(PYTHON) ./scripts/init_python.sh
@@ -45,15 +45,33 @@ run:
 ablation:
 	$(PY) experiments/ablation/run_ablation.py $(ARGS)
 
+# measure every config with ncu, then run every ablation row on it; needs the GPU.
+# PROFILE=<path> uses that profile instead of GPU's built-in one; DESC='<text>' as for batch-e2e-experiment
+batch-ablation-experiment:
+	@test -n "$(GPU)" || { echo "usage: make batch-ablation-experiment GPU=<gpu> [BMKS='mm vecadd'] [PROFILE=<path>] [DESC='<text>']"; exit 1; }
+	./scripts/batch_ablation.sh $(if $(PROFILE),--profile $(PROFILE)) $(if $(DESC),--description "$(DESC)") $(GPU) $(BMKS)
+
+ablation-results:
+	@test -n "$(BATCH)" || { echo "usage: make ablation-results BATCH=experiments/results/ablation/<gpu>/batch_<timestamp> [ARGS='--csv --model all --records']"; exit 1; }
+	@$(PYTHON) experiments/ablation/read_ablation.py $(ARGS) $(BATCH)
+
 # DRY_RUN=1 only predicts (no GPU or ncu); PROFILE=<path> uses that profile instead of GPU's built-in one;
 # DESC='<text>' gives the experiment description instead of asking for it
-batch-experiment:
-	@test -n "$(GPU)" || { echo "usage: make batch-experiment GPU=<gpu> [BMKS='mm vecadd'] [DRY_RUN=1] [PROFILE=<path>] [DESC='<text>']"; exit 1; }
+batch-e2e-experiment:
+	@test -n "$(GPU)" || { echo "usage: make batch-e2e-experiment GPU=<gpu> [BMKS='mm vecadd'] [DRY_RUN=1] [PROFILE=<path>] [DESC='<text>']"; exit 1; }
 	./scripts/batch_experiment.sh $(if $(DRY_RUN),--dry-run) $(if $(PROFILE),--profile $(PROFILE)) $(if $(DESC),--description "$(DESC)") $(GPU) $(BMKS)
 
 batch-results:
 	@test -n "$(BATCH)" || { echo "usage: make batch-results BATCH=experiments/results/e2e/<gpu>/batch_<timestamp> [ARGS='--csv --model all']"; exit 1; }
 	@$(PYTHON) scripts/read_batch.py $(ARGS) $(BATCH)
+
+# the ablation on mm, then the e2e batch on every benchmark; needs the GPU. BMKS and DRY_RUN
+# are fixed here (set on the sub-makes so a command-line value doesn't leak through);
+# PROFILE and DESC go to both, and without DESC each batch asks for its own description
+all-experiments:
+	@test -n "$(GPU)" || { echo "usage: make all-experiments GPU=<gpu> [PROFILE=<path>] [DESC='<text>']"; exit 1; }
+	$(MAKE) --no-print-directory batch-ablation-experiment GPU=$(GPU) BMKS=mm DRY_RUN=
+	$(MAKE) --no-print-directory batch-e2e-experiment GPU=$(GPU) BMKS= DRY_RUN=
 
 # The complete profile: HPMLL (its valid fields), gpu-stream (DRAM bandwidth) and gasp-bm (the
 # rest, and HPMLL's fallback), all at base clock; needs a GPU, nvcc, ncu and both submodules.
@@ -97,9 +115,12 @@ help:
 	@echo "make install                       - create venv and install deps"
 	@echo "make run ARGS='...'              - run locally"
 	@echo "make ablation ARGS='...'         - run the ablation from a saved metrics file"
+	@echo "make batch-ablation-experiment GPU=.. [BMKS='..'] [PROFILE=..] [DESC='..'] - measure and ablate every benchmarks/*/configs/*.toml"
+	@echo "make ablation-results BATCH=.. [ARGS='--csv'] - error decomposition of an ablation batch (GASPerf only unless ARGS='--model all'; ARGS='--records' for every record)"
 	@echo "make test                        - run tests"
-	@echo "make batch-experiment GPU=.. [BMKS='..'] [DRY_RUN=1] [PROFILE=..] [DESC='..'] - e2e accuracy for every benchmarks/*/configs/*.toml"
+	@echo "make batch-e2e-experiment GPU=.. [BMKS='..'] [DRY_RUN=1] [PROFILE=..] [DESC='..'] - e2e accuracy for every benchmarks/*/configs/*.toml"
 	@echo "make batch-results BATCH=.. [ARGS='--csv'] - table of a batch's launches, T_GPU and speedups (GASPerf only unless ARGS='--model all')"
+	@echo "make all-experiments GPU=.. [PROFILE=..] [DESC='..'] - the ablation batch on mm, then the e2e batch on every benchmark"
 	@echo "make microbenchmarks GPU=.. VERSION=.. - run HPMLL, gpu-stream and gasp-bm, merge into one profile"
 	@echo "make microbenchmarks-hpmll GPU=.. VERSION=.. - run the HPMLL benchmarks that match profile fields, build a profile"
 	@echo "make microbenchmarks-gpu-benches GPU=.. VERSION=.. - DRAM bandwidth from gpu-stream, compare with the profiles"

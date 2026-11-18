@@ -174,7 +174,7 @@ make run ARGS="--gpu rtx2080ti --config benchmarks/vecadd/configs/vecadd.toml --
 - The metrics file holds ncu's raw values for every run, keyed by kernel name. GASP stops if the GPU, a kernel name, or a kernel's block or grid size differs from the file, or if a metric a `profiled` override needs is missing.
 - `--metrics` also prints the predicted vs measured table from the file. It can't be combined with `--run`.
 
-The full ablation, one row per override set, is in [`experiments/ablation`](experiments/ablation/README.md): `make ablation ARGS="..."`.
+The full ablation, one row per override set, is in [`experiments/ablation`](experiments/ablation/README.md): `make ablation ARGS="..."` for one config, `make batch-ablation-experiment GPU=<gpu>` to measure and ablate every config on a GPU, and `make ablation-results BATCH=<dir>` for the error decomposition. `make all-experiments GPU=<gpu>` runs the ablation batch on `mm`, then the e2e batch on every benchmark.
 
 ### Models
 
@@ -193,7 +193,7 @@ make docker-run DOCKER_FLAGS="--gpus all" ARGS="--gpu rtx2080ti --run --config b
 - Traces are lost when the container exits unless they go to a mounted path, such as `--trace-file benchmarks/traces.log`.
 - `--run` needs a GPU in the container, which `DOCKER_FLAGS="--gpus all"` requests. This needs the NVIDIA container runtime, and running `ncu` in a container hasn't been tested yet.
 - The Dev Container has no GPU access, so `--run` isn't available there.
-- Replaying a metrics file (`--metrics`, `--override`) needs no GPU, so it works in any container. The file has to be under `benchmarks/` or `hardware/` to be visible to `docker-run`. `--save-metrics` has to write to one of those paths too, or the file is lost with the container. `make ablation` runs locally only.
+- Replaying a metrics file (`--metrics`, `--override`) needs no GPU, so it works in any container. The file has to be under `benchmarks/` or `hardware/` to be visible to `docker-run`. `--save-metrics` has to write to one of those paths too, or the file is lost with the container. `make ablation`, `make batch-ablation-experiment` and `make ablation-results` run locally only.
 
 ### Options
 

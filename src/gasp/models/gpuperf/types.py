@@ -117,3 +117,6 @@ class ModelOutput:
     l2_time: float = 0.0
     dram_time: float = 0.0
     l2_hit_ratio: float | None = None
+    itilp_max: float = 0.0
+    itilp_capped: bool = False
+    itmlp_capped: bool = False

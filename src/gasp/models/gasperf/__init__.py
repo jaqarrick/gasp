@@ -303,4 +303,7 @@ def run(
         l2_time=model.l2_time,
         dram_time=model.dram_time,
         l2_hit_ratio=l2_hit_ratio,
+        itilp_max=itilp_max,
+        itilp_capped=m.ilp * n > itilp_max,
+        itmlp_capped=False,
     )

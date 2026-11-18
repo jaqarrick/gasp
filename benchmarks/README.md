@@ -9,7 +9,7 @@ In each benchmark, the TOML config file describes a comparison.
 - `program_args` gives arguments to the executable when using `--run`.
 
 Running the benchmarks:
-- `make batch-experiment` runs all benchmarks with TOML files in `benchmarks/*/configs`. 
-- For a specific benchmark, run: `make batch-experiment GPU=rtx4070 BMKS=mm DESC="MM sweep"` (change GPU, BMKS, DESC as needed).
+- `make batch-e2e-experiment` runs all benchmarks with TOML files in `benchmarks/*/configs`. 
+- For a specific benchmark, run: `make batch-e2e-experiment GPU=rtx4070 BMKS=mm DESC="MM sweep"` (change GPU, BMKS, DESC as needed).
 - To run one config, use `make run ARGS="--gpu rtx4070 --config benchmarks/mm/configs/n512_b8x8.toml"`
 - To run batch experiments without running kernels or using NCU, add the `DRY_RUN=1` flag. However, running one config by default only predicts. To execute it on the GPU and measure with NCU add the `--run` flag to `make run ...`.

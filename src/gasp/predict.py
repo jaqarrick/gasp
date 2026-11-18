@@ -91,6 +91,10 @@ class PredictionOutput:
     static_inputs: ModelInputs | None = None
     total_warps: int = 0
     occupancy: float = 0.0  # theoretical
+    # whether ILP and MLP were cut off by a cap (see the model's ModelOutput)
+    itilp_max: float = 0.0
+    itilp_capped: bool = False
+    itmlp_capped: bool = False
 
 
 def get_average_trans_warp(p: PicoOutput, mem_inst_count: int) -> float:
@@ -286,4 +290,7 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         static_inputs=static,
         total_warps=occ.total_warps,
         occupancy=occ.occupancy,
+        itilp_max=out.itilp_max,
+        itilp_capped=out.itilp_capped,
+        itmlp_capped=out.itmlp_capped,
     )

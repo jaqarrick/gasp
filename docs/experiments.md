@@ -50,7 +50,7 @@ If you see positive results across kernels, you can replace the built in profile
 A batch runs every config in `benchmarks/*/configs/`. Most configs are one pair of kernels at one problem size and block size, so a batch shows how the speedup changes with them. A few hold more kernels (`mm/configs/mm.toml`, five mm variants against `basic`) or one (`mm/configs/mm_basic.toml`, no speedup).
 
 ```sh
-make batch-experiment GPU=rtx2080ti
+make batch-e2e-experiment GPU=rtx2080ti
 ```
 
 - `BMKS='mm vecadd'` runs only those benchmarks.
@@ -58,7 +58,7 @@ make batch-experiment GPU=rtx2080ti
 - `PROFILE=<path>` uses that profile, such as the one from step 1. Without it, the batch uses GASP's built-in profile for `GPU`.
 
 ```sh
-make batch-experiment GPU=rtx2080ti PROFILE=hardware/runs/rtx2080ti/1_2/rtx2080ti.1_2.json
+make batch-e2e-experiment GPU=rtx2080ti PROFILE=hardware/runs/rtx2080ti/1_2/rtx2080ti.1_2.json
 ```
 
 `GPU` still names the results folder.
@@ -107,6 +107,48 @@ file = "benchmarks/vecadd/vecadd_poor.cu"
 ```
 
 - A setting under a `[[kernel]]` overrides the one in `[defaults]` for that kernel.
-- Put the file in `benchmarks/<name>/configs/` and `make batch-experiment` picks it up.
+- Put the file in `benchmarks/<name>/configs/` and `make batch-e2e-experiment` picks it up.
 - Run one config on its own with `make run ARGS='--gpu rtx2080ti --config <path>'`.
 - The main `README.md` lists every setting. Look there first if you're confused about any of the arguments. 
+
+## 6. Run the ablation
+
+The ablation shows which of GASP's static inputs cause the most error. For every config it measures the kernels once with `ncu`, then predicts them again once per ablation row, each row replacing some static inputs with the measured (profiled) values or crude ones. [`experiments/ablation/README.md`](../experiments/ablation/README.md) lists the rows.
+
+```sh
+make batch-ablation-experiment GPU=rtx2080ti
+```
+
+- `BMKS='mm vecadd'`, `PROFILE=<path>` and `DESC='<text>'` work as for `batch-e2e-experiment`.
+- There's no `DRY_RUN`: every row is compared with the measurements, so it needs the GPU.
+
+Results go in one folder per batch, like the e2e batch:
+
+```
+experiments/results/ablation/rtx2080ti/batch_<timestamp>/
+    experiment.txt          your description, date, GPU, profile, commit, configs
+    summary.txt             which configs passed and failed
+    vecadd_n1000000_b256/   one folder per config: metrics.json, result.json, ablation.json, run.log, ablation.log
+    ...
+```
+
+To see the error decomposition (mean and median absolute error per benchmark, model and row):
+
+```sh
+make ablation-results BATCH=experiments/results/ablation/rtx2080ti/batch_<timestamp>
+```
+
+- `ARGS='--csv'` prints CSV instead.
+- `ARGS='--model all'` shows both models, not only GASPerf.
+- `ARGS='--records'` prints every record instead of the summary.
+
+Every row names its GPU, so to compare GPUs, run the ablation on each and concatenate their `--csv` outputs.
+
+
+## 7. Run everything
+
+```sh
+make all-experiments GPU=rtx2080ti
+```
+
+This runs the ablation batch on `mm` (`make batch-ablation-experiment BMKS=mm`), then the e2e batch on every benchmark (`make batch-e2e-experiment`). `PROFILE=<path>` and `DESC='<text>'` go to both; without `DESC`, each batch asks for its own description. If the ablation batch fails, the e2e batch doesn't start.

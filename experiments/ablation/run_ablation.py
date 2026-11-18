@@ -3,15 +3,19 @@ a different set of overrides, under every model (GPUPerf and GASPerf), and
 compare each with the saved measurements.
 
     make ablation ARGS="--gpu rtx2080ti --config benchmarks/vecadd/configs/vecadd.toml \\
-        --metrics vecadd.metrics.json --out vecadd.ablation.csv"
+        --metrics vecadd.metrics.json --out vecadd.ablation.json"
 
 Needs no GPU: the measurements come from a metrics file written earlier by
-`gasp --run --save-metrics`. See README.md here."""
+`gasp --run --save-metrics`. --out saves the results as JSON; read_ablation.py
+prints them as a table or CSV. See README.md here."""
 
 import argparse
-import csv
+import json
+import subprocess
 import sys
+from pathlib import Path
 
+from gasp import __version__
 from gasp.cli import (
     KernelResult,
     load_hardware,
@@ -21,6 +25,7 @@ from gasp.cli import (
     reference_times,
 )
 from gasp.cli.config import ConfigError, load_config
+from gasp.cli.utils import GPU_PROFILES
 from gasp.compare import measured_speedup, speedup
 from gasp.logger import Logger
 from gasp.overrides import parse_overrides
@@ -36,6 +41,11 @@ ROWS: dict[str, list[str]] = {
     "all-profiled": ["all=profiled"],
 }
 
+# inputs no row can profile: ncu has no counter for them, so "all-profiled"
+# keeps the static ones. The itilp_capped / itmlp_capped columns show where
+# ILP and MLP can't change the prediction anyway.
+NOT_PROFILED = ["ilp", "mlp", "sync_inst_count"]
+
 COLUMNS = [
     "row",
     "kernel",
@@ -48,6 +58,8 @@ COLUMNS = [
     "predicted_speedup",
     "measured_speedup",
     "speedup_error_pct",
+    "itilp_capped",
+    "itmlp_capped",
 ]
 
 
@@ -66,7 +78,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--reference", default=None, help="kernel speedups are relative to"
     )
-    parser.add_argument("--out", default=None, help="write the results as CSV")
+    parser.add_argument("--out", default=None, help="write the results as JSON")
     parser.add_argument("--verbose", action="store_true")
     return parser
 
@@ -79,7 +91,8 @@ def row_records(
     records = []
     for r in results:
         name = r.spec.name
-        t_gpu = r.prediction.t_gpu
+        p = r.prediction
+        t_gpu = p.t_gpu
         predicted = speedup(t_reference[r.model], t_gpu)
         actual = measured_speedup(measured[reference], measured[name]).median
         records.append(
@@ -95,14 +108,45 @@ def row_records(
                 "predicted_speedup": predicted,
                 "measured_speedup": actual,
                 "speedup_error_pct": error_pct(predicted, actual),
+                "itilp_capped": p.itilp_capped,
+                "itmlp_capped": p.itmlp_capped,
+                # ILP and MLP are never overridden, so the static ones were used
+                "ilp": p.static_inputs.ilp if p.static_inputs else None,
+                "mlp": p.static_inputs.mlp if p.static_inputs else None,
+                "itilp": p.itilp,
+                "itilp_max": p.itilp_max,
+                "itmlp": p.itmlp,
+                "mwp_peak_bw": p.mwp_peak_bw,
             }
         )
     return records
 
 
+def git_commit() -> str:
+    """Short commit of the checkout, with a mark if it has uncommitted changes."""
+    try:
+        commit = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return "unknown"
+    return f"{commit} (uncommitted changes)" if dirty else commit
+
+
 def format_cell(value: object) -> str:
     if value is None:
         return "n/a"
+    if isinstance(value, bool):
+        return "yes" if value else "no"
     if isinstance(value, float):
         return f"{value:.2f}"
     return str(value)
@@ -116,6 +160,7 @@ def main() -> None:
 
     logger = Logger(args.verbose)
     gpu, arch, hp = load_hardware(args.gpu, args.profile, logger)
+    profile = args.profile or str(GPU_PROFILES[gpu])
     try:
         specs = load_config(args.config)
     except ConfigError as e:
@@ -141,17 +186,28 @@ def main() -> None:
         records += row_records(row, results, measured, reference)
 
     logger.table(
-        f"Ablation: {args.config} on {gpu} (reference: {reference})",
+        f"Ablation: {args.config} on {gpu} (reference: {reference};"
+        f" all-profiled keeps static {', '.join(NOT_PROFILED)})",
         COLUMNS,
         [[format_cell(record[c]) for c in COLUMNS] for record in records],
         force=True,
     )
     if args.out is not None:
-        with open(args.out, "w", encoding="utf-8", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=COLUMNS)
-            writer.writeheader()
-            writer.writerows(records)
-        logger.success(f"Wrote {len(records)} rows to {args.out}")
+        doc = {
+            "gasp_version": __version__,
+            "commit": git_commit(),
+            "gpu": gpu,
+            "arch": arch,
+            "profile": profile,
+            "config": args.config,
+            "metrics": args.metrics,
+            "reference": reference,
+            "rows": ROWS,
+            "not_profiled": NOT_PROFILED,
+            "records": records,
+        }
+        Path(args.out).write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+        logger.success(f"Wrote {len(records)} records to {args.out}")
 
 
 if __name__ == "__main__":
