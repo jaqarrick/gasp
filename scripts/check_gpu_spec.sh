@@ -10,6 +10,8 @@
 # not queryable from CUDA; check those against the tuning guide / whitepaper.
 # The max SM clock is printed for reference: the profile's clock_rate_ghz is the
 # base clock, which a microbenchmark run reports as "SM clock: median".
+# It first prints the machine it runs on (host, OS, CPU, driver, CUDA, nvcc, ncu,
+# clocks, power limit); a tool that is missing shows as "unknown".
 set -euo pipefail
 
 profile=""
@@ -64,6 +66,38 @@ EOF
 
 nvcc -O2 -arch=native "$dir/query.cu" -o "$dir/query"
 "$dir/query" > "$dir/gpu.txt"
+
+field() {
+    local value
+    value="$("${@:2}" 2>/dev/null | head -1 | sed 's/^[[:space:]]*//')" || true
+    printf '%-22s %s\n' "$1" "${value:-unknown}"
+}
+smi() { nvidia-smi --query-gpu="$1" --format=csv,noheader -i 0; }
+
+echo "machine"
+field "date:" date '+%Y-%m-%d %H:%M:%S %Z'
+field "host:" hostname -f
+field "os:" uname -srm
+field "cpu:" bash -c "lscpu | sed -n 's/^Model name:[[:space:]]*//p'"
+field "cpu cores:" nproc
+field "memory:" bash -c "free -h | awk '/^Mem:/ {print \$2}'"
+field "gpu:" smi name
+field "gpu memory:" smi memory.total
+field "vbios:" smi vbios_version
+field "driver:" smi driver_version
+field "cuda (driver):" bash -c "nvidia-smi | grep -o 'CUDA Version: [0-9.]*' | cut -d' ' -f3"
+field "nvcc:" bash -c "nvcc --version | grep release"
+field "ncu:" bash -c "ncu --version | tail -1"
+field "sm clock (max):" smi clocks.max.sm
+field "mem clock (max):" smi clocks.max.mem
+field "sm clock (now):" smi clocks.sm
+field "mem clock (now):" smi clocks.mem
+field "power limit:" smi power.limit
+field "persistence mode:" smi persistence_mode
+field "ecc mode:" smi ecc.mode.current
+field "compute mode:" smi compute_mode
+field "other gpu processes:" bash -c "command -v nvidia-smi > /dev/null && nvidia-smi --query-compute-apps=pid --format=csv,noheader | wc -l"
+echo
 
 if [[ -z "$profile" ]]; then
     cat "$dir/gpu.txt"
