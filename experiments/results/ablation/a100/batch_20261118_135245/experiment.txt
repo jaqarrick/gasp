@@ -1,19 +1,43 @@
-description: ablation (with e2e results included) on mm (A100)
+description: ablation (with e2e results included) on all benchmarks (A100), run as one Slurm job per benchmark
 
 started:     2026-11-18 13:52:45 EST
 gpu:         a100
 device:      NVIDIA A100-SXM4-40GB, 610.43.02
 nvcc:        Cuda compilation tools, release 12.6, V12.6.77
-host:        b-19-39
 profile:     hardware/profiles/a100.json (built-in for a100)
 profile sha: 75dafa3bd69779495a887dc5d9b3d1286b8b5ad33003a9ea9e6e460a02871ca0
 mode:        ablation (measure with ncu, then every ablation row)
 commit:      e2e6d90 on main (uncommitted changes)
-command:     ./scripts/batch_ablation.sh --description ablation (with e2e results included) on mm (A100) a100 mm
-benchmarks:  mm
+benchmarks:  bank_conflict divergence l1_lines l2 mm sfu transpose vecadd
+jobs:
+  benchmark      host      started                  finished                 command
+  bank_conflict  b-19-23   2026-11-18 13:54:42 EST  2026-11-18 13:57:52 EST  ./scripts/batch_ablation.sh --description ablation (with e2e results included) on bank_conflict (A100) a100 bank_conflict
+  divergence     b-19-57   2026-11-18 14:58:43 EST  2026-11-18 15:03:18 EST  ./scripts/batch_ablation.sh --description ablation (with e2e results included) on divergence (A100) a100 divergence
+  l1_lines       unknown   2026-11-18 15:30:42 EST  2026-11-18 15:32:52 EST  ./scripts/batch_ablation.sh --description ablation (with e2e results included) on l1_lines (A100) a100 l1_lines
+  l2             b-19-67   2026-11-18 15:30:42 EST  2026-11-18 15:33:39 EST  ./scripts/batch_ablation.sh --description ablation (with e2e results included) on l2 (A100) a100 l2
+  mm             b-19-39   2026-11-18 13:52:45 EST  2026-11-18 14:10:46 EST  ./scripts/batch_ablation.sh --description ablation (with e2e results included) on mm (A100) a100 mm
+  sfu            b-19-12   2026-11-18 14:13:13 EST  2026-11-18 14:17:32 EST  ./scripts/batch_ablation.sh --description ablation (with e2e results included) on sfu (A100) a100 sfu
+  transpose      b-19-67   2026-11-18 15:46:14 EST  2026-11-18 15:48:35 EST  ./scripts/batch_ablation.sh --description ablation (with e2e results included) on transpose (A100) a100 transpose
+  vecadd         unknown   2026-11-18 14:58:43 EST  2026-11-18 15:09:55 EST  ./scripts/batch_ablation.sh --description ablation (with e2e results included) on vecadd (A100) a100 vecadd
 configs:
-  benchmarks/mm/configs/mm.toml
+  benchmarks/bank_conflict/configs/bank_conflict_loop_fill.toml
+  benchmarks/bank_conflict/configs/bank_conflict.toml
+  benchmarks/divergence/configs/divergence.toml
+  benchmarks/divergence/configs/n1048576_b1024.toml
+  benchmarks/divergence/configs/n1048576_b128.toml
+  benchmarks/divergence/configs/n1048576_b512.toml
+  benchmarks/divergence/configs/n1048576_b64.toml
+  benchmarks/divergence/configs/n262144_b256.toml
+  benchmarks/divergence/configs/n4194304_b256.toml
+  benchmarks/divergence/configs/n65536_b256.toml
+  benchmarks/l1_lines/configs/l1_lines.toml
+  benchmarks/l2/configs/l2.toml
+  benchmarks/l2/configs/n1048576_b1024.toml
+  benchmarks/l2/configs/n1048576_b128.toml
+  benchmarks/l2/configs/n1048576_b512.toml
+  benchmarks/l2/configs/n1048576_b64.toml
   benchmarks/mm/configs/mm_basic.toml
+  benchmarks/mm/configs/mm.toml
   benchmarks/mm/configs/n1000_b16x16.toml
   benchmarks/mm/configs/n1024_b16x16.toml
   benchmarks/mm/configs/n1024_b32x32.toml
@@ -34,4 +58,33 @@ configs:
   benchmarks/mm/configs/variants_n1000_b16x16.toml
   benchmarks/mm/configs/variants_n2048_b16x16.toml
   benchmarks/mm/configs/variants_n512_b16x16.toml
-finished:    2026-11-18 14:10:46 EST
+  benchmarks/sfu/configs/n1048576_b1024.toml
+  benchmarks/sfu/configs/n1048576_b128.toml
+  benchmarks/sfu/configs/n1048576_b512.toml
+  benchmarks/sfu/configs/n1048576_b64.toml
+  benchmarks/sfu/configs/n262144_b256.toml
+  benchmarks/sfu/configs/n4194304_b256.toml
+  benchmarks/sfu/configs/n65536_b256.toml
+  benchmarks/sfu/configs/sfu.toml
+  benchmarks/transpose/configs/n1024_b32x32.toml
+  benchmarks/transpose/configs/n2048_b32x32.toml
+  benchmarks/transpose/configs/n512_b32x32.toml
+  benchmarks/transpose/configs/transpose.toml
+  benchmarks/vecadd/configs/n1000000_b1024.toml
+  benchmarks/vecadd/configs/n1000000_b128.toml
+  benchmarks/vecadd/configs/n1000000_b256.toml
+  benchmarks/vecadd/configs/n1000000_b512.toml
+  benchmarks/vecadd/configs/n1000000_b64.toml
+  benchmarks/vecadd/configs/n16777216_b1024.toml
+  benchmarks/vecadd/configs/n16777216_b128.toml
+  benchmarks/vecadd/configs/n16777216_b256.toml
+  benchmarks/vecadd/configs/n16777216_b512.toml
+  benchmarks/vecadd/configs/n16777216_b64.toml
+  benchmarks/vecadd/configs/n65536_b1024.toml
+  benchmarks/vecadd/configs/n65536_b128.toml
+  benchmarks/vecadd/configs/n65536_b256.toml
+  benchmarks/vecadd/configs/n65536_b512.toml
+  benchmarks/vecadd/configs/n65536_b64.toml
+  benchmarks/vecadd/configs/vecadd_grid.toml
+  benchmarks/vecadd/configs/vecadd.toml
+finished:    2026-11-18 15:48:35 EST

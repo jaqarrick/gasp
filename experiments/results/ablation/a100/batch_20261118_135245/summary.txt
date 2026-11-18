@@ -1,7 +1,23 @@
-ablation on a100: 22 passed, 0 failed
+ablation on a100: 67 passed, 0 failed
 profile: built-in for a100
-  passed: mm/mm
+  passed: bank_conflict/bank_conflict_loop_fill
+  passed: bank_conflict/bank_conflict
+  passed: divergence/divergence
+  passed: divergence/n1048576_b1024
+  passed: divergence/n1048576_b128
+  passed: divergence/n1048576_b512
+  passed: divergence/n1048576_b64
+  passed: divergence/n262144_b256
+  passed: divergence/n4194304_b256
+  passed: divergence/n65536_b256
+  passed: l1_lines/l1_lines
+  passed: l2/l2
+  passed: l2/n1048576_b1024
+  passed: l2/n1048576_b128
+  passed: l2/n1048576_b512
+  passed: l2/n1048576_b64
   passed: mm/mm_basic
+  passed: mm/mm
   passed: mm/n1000_b16x16
   passed: mm/n1024_b16x16
   passed: mm/n1024_b32x32
@@ -22,21 +38,99 @@ profile: built-in for a100
   passed: mm/variants_n1000_b16x16
   passed: mm/variants_n2048_b16x16
   passed: mm/variants_n512_b16x16
+  passed: sfu/n1048576_b1024
+  passed: sfu/n1048576_b128
+  passed: sfu/n1048576_b512
+  passed: sfu/n1048576_b64
+  passed: sfu/n262144_b256
+  passed: sfu/n4194304_b256
+  passed: sfu/n65536_b256
+  passed: sfu/sfu
+  passed: transpose/n1024_b32x32
+  passed: transpose/n2048_b32x32
+  passed: transpose/n512_b32x32
+  passed: transpose/transpose
+  passed: vecadd/n1000000_b1024
+  passed: vecadd/n1000000_b128
+  passed: vecadd/n1000000_b256
+  passed: vecadd/n1000000_b512
+  passed: vecadd/n1000000_b64
+  passed: vecadd/n16777216_b1024
+  passed: vecadd/n16777216_b128
+  passed: vecadd/n16777216_b256
+  passed: vecadd/n16777216_b512
+  passed: vecadd/n16777216_b64
+  passed: vecadd/n65536_b1024
+  passed: vecadd/n65536_b128
+  passed: vecadd/n65536_b256
+  passed: vecadd/n65536_b512
+  passed: vecadd/n65536_b64
+  passed: vecadd/vecadd_grid
+  passed: vecadd/vecadd
 
 error decomposition (GASPerf; make ablation-results BATCH=./experiments/results/ablation/a100/batch_20261118_135245 ARGS='--model all' for every model):
-gpu   benchmark  model    row                  kernels  abs_err_mean  abs_err_median  speedups  abs_speedup_err_mean  abs_speedup_err_median  itilp_capped  itmlp_capped
-----  ---------  -------  -------------------  -------  ------------  --------------  --------  --------------------  ----------------------  ------------  ------------
-a100  mm         GASPerf  all-static                58        33.175          27.882        36                43.894                  50.219            58             0
-a100  mm         GASPerf  crude                     58        34.847          33.744        36                80.231                  58.493            58             0
-a100  mm         GASPerf  profiled-cache            58        33.146          27.739        36                43.814                  50.015            58             0
-a100  mm         GASPerf  profiled-coalescing       58        32.767          27.882        36                44.456                  51.436            58             0
-a100  mm         GASPerf  profiled-bank             58        33.235          27.882        36                43.569                  49.921            58             0
-a100  mm         GASPerf  profiled-counts           58        32.102          27.453        36                43.556                  49.056            58             0
-a100  mm         GASPerf  all-profiled              58        31.761          27.167        36                43.716                  48.183            58             0
-a100  all        GASPerf  all-static                58        33.175          27.882        36                43.894                  50.219            58             0
-a100  all        GASPerf  crude                     58        34.847          33.744        36                80.231                  58.493            58             0
-a100  all        GASPerf  profiled-cache            58        33.146          27.739        36                43.814                  50.015            58             0
-a100  all        GASPerf  profiled-coalescing       58        32.767          27.882        36                44.456                  51.436            58             0
-a100  all        GASPerf  profiled-bank             58        33.235          27.882        36                43.569                  49.921            58             0
-a100  all        GASPerf  profiled-counts           58        32.102          27.453        36                43.556                  49.056            58             0
-a100  all        GASPerf  all-profiled              58        31.761          27.167        36                43.716                  48.183            58             0
+gpu   benchmark      model    row                  kernels  abs_err_mean  abs_err_median  speedups  abs_speedup_err_mean  abs_speedup_err_median  itilp_capped  itmlp_capped
+----  -------------  -------  -------------------  -------  ------------  --------------  --------  --------------------  ----------------------  ------------  ------------
+a100  bank_conflict  GASPerf  all-static                12           129          98.757        10                42.912                  23.127            12             0
+a100  bank_conflict  GASPerf  crude                     12        59.549          62.506        10                   764                     470            12             0
+a100  bank_conflict  GASPerf  profiled-cache            12           129          98.757        10                42.912                  23.127            12             0
+a100  bank_conflict  GASPerf  profiled-coalescing       12           129          98.757        10                42.912                  23.127            12             0
+a100  bank_conflict  GASPerf  profiled-bank             12        81.037          86.623        10                20.017                  20.546            12             0
+a100  bank_conflict  GASPerf  profiled-counts           12           129          98.663        10                43.070                  24.155            12             0
+a100  bank_conflict  GASPerf  all-profiled              12        80.253          86.093        10                20.883                  21.451            12             0
+a100  divergence     GASPerf  all-static                16        60.074          68.077         8                 4.154                   2.637            16             0
+a100  divergence     GASPerf  crude                     16        60.074          68.077         8                 4.154                   2.637            16             0
+a100  divergence     GASPerf  profiled-cache            16        60.074          68.077         8                 4.154                   2.637            16             0
+a100  divergence     GASPerf  profiled-coalescing       16        60.074          68.077         8                 4.154                   2.637            16             0
+a100  divergence     GASPerf  profiled-bank             16        60.074          68.077         8                 4.154                   2.637            16             0
+a100  divergence     GASPerf  profiled-counts           16        60.075          67.997         8                 4.248                   2.735            16             0
+a100  divergence     GASPerf  all-profiled              16        60.075          67.997         8                 4.248                   2.735            16             0
+a100  l1_lines       GASPerf  all-static                 8           158             184         7                66.152                  53.652             8             0
+a100  l1_lines       GASPerf  crude                      8        68.226          76.746         7                   665                     501             8             0
+a100  l1_lines       GASPerf  profiled-cache             8           158             184         7                66.135                  53.668             8             0
+a100  l1_lines       GASPerf  profiled-coalescing        8           159             184         7                65.996                  53.810             8             0
+a100  l1_lines       GASPerf  profiled-bank              8           158             184         7                66.152                  53.652             8             0
+a100  l1_lines       GASPerf  profiled-counts            8           158             184         7                66.151                  53.653             8             0
+a100  l1_lines       GASPerf  all-profiled               8           159             184         7                65.977                  53.826             8             0
+a100  l2             GASPerf  all-static                10         9.637           9.295         5                17.393                  17.671            10             0
+a100  l2             GASPerf  crude                     10         9.637           9.295         5                17.393                  17.671            10             0
+a100  l2             GASPerf  profiled-cache            10         9.637           9.295         5                17.393                  17.671            10             0
+a100  l2             GASPerf  profiled-coalescing       10         9.637           9.295         5                17.393                  17.671            10             0
+a100  l2             GASPerf  profiled-bank             10         9.637           9.295         5                17.393                  17.671            10             0
+a100  l2             GASPerf  profiled-counts           10         9.637           9.295         5                17.393                  17.671            10             0
+a100  l2             GASPerf  all-profiled              10         9.637           9.295         5                17.393                  17.671            10             0
+a100  mm             GASPerf  all-static                58        33.175          27.882        36                43.894                  50.219            58             0
+a100  mm             GASPerf  crude                     58        34.847          33.744        36                80.231                  58.493            58             0
+a100  mm             GASPerf  profiled-cache            58        33.146          27.739        36                43.814                  50.015            58             0
+a100  mm             GASPerf  profiled-coalescing       58        32.767          27.882        36                44.456                  51.436            58             0
+a100  mm             GASPerf  profiled-bank             58        33.235          27.882        36                43.569                  49.921            58             0
+a100  mm             GASPerf  profiled-counts           58        32.102          27.453        36                43.556                  49.056            58             0
+a100  mm             GASPerf  all-profiled              58        31.761          27.167        36                43.716                  48.183            58             0
+a100  sfu            GASPerf  all-static                16        11.002          10.088         8                16.674                  17.022            16             0
+a100  sfu            GASPerf  crude                     16        11.002          10.088         8                16.674                  17.022            16             0
+a100  sfu            GASPerf  profiled-cache            16        11.002          10.088         8                16.674                  17.022            16             0
+a100  sfu            GASPerf  profiled-coalescing       16        11.002          10.088         8                16.674                  17.022            16             0
+a100  sfu            GASPerf  profiled-bank             16        11.002          10.088         8                16.674                  17.022            16             0
+a100  sfu            GASPerf  profiled-counts           16        11.002          10.088         8                16.674                  17.022            16             0
+a100  sfu            GASPerf  all-profiled              16        11.002          10.088         8                16.674                  17.022            16             0
+a100  transpose      GASPerf  all-static                 8        38.979          37.584         4                   118                     105             8             0
+a100  transpose      GASPerf  crude                      8        56.314          62.885         4                43.628                  46.915             8             0
+a100  transpose      GASPerf  profiled-cache             8        38.979          37.584         4                   118                     105             8             0
+a100  transpose      GASPerf  profiled-coalescing        8        38.979          37.584         4                   118                     105             8             0
+a100  transpose      GASPerf  profiled-bank              8        39.073          37.761         4                   118                     105             8             0
+a100  transpose      GASPerf  profiled-counts            8        38.979          37.584         4                   118                     105             8             0
+a100  transpose      GASPerf  all-profiled               8        39.073          37.761         4                   118                     105             8             0
+a100  vecadd         GASPerf  all-static                34        42.818          28.854        17                 5.449                   1.224            34             0
+a100  vecadd         GASPerf  crude                     34        42.818          28.854        17                 5.449                   1.224            34             0
+a100  vecadd         GASPerf  profiled-cache            34        42.741          28.844        17                 5.104                   1.224            34             0
+a100  vecadd         GASPerf  profiled-coalescing       34        42.818          28.854        17                 5.449                   1.224            34             0
+a100  vecadd         GASPerf  profiled-bank             34        42.818          28.854        17                 5.449                   1.224            34             0
+a100  vecadd         GASPerf  profiled-counts           34        42.895          28.872        17                 5.821                   1.224            34             0
+a100  vecadd         GASPerf  all-profiled              34        42.821          28.863        17                 5.460                   1.224            34             0
+a100  all            GASPerf  all-static               162        47.788          29.445        95                34.636                  17.671           162             0
+a100  all            GASPerf  crude                    162        39.638          33.517        95                   165                  17.671           162             0
+a100  all            GASPerf  profiled-cache           162        47.761          29.155        95                34.543                  17.671           162             0
+a100  all            GASPerf  profiled-coalescing      162        47.670          29.445        95                34.837                  17.671           162             0
+a100  all            GASPerf  profiled-bank            162        44.235          29.445        95                32.114                  17.479           162             0
+a100  all            GASPerf  profiled-counts          162        47.362          27.775        95                34.599                  17.739           162             0
+a100  all            GASPerf  all-profiled             162        43.676          27.698        95                32.258                  17.739           162             0
