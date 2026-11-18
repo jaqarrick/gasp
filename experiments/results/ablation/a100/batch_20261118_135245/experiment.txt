@@ -1,0 +1,37 @@
+description: ablation (with e2e results included) on mm (A100)
+
+started:     2026-11-18 13:52:45 EST
+gpu:         a100
+device:      NVIDIA A100-SXM4-40GB, 610.43.02
+nvcc:        Cuda compilation tools, release 12.6, V12.6.77
+host:        b-19-39
+profile:     hardware/profiles/a100.json (built-in for a100)
+profile sha: 75dafa3bd69779495a887dc5d9b3d1286b8b5ad33003a9ea9e6e460a02871ca0
+mode:        ablation (measure with ncu, then every ablation row)
+commit:      e2e6d90 on main (uncommitted changes)
+command:     ./scripts/batch_ablation.sh --description ablation (with e2e results included) on mm (A100) a100 mm
+benchmarks:  mm
+configs:
+  benchmarks/mm/configs/mm.toml
+  benchmarks/mm/configs/mm_basic.toml
+  benchmarks/mm/configs/n1000_b16x16.toml
+  benchmarks/mm/configs/n1024_b16x16.toml
+  benchmarks/mm/configs/n1024_b32x32.toml
+  benchmarks/mm/configs/n1024_b32x8.toml
+  benchmarks/mm/configs/n1024_b8x8.toml
+  benchmarks/mm/configs/n2048_b16x16.toml
+  benchmarks/mm/configs/n2048_b32x32.toml
+  benchmarks/mm/configs/n2048_b32x8.toml
+  benchmarks/mm/configs/n2048_b8x8.toml
+  benchmarks/mm/configs/n256_b16x16.toml
+  benchmarks/mm/configs/n256_b32x32.toml
+  benchmarks/mm/configs/n256_b32x8.toml
+  benchmarks/mm/configs/n256_b8x8.toml
+  benchmarks/mm/configs/n512_b16x16.toml
+  benchmarks/mm/configs/n512_b32x32.toml
+  benchmarks/mm/configs/n512_b32x8.toml
+  benchmarks/mm/configs/n512_b8x8.toml
+  benchmarks/mm/configs/variants_n1000_b16x16.toml
+  benchmarks/mm/configs/variants_n2048_b16x16.toml
+  benchmarks/mm/configs/variants_n512_b16x16.toml
+finished:    2026-11-18 14:10:46 EST

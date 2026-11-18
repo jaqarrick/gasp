@@ -1,0 +1,135 @@
+PYTHONPATH=src .venv/bin/python experiments/ablation/run_ablation.py --gpu a100 --config ./benchmarks/l1_lines/configs/l1_lines.toml --metrics ./experiments/results/ablation/a100/batch_20261118_153042/l1_lines_l1_lines/metrics.json --out ./experiments/results/ablation/a100/batch_20261118_153042/l1_lines_l1_lines/ablation.json
+[1;36m        ABLATION: ./BENCHMARKS/L1_LINES/CONFIGS/L1_LINES.TOML ON A100 (REFERENCE: CONTIGUOUS; ALL-PROFILED KEEPS STATIC ILP, MLP, SYNC_INST_COUNT)         [0m
+┏━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃[1m [0m[1mrow       [0m[1m [0m┃[1m [0m[1mkernel   [0m[1m [0m┃[1m [0m[1mmodel  [0m[1m [0m┃[1m [0m[1moverrides [0m[1m [0m┃[1m [0m[1mpico[0m[1m [0m┃[1m [0m[1mpredicte…[0m[1m [0m┃[1m [0m[1mmeasured_…[0m[1m [0m┃[1m [0m[1merror_pct[0m[1m [0m┃[1m [0m[1mpredicte…[0m[1m [0m┃[1m [0m[1mmeasured_…[0m[1m [0m┃[1m [0m[1mspeedup_…[0m[1m [0m┃[1m [0m[1mitilp_cap…[0m[1m [0m┃[1m [0m[1mitmlp_ca…[0m[1m [0m┃
+┡━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ all-static │ contiguo… │ GPUPerf │ none       │ ok   │ 165321.48 │ 105833.00  │ 56.21     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ all-static │ contiguo… │ GASPerf │ none       │ ok   │ 197264.34 │ 105833.00  │ 86.39     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ all-static │ s8_l2_st… │ GPUPerf │ none       │ ok   │ 165321.48 │ 164360.00  │ 0.58      │ 1.00      │ 0.64       │ 55.30     │ yes        │ no        │
+│ all-static │ s8_l2_st… │ GASPerf │ none       │ ok   │ 643384.54 │ 164360.00  │ 291.45    │ 0.31      │ 0.64       │ -52.38    │ yes        │ no        │
+│ all-static │ s8_l8_gr… │ GPUPerf │ none       │ ok   │ 165321.48 │ 636339.00  │ -74.02    │ 1.00      │ 0.17       │ 501.27    │ yes        │ no        │
+│ all-static │ s8_l8_gr… │ GASPerf │ none       │ ok   │ 643384.54 │ 636339.00  │ 1.11      │ 0.31      │ 0.17       │ 84.35     │ yes        │ no        │
+│ all-static │ s16_l4_s… │ GPUPerf │ none       │ ok   │ 165321.48 │ 321048.00  │ -48.51    │ 1.00      │ 0.33       │ 203.35    │ yes        │ no        │
+│ all-static │ s16_l4_s… │ GASPerf │ none       │ ok   │ 1282926.… │ 321048.00  │ 299.61    │ 0.15      │ 0.33       │ -53.36    │ yes        │ no        │
+│ all-static │ s16_l16_… │ GPUPerf │ none       │ ok   │ 165321.48 │ 1267958.00 │ -86.96    │ 1.00      │ 0.08       │ 1098.07   │ yes        │ no        │
+│ all-static │ s16_l16_… │ GASPerf │ none       │ ok   │ 1282926.… │ 1267958.00 │ 1.18      │ 0.15      │ 0.08       │ 84.22     │ yes        │ no        │
+│ all-static │ s32_l8_s… │ GPUPerf │ none       │ ok   │ 165321.48 │ 637073.00  │ -74.05    │ 1.00      │ 0.17       │ 501.96    │ yes        │ no        │
+│ all-static │ s32_l8_s… │ GASPerf │ none       │ ok   │ 2562032.… │ 637073.00  │ 302.16    │ 0.08      │ 0.17       │ -53.65    │ yes        │ no        │
+│ all-static │ s32_l32_… │ GPUPerf │ none       │ ok   │ 165321.48 │ 2529822.00 │ -93.47    │ 1.00      │ 0.04       │ 2290.39   │ yes        │ no        │
+│ all-static │ s32_l32_… │ GASPerf │ none       │ ok   │ 2562032.… │ 2529822.00 │ 1.27      │ 0.08      │ 0.04       │ 84.05     │ yes        │ no        │
+│ all-static │ s5_l2_mi… │ GPUPerf │ none       │ ok   │ 165321.48 │ 105968.00  │ 56.01     │ 1.00      │ 1.00       │ 0.13      │ yes        │ no        │
+│ all-static │ s5_l2_mi… │ GASPerf │ none       │ ok   │ 403571.96 │ 105968.00  │ 280.84    │ 0.49      │ 1.00       │ -51.06    │ yes        │ no        │
+│ crude      │ contiguo… │ GPUPerf │ coalescin… │ ok   │ 165321.48 │ 105833.00  │ 56.21     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ contiguo… │ GASPerf │ coalescin… │ ok   │ 197264.34 │ 105833.00  │ 86.39     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ s8_l2_st… │ GPUPerf │ coalescin… │ ok   │ 165321.48 │ 164360.00  │ 0.58      │ 1.00      │ 0.64       │ 55.30     │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ s8_l2_st… │ GASPerf │ coalescin… │ ok   │ 197228.35 │ 164360.00  │ 20.00     │ 1.00      │ 0.64       │ 55.33     │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ s8_l8_gr… │ GPUPerf │ coalescin… │ ok   │ 165321.48 │ 636339.00  │ -74.02    │ 1.00      │ 0.17       │ 501.27    │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ s8_l8_gr… │ GASPerf │ coalescin… │ ok   │ 197228.35 │ 636339.00  │ -69.01    │ 1.00      │ 0.17       │ 501.38    │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ s16_l4_s… │ GPUPerf │ coalescin… │ ok   │ 165321.48 │ 321048.00  │ -48.51    │ 1.00      │ 0.33       │ 203.35    │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ s16_l4_s… │ GASPerf │ coalescin… │ ok   │ 197212.15 │ 321048.00  │ -38.57    │ 1.00      │ 0.33       │ 203.43    │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ s16_l16_… │ GPUPerf │ coalescin… │ ok   │ 165321.48 │ 1267958.00 │ -86.96    │ 1.00      │ 0.08       │ 1098.07   │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ s16_l16_… │ GASPerf │ coalescin… │ ok   │ 197212.15 │ 1267958.00 │ -84.45    │ 1.00      │ 0.08       │ 1098.39   │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ s32_l8_s… │ GPUPerf │ coalescin… │ ok   │ 165321.48 │ 637073.00  │ -74.05    │ 1.00      │ 0.17       │ 501.96    │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ s32_l8_s… │ GASPerf │ coalescin… │ ok   │ 197203.15 │ 637073.00  │ -69.05    │ 1.00      │ 0.17       │ 502.15    │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ s32_l32_… │ GPUPerf │ coalescin… │ ok   │ 165321.48 │ 2529822.00 │ -93.47    │ 1.00      │ 0.04       │ 2290.39   │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ s32_l32_… │ GASPerf │ coalescin… │ ok   │ 197203.15 │ 2529822.00 │ -92.20    │ 1.00      │ 0.04       │ 2291.13   │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ s5_l2_mi… │ GPUPerf │ coalescin… │ ok   │ 165321.48 │ 105968.00  │ 56.01     │ 1.00      │ 1.00       │ 0.13      │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ s5_l2_mi… │ GASPerf │ coalescin… │ ok   │ 197249.95 │ 105968.00  │ 86.14     │ 1.00      │ 1.00       │ 0.13      │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ profiled-… │ contiguo… │ GPUPerf │ cache=pro… │ ok   │ 165321.48 │ 105833.00  │ 56.21     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ contiguo… │ GASPerf │ cache=pro… │ ok   │ 197195.96 │ 105833.00  │ 86.33     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ s8_l2_st… │ GPUPerf │ cache=pro… │ ok   │ 165321.48 │ 164360.00  │ 0.58      │ 1.00      │ 0.64       │ 55.30     │ yes        │ no        │
+│ profiled-… │ s8_l2_st… │ GASPerf │ cache=pro… │ ok   │ 643352.14 │ 164360.00  │ 291.43    │ 0.31      │ 0.64       │ -52.40    │ yes        │ no        │
+│ profiled-… │ s8_l8_gr… │ GPUPerf │ cache=pro… │ ok   │ 165321.48 │ 636339.00  │ -74.02    │ 1.00      │ 0.17       │ 501.27    │ yes        │ no        │
+│ profiled-… │ s8_l8_gr… │ GASPerf │ cache=pro… │ ok   │ 643352.14 │ 636339.00  │ 1.10      │ 0.31      │ 0.17       │ 84.30     │ yes        │ no        │
+│ profiled-… │ s16_l4_s… │ GPUPerf │ cache=pro… │ ok   │ 165321.48 │ 321048.00  │ -48.51    │ 1.00      │ 0.33       │ 203.35    │ yes        │ no        │
+│ profiled-… │ s16_l4_s… │ GASPerf │ cache=pro… │ ok   │ 1282909.… │ 321048.00  │ 299.60    │ 0.15      │ 0.33       │ -53.37    │ yes        │ no        │
+│ profiled-… │ s16_l16_… │ GPUPerf │ cache=pro… │ ok   │ 165321.48 │ 1267958.00 │ -86.96    │ 1.00      │ 0.08       │ 1098.07   │ yes        │ no        │
+│ profiled-… │ s16_l16_… │ GASPerf │ cache=pro… │ ok   │ 1282909.… │ 1267958.00 │ 1.18      │ 0.15      │ 0.08       │ 84.16     │ yes        │ no        │
+│ profiled-… │ s32_l8_s… │ GPUPerf │ cache=pro… │ ok   │ 165321.48 │ 637073.00  │ -74.05    │ 1.00      │ 0.17       │ 501.96    │ yes        │ no        │
+│ profiled-… │ s32_l8_s… │ GASPerf │ cache=pro… │ ok   │ 2562025.… │ 637073.00  │ 302.16    │ 0.08      │ 0.17       │ -53.67    │ yes        │ no        │
+│ profiled-… │ s32_l32_… │ GPUPerf │ cache=pro… │ ok   │ 165321.48 │ 2529822.00 │ -93.47    │ 1.00      │ 0.04       │ 2290.39   │ yes        │ no        │
+│ profiled-… │ s32_l32_… │ GASPerf │ cache=pro… │ ok   │ 2562025.… │ 2529822.00 │ 1.27      │ 0.08      │ 0.04       │ 83.99     │ yes        │ no        │
+│ profiled-… │ s5_l2_mi… │ GPUPerf │ cache=pro… │ ok   │ 165321.48 │ 105968.00  │ 56.01     │ 1.00      │ 1.00       │ 0.13      │ yes        │ no        │
+│ profiled-… │ s5_l2_mi… │ GASPerf │ cache=pro… │ ok   │ 403517.97 │ 105968.00  │ 280.79    │ 0.49      │ 1.00       │ -51.07    │ yes        │ no        │
+│ profiled-… │ contiguo… │ GPUPerf │ coalescin… │ ok   │ 165321.48 │ 105833.00  │ 56.21     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ contiguo… │ GASPerf │ coalescin… │ ok   │ 197264.34 │ 105833.00  │ 86.39     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ s8_l2_st… │ GPUPerf │ coalescin… │ ok   │ 165321.48 │ 164360.00  │ 0.58      │ 1.00      │ 0.64       │ 55.30     │ yes        │ no        │
+│ profiled-… │ s8_l2_st… │ GASPerf │ coalescin… │ ok   │ 644633.67 │ 164360.00  │ 292.21    │ 0.31      │ 0.64       │ -52.48    │ yes        │ no        │
+│ profiled-… │ s8_l8_gr… │ GPUPerf │ coalescin… │ ok   │ 165321.48 │ 636339.00  │ -74.02    │ 1.00      │ 0.17       │ 501.27    │ yes        │ no        │
+│ profiled-… │ s8_l8_gr… │ GASPerf │ coalescin… │ ok   │ 644633.67 │ 636339.00  │ 1.30      │ 0.31      │ 0.17       │ 83.99     │ yes        │ no        │
+│ profiled-… │ s16_l4_s… │ GPUPerf │ coalescin… │ ok   │ 165321.48 │ 321048.00  │ -48.51    │ 1.00      │ 0.33       │ 203.35    │ yes        │ no        │
+│ profiled-… │ s16_l4_s… │ GASPerf │ coalescin… │ ok   │ 1286673.… │ 321048.00  │ 300.77    │ 0.15      │ 0.33       │ -53.49    │ yes        │ no        │
+│ profiled-… │ s16_l16_… │ GPUPerf │ coalescin… │ ok   │ 165321.48 │ 1267958.00 │ -86.96    │ 1.00      │ 0.08       │ 1098.07   │ yes        │ no        │
+│ profiled-… │ s16_l16_… │ GASPerf │ coalescin… │ ok   │ 1286673.… │ 1267958.00 │ 1.48      │ 0.15      │ 0.08       │ 83.68     │ yes        │ no        │
+│ profiled-… │ s32_l8_s… │ GPUPerf │ coalescin… │ ok   │ 165321.48 │ 637073.00  │ -74.05    │ 1.00      │ 0.17       │ 501.96    │ yes        │ no        │
+│ profiled-… │ s32_l8_s… │ GASPerf │ coalescin… │ ok   │ 2570776.… │ 637073.00  │ 303.53    │ 0.08      │ 0.17       │ -53.81    │ yes        │ no        │
+│ profiled-… │ s32_l32_… │ GPUPerf │ coalescin… │ ok   │ 165321.48 │ 2529822.00 │ -93.47    │ 1.00      │ 0.04       │ 2290.39   │ yes        │ no        │
+│ profiled-… │ s32_l32_… │ GASPerf │ coalescin… │ ok   │ 2570776.… │ 2529822.00 │ 1.62      │ 0.08      │ 0.04       │ 83.42     │ yes        │ no        │
+│ profiled-… │ s5_l2_mi… │ GPUPerf │ coalescin… │ ok   │ 165321.48 │ 105968.00  │ 56.01     │ 1.00      │ 1.00       │ 0.13      │ yes        │ no        │
+│ profiled-… │ s5_l2_mi… │ GASPerf │ coalescin… │ ok   │ 403884.24 │ 105968.00  │ 281.14    │ 0.49      │ 1.00       │ -51.10    │ yes        │ no        │
+│ profiled-… │ contiguo… │ GPUPerf │ bank=prof… │ ok   │ 165321.48 │ 105833.00  │ 56.21     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ contiguo… │ GASPerf │ bank=prof… │ ok   │ 197264.34 │ 105833.00  │ 86.39     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ s8_l2_st… │ GPUPerf │ bank=prof… │ ok   │ 165321.48 │ 164360.00  │ 0.58      │ 1.00      │ 0.64       │ 55.30     │ yes        │ no        │
+│ profiled-… │ s8_l2_st… │ GASPerf │ bank=prof… │ ok   │ 643384.54 │ 164360.00  │ 291.45    │ 0.31      │ 0.64       │ -52.38    │ yes        │ no        │
+│ profiled-… │ s8_l8_gr… │ GPUPerf │ bank=prof… │ ok   │ 165321.48 │ 636339.00  │ -74.02    │ 1.00      │ 0.17       │ 501.27    │ yes        │ no        │
+│ profiled-… │ s8_l8_gr… │ GASPerf │ bank=prof… │ ok   │ 643384.54 │ 636339.00  │ 1.11      │ 0.31      │ 0.17       │ 84.35     │ yes        │ no        │
+│ profiled-… │ s16_l4_s… │ GPUPerf │ bank=prof… │ ok   │ 165321.48 │ 321048.00  │ -48.51    │ 1.00      │ 0.33       │ 203.35    │ yes        │ no        │
+│ profiled-… │ s16_l4_s… │ GASPerf │ bank=prof… │ ok   │ 1282926.… │ 321048.00  │ 299.61    │ 0.15      │ 0.33       │ -53.36    │ yes        │ no        │
+│ profiled-… │ s16_l16_… │ GPUPerf │ bank=prof… │ ok   │ 165321.48 │ 1267958.00 │ -86.96    │ 1.00      │ 0.08       │ 1098.07   │ yes        │ no        │
+│ profiled-… │ s16_l16_… │ GASPerf │ bank=prof… │ ok   │ 1282926.… │ 1267958.00 │ 1.18      │ 0.15      │ 0.08       │ 84.22     │ yes        │ no        │
+│ profiled-… │ s32_l8_s… │ GPUPerf │ bank=prof… │ ok   │ 165321.48 │ 637073.00  │ -74.05    │ 1.00      │ 0.17       │ 501.96    │ yes        │ no        │
+│ profiled-… │ s32_l8_s… │ GASPerf │ bank=prof… │ ok   │ 2562032.… │ 637073.00  │ 302.16    │ 0.08      │ 0.17       │ -53.65    │ yes        │ no        │
+│ profiled-… │ s32_l32_… │ GPUPerf │ bank=prof… │ ok   │ 165321.48 │ 2529822.00 │ -93.47    │ 1.00      │ 0.04       │ 2290.39   │ yes        │ no        │
+│ profiled-… │ s32_l32_… │ GASPerf │ bank=prof… │ ok   │ 2562032.… │ 2529822.00 │ 1.27      │ 0.08      │ 0.04       │ 84.05     │ yes        │ no        │
+│ profiled-… │ s5_l2_mi… │ GPUPerf │ bank=prof… │ ok   │ 165321.48 │ 105968.00  │ 56.01     │ 1.00      │ 1.00       │ 0.13      │ yes        │ no        │
+│ profiled-… │ s5_l2_mi… │ GASPerf │ bank=prof… │ ok   │ 403571.96 │ 105968.00  │ 280.84    │ 0.49      │ 1.00       │ -51.06    │ yes        │ no        │
+│ profiled-… │ contiguo… │ GPUPerf │ counts=pr… │ ok   │ 165013.33 │ 105833.00  │ 55.92     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ contiguo… │ GASPerf │ counts=pr… │ ok   │ 197259.60 │ 105833.00  │ 86.39     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ s8_l2_st… │ GPUPerf │ counts=pr… │ ok   │ 165013.33 │ 164360.00  │ 0.40      │ 1.00      │ 0.64       │ 55.30     │ yes        │ no        │
+│ profiled-… │ s8_l2_st… │ GASPerf │ counts=pr… │ ok   │ 643379.80 │ 164360.00  │ 291.45    │ 0.31      │ 0.64       │ -52.38    │ yes        │ no        │
+│ profiled-… │ s8_l8_gr… │ GPUPerf │ counts=pr… │ ok   │ 165013.33 │ 636339.00  │ -74.07    │ 1.00      │ 0.17       │ 501.27    │ yes        │ no        │
+│ profiled-… │ s8_l8_gr… │ GASPerf │ counts=pr… │ ok   │ 643379.80 │ 636339.00  │ 1.11      │ 0.31      │ 0.17       │ 84.35     │ yes        │ no        │
+│ profiled-… │ s16_l4_s… │ GPUPerf │ counts=pr… │ ok   │ 165013.33 │ 321048.00  │ -48.60    │ 1.00      │ 0.33       │ 203.35    │ yes        │ no        │
+│ profiled-… │ s16_l4_s… │ GASPerf │ counts=pr… │ ok   │ 1282921.… │ 321048.00  │ 299.60    │ 0.15      │ 0.33       │ -53.36    │ yes        │ no        │
+│ profiled-… │ s16_l16_… │ GPUPerf │ counts=pr… │ ok   │ 165013.33 │ 1267958.00 │ -86.99    │ 1.00      │ 0.08       │ 1098.07   │ yes        │ no        │
+│ profiled-… │ s16_l16_… │ GASPerf │ counts=pr… │ ok   │ 1282921.… │ 1267958.00 │ 1.18      │ 0.15      │ 0.08       │ 84.21     │ yes        │ no        │
+│ profiled-… │ s32_l8_s… │ GPUPerf │ counts=pr… │ ok   │ 165013.33 │ 637073.00  │ -74.10    │ 1.00      │ 0.17       │ 501.96    │ yes        │ no        │
+│ profiled-… │ s32_l8_s… │ GASPerf │ counts=pr… │ ok   │ 2562028.… │ 637073.00  │ 302.16    │ 0.08      │ 0.17       │ -53.65    │ yes        │ no        │
+│ profiled-… │ s32_l32_… │ GPUPerf │ counts=pr… │ ok   │ 165013.33 │ 2529822.00 │ -93.48    │ 1.00      │ 0.04       │ 2290.39   │ yes        │ no        │
+│ profiled-… │ s32_l32_… │ GASPerf │ counts=pr… │ ok   │ 2562028.… │ 2529822.00 │ 1.27      │ 0.08      │ 0.04       │ 84.04     │ yes        │ no        │
+│ profiled-… │ s5_l2_mi… │ GPUPerf │ counts=pr… │ ok   │ 165013.33 │ 105968.00  │ 55.72     │ 1.00      │ 1.00       │ 0.13      │ yes        │ no        │
+│ profiled-… │ s5_l2_mi… │ GASPerf │ counts=pr… │ ok   │ 403567.22 │ 105968.00  │ 280.84    │ 0.49      │ 1.00       │ -51.06    │ yes        │ no        │
+│ all-profi… │ contiguo… │ GPUPerf │ all=profi… │ ok   │ 165013.33 │ 105833.00  │ 55.92     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ all-profi… │ contiguo… │ GASPerf │ all=profi… │ ok   │ 197191.22 │ 105833.00  │ 86.32     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ all-profi… │ s8_l2_st… │ GPUPerf │ all=profi… │ ok   │ 165013.33 │ 164360.00  │ 0.40      │ 1.00      │ 0.64       │ 55.30     │ yes        │ no        │
+│ all-profi… │ s8_l2_st… │ GASPerf │ all=profi… │ ok   │ 644596.54 │ 164360.00  │ 292.19    │ 0.31      │ 0.64       │ -52.49    │ yes        │ no        │
+│ all-profi… │ s8_l8_gr… │ GPUPerf │ all=profi… │ ok   │ 165013.33 │ 636339.00  │ -74.07    │ 1.00      │ 0.17       │ 501.27    │ yes        │ no        │
+│ all-profi… │ s8_l8_gr… │ GASPerf │ all=profi… │ ok   │ 644596.54 │ 636339.00  │ 1.30      │ 0.31      │ 0.17       │ 83.94     │ yes        │ no        │
+│ all-profi… │ s16_l4_s… │ GPUPerf │ all=profi… │ ok   │ 165013.33 │ 321048.00  │ -48.60    │ 1.00      │ 0.33       │ 203.35    │ yes        │ no        │
+│ all-profi… │ s16_l4_s… │ GASPerf │ all=profi… │ ok   │ 1286652.… │ 321048.00  │ 300.77    │ 0.15      │ 0.33       │ -53.51    │ yes        │ no        │
+│ all-profi… │ s16_l16_… │ GPUPerf │ all=profi… │ ok   │ 165013.33 │ 1267958.00 │ -86.99    │ 1.00      │ 0.08       │ 1098.07   │ yes        │ no        │
+│ all-profi… │ s16_l16_… │ GASPerf │ all=profi… │ ok   │ 1286652.… │ 1267958.00 │ 1.47      │ 0.15      │ 0.08       │ 83.62     │ yes        │ no        │
+│ all-profi… │ s32_l8_s… │ GPUPerf │ all=profi… │ ok   │ 165013.33 │ 637073.00  │ -74.10    │ 1.00      │ 0.17       │ 501.96    │ yes        │ no        │
+│ all-profi… │ s32_l8_s… │ GASPerf │ all=profi… │ ok   │ 2570764.… │ 637073.00  │ 303.53    │ 0.08      │ 0.17       │ -53.83    │ yes        │ no        │
+│ all-profi… │ s32_l32_… │ GPUPerf │ all=profi… │ ok   │ 165013.33 │ 2529822.00 │ -93.48    │ 1.00      │ 0.04       │ 2290.39   │ yes        │ no        │
+│ all-profi… │ s32_l32_… │ GASPerf │ all=profi… │ ok   │ 2570764.… │ 2529822.00 │ 1.62      │ 0.08      │ 0.04       │ 83.36     │ yes        │ no        │
+│ all-profi… │ s5_l2_mi… │ GPUPerf │ all=profi… │ ok   │ 165013.33 │ 105968.00  │ 55.72     │ 1.00      │ 1.00       │ 0.13      │ yes        │ no        │
+│ all-profi… │ s5_l2_mi… │ GASPerf │ all=profi… │ ok   │ 403825.51 │ 105968.00  │ 281.08    │ 0.49      │ 1.00       │ -51.11    │ yes        │ no        │
+└────────────┴───────────┴─────────┴────────────┴──────┴───────────┴────────────┴───────────┴───────────┴────────────┴───────────┴────────────┴───────────┘
+[32msuccess[0m Wrote [1;36m112[0m records to .[35m/experiments/results/ablation/a100/batch_20261118_153042/l1_lines_l1_lines/[0m[95mablation.json[0m

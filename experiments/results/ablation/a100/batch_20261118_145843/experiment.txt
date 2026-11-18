@@ -1,0 +1,33 @@
+description: ablation (with e2e results included) on divergence (A100)
+
+started:     2026-11-18 14:58:43 EST
+gpu:         a100
+device:      NVIDIA A100-SXM4-40GB, 610.43.02
+nvcc:        Cuda compilation tools, release 12.6, V12.6.77
+host:        b-19-57
+profile:     hardware/profiles/a100.json (built-in for a100)
+profile sha: 75dafa3bd69779495a887dc5d9b3d1286b8b5ad33003a9ea9e6e460a02871ca0
+mode:        ablation (measure with ncu, then every ablation row)
+commit:      e2e6d90 on main (uncommitted changes)
+command:     ./scripts/batch_ablation.sh --description ablation (with e2e results included) on divergence (A100) a100 divergence
+benchmarks:  divergence
+configs:
+  benchmarks/divergence/configs/divergence.toml
+  benchmarks/divergence/configs/n1048576_b1024.toml
+  benchmarks/divergence/configs/n1048576_b128.toml
+  benchmarks/divergence/configs/n1048576_b512.toml
+  benchmarks/divergence/configs/n1048576_b64.toml
+  benchmarks/divergence/configs/n262144_b256.toml
+  benchmarks/divergence/configs/n4194304_b256.toml
+  benchmarks/divergence/configs/n65536_b256.toml
+b512.toml
+  benchmarks/vecadd/configs/n16777216_b64.toml
+  benchmarks/vecadd/configs/n65536_b1024.toml
+  benchmarks/vecadd/configs/n65536_b128.toml
+  benchmarks/vecadd/configs/n65536_b256.toml
+  benchmarks/vecadd/configs/n65536_b512.toml
+  benchmarks/vecadd/configs/n65536_b64.toml
+  benchmarks/vecadd/configs/vecadd.toml
+  benchmarks/vecadd/configs/vecadd_grid.toml
+finished:    2026-11-18 15:03:18 EST
+finished:    2026-11-18 15:09:55 EST

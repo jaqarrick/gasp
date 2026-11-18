@@ -1,0 +1,165 @@
+{
+  "gasp_version": "0.1.0",
+  "gpu": "a100",
+  "arch": "sm_80",
+  "kernels": {
+    "basic": {
+      "kernel_name": "_Z8mm_basicPfS_S_iii",
+      "block_size": 1024,
+      "grid_size": 1024,
+      "runs": [
+        {
+          "duration_ns": 821760.0,
+          "cycles": 908940.0,
+          "metrics": {
+            "gpc__cycles_elapsed.max": 908940.0,
+            "gpu__time_duration.sum": 821760.0,
+            "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum": 0.0,
+            "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum": 0.0,
+            "l1tex__t_requests_pipe_lsu_mem_global_op_ld.sum": 67108864.0,
+            "l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate.pct": 95.06,
+            "l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum": 167772160.0,
+            "launch__block_size": 1024.0,
+            "launch__grid_size": 1024.0,
+            "launch__shared_mem_config_size": 8192.0,
+            "lts__t_sectors_srcunit_tex_op_read_lookup_hit.sum": 7945747.0,
+            "lts__t_sectors_srcunit_tex_op_read_lookup_miss.sum": 464200.0,
+            "sm__warps_active.avg.pct_of_peak_sustained_active": 94.73,
+            "smsp__inst_executed.sum": 156663808.0,
+            "smsp__inst_executed_op_global_ld.sum": 67108864.0,
+            "smsp__inst_executed_op_global_st.sum": 32768.0,
+            "smsp__inst_executed_pipe_fp64.sum": 0.0,
+            "smsp__inst_executed_pipe_xu.sum": 0.0
+          }
+        },
+        {
+          "duration_ns": 822080.0,
+          "cycles": 909744.0,
+          "metrics": {
+            "gpc__cycles_elapsed.max": 909744.0,
+            "gpu__time_duration.sum": 822080.0,
+            "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum": 0.0,
+            "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum": 0.0,
+            "l1tex__t_requests_pipe_lsu_mem_global_op_ld.sum": 67108864.0,
+            "l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate.pct": 95.06,
+            "l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum": 167772160.0,
+            "launch__block_size": 1024.0,
+            "launch__grid_size": 1024.0,
+            "launch__shared_mem_config_size": 8192.0,
+            "lts__t_sectors_srcunit_tex_op_read_lookup_hit.sum": 7941868.0,
+            "lts__t_sectors_srcunit_tex_op_read_lookup_miss.sum": 464808.0,
+            "sm__warps_active.avg.pct_of_peak_sustained_active": 94.76,
+            "smsp__inst_executed.sum": 156663808.0,
+            "smsp__inst_executed_op_global_ld.sum": 67108864.0,
+            "smsp__inst_executed_op_global_st.sum": 32768.0,
+            "smsp__inst_executed_pipe_fp64.sum": 0.0,
+            "smsp__inst_executed_pipe_xu.sum": 0.0
+          }
+        },
+        {
+          "duration_ns": 816448.0,
+          "cycles": 914174.0,
+          "metrics": {
+            "gpc__cycles_elapsed.max": 914174.0,
+            "gpu__time_duration.sum": 816448.0,
+            "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum": 0.0,
+            "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum": 0.0,
+            "l1tex__t_requests_pipe_lsu_mem_global_op_ld.sum": 67108864.0,
+            "l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate.pct": 95.06,
+            "l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum": 167772160.0,
+            "launch__block_size": 1024.0,
+            "launch__grid_size": 1024.0,
+            "launch__shared_mem_config_size": 8192.0,
+            "lts__t_sectors_srcunit_tex_op_read_lookup_hit.sum": 7948512.0,
+            "lts__t_sectors_srcunit_tex_op_read_lookup_miss.sum": 459152.0,
+            "sm__warps_active.avg.pct_of_peak_sustained_active": 94.7,
+            "smsp__inst_executed.sum": 156663808.0,
+            "smsp__inst_executed_op_global_ld.sum": 67108864.0,
+            "smsp__inst_executed_op_global_st.sum": 32768.0,
+            "smsp__inst_executed_pipe_fp64.sum": 0.0,
+            "smsp__inst_executed_pipe_xu.sum": 0.0
+          }
+        }
+      ]
+    },
+    "tiled": {
+      "kernel_name": "_Z8mm_tiledPfS_S_iii",
+      "block_size": 256,
+      "grid_size": 4096,
+      "runs": [
+        {
+          "duration_ns": 602336.0,
+          "cycles": 666645.0,
+          "metrics": {
+            "gpc__cycles_elapsed.max": 666645.0,
+            "gpu__time_duration.sum": 602336.0,
+            "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum": 13467.0,
+            "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum": 164327.0,
+            "l1tex__t_requests_pipe_lsu_mem_global_op_ld.sum": 4194304.0,
+            "l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate.pct": 5.34,
+            "l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum": 16681768.0,
+            "launch__block_size": 256.0,
+            "launch__grid_size": 4096.0,
+            "launch__shared_mem_config_size": 65536.0,
+            "lts__t_sectors_srcunit_tex_op_read_lookup_hit.sum": 15471702.0,
+            "lts__t_sectors_srcunit_tex_op_read_lookup_miss.sum": 445786.0,
+            "sm__warps_active.avg.pct_of_peak_sustained_active": 92.02,
+            "smsp__inst_executed.sum": 129105920.0,
+            "smsp__inst_executed_op_global_ld.sum": 4194304.0,
+            "smsp__inst_executed_op_global_st.sum": 32768.0,
+            "smsp__inst_executed_pipe_fp64.sum": 0.0,
+            "smsp__inst_executed_pipe_xu.sum": 0.0
+          }
+        },
+        {
+          "duration_ns": 601888.0,
+          "cycles": 665681.0,
+          "metrics": {
+            "gpc__cycles_elapsed.max": 665681.0,
+            "gpu__time_duration.sum": 601888.0,
+            "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum": 13868.0,
+            "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum": 162659.0,
+            "l1tex__t_requests_pipe_lsu_mem_global_op_ld.sum": 4194304.0,
+            "l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate.pct": 5.14,
+            "l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum": 16678494.0,
+            "launch__block_size": 256.0,
+            "launch__grid_size": 4096.0,
+            "launch__shared_mem_config_size": 65536.0,
+            "lts__t_sectors_srcunit_tex_op_read_lookup_hit.sum": 15427722.0,
+            "lts__t_sectors_srcunit_tex_op_read_lookup_miss.sum": 447440.0,
+            "sm__warps_active.avg.pct_of_peak_sustained_active": 92.15,
+            "smsp__inst_executed.sum": 129105920.0,
+            "smsp__inst_executed_op_global_ld.sum": 4194304.0,
+            "smsp__inst_executed_op_global_st.sum": 32768.0,
+            "smsp__inst_executed_pipe_fp64.sum": 0.0,
+            "smsp__inst_executed_pipe_xu.sum": 0.0
+          }
+        },
+        {
+          "duration_ns": 602848.0,
+          "cycles": 667231.0,
+          "metrics": {
+            "gpc__cycles_elapsed.max": 667231.0,
+            "gpu__time_duration.sum": 602848.0,
+            "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum": 14161.0,
+            "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum": 163098.0,
+            "l1tex__t_requests_pipe_lsu_mem_global_op_ld.sum": 4194304.0,
+            "l1tex__t_sector_pipe_lsu_mem_global_op_ld_hit_rate.pct": 5.5,
+            "l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum": 16679970.0,
+            "launch__block_size": 256.0,
+            "launch__grid_size": 4096.0,
+            "launch__shared_mem_config_size": 65536.0,
+            "lts__t_sectors_srcunit_tex_op_read_lookup_hit.sum": 15459104.0,
+            "lts__t_sectors_srcunit_tex_op_read_lookup_miss.sum": 445710.0,
+            "sm__warps_active.avg.pct_of_peak_sustained_active": 91.93,
+            "smsp__inst_executed.sum": 129105920.0,
+            "smsp__inst_executed_op_global_ld.sum": 4194304.0,
+            "smsp__inst_executed_op_global_st.sum": 32768.0,
+            "smsp__inst_executed_pipe_fp64.sum": 0.0,
+            "smsp__inst_executed_pipe_xu.sum": 0.0
+          }
+        }
+      ]
+    }
+  }
+}

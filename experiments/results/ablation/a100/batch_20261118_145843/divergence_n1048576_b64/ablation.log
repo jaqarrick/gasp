@@ -1,0 +1,39 @@
+PYTHONPATH=src .venv/bin/python experiments/ablation/run_ablation.py --gpu a100 --config ./benchmarks/divergence/configs/n1048576_b64.toml --metrics ./experiments/results/ablation/a100/batch_20261118_145843/divergence_n1048576_b64/metrics.json --out ./experiments/results/ablation/a100/batch_20261118_145843/divergence_n1048576_b64/ablation.json
+[1;36m      ABLATION: ./BENCHMARKS/DIVERGENCE/CONFIGS/N1048576_B64.TOML ON A100 (REFERENCE: DIVERGENT; ALL-PROFILED KEEPS STATIC ILP, MLP, SYNC_INST_COUNT)      [0m
+┏━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃[1m [0m[1mrow       [0m[1m [0m┃[1m [0m[1mkernel   [0m[1m [0m┃[1m [0m[1mmodel  [0m[1m [0m┃[1m [0m[1moverrides [0m[1m [0m┃[1m [0m[1mpico[0m[1m [0m┃[1m [0m[1mpredicte…[0m[1m [0m┃[1m [0m[1mmeasured_…[0m[1m [0m┃[1m [0m[1merror_pct[0m[1m [0m┃[1m [0m[1mpredicte…[0m[1m [0m┃[1m [0m[1mmeasured_…[0m[1m [0m┃[1m [0m[1mspeedup_…[0m[1m [0m┃[1m [0m[1mitilp_cap…[0m[1m [0m┃[1m [0m[1mitmlp_ca…[0m[1m [0m┃
+┡━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ all-static │ divergent │ GPUPerf │ none       │ ok   │ 315392.00 │ 183733.00  │ 71.66     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ all-static │ divergent │ GASPerf │ none       │ ok   │ 315392.00 │ 183733.00  │ 71.66     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ all-static │ uniform   │ GPUPerf │ none       │ ok   │ 161469.63 │ 95104.00   │ 69.78     │ 1.95      │ 1.93       │ 1.10      │ yes        │ no        │
+│ all-static │ uniform   │ GASPerf │ none       │ ok   │ 158985.48 │ 95104.00   │ 67.17     │ 1.98      │ 1.93       │ 2.68      │ yes        │ no        │
+│ crude      │ divergent │ GPUPerf │ coalescin… │ ok   │ 315392.00 │ 183733.00  │ 71.66     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ divergent │ GASPerf │ coalescin… │ ok   │ 315392.00 │ 183733.00  │ 71.66     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ uniform   │ GPUPerf │ coalescin… │ ok   │ 161469.63 │ 95104.00   │ 69.78     │ 1.95      │ 1.93       │ 1.10      │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ uniform   │ GASPerf │ coalescin… │ ok   │ 158985.48 │ 95104.00   │ 67.17     │ 1.98      │ 1.93       │ 2.68      │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ profiled-… │ divergent │ GPUPerf │ cache=pro… │ ok   │ 315392.00 │ 183733.00  │ 71.66     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ divergent │ GASPerf │ cache=pro… │ ok   │ 315392.00 │ 183733.00  │ 71.66     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ uniform   │ GPUPerf │ cache=pro… │ ok   │ 161469.63 │ 95104.00   │ 69.78     │ 1.95      │ 1.93       │ 1.10      │ yes        │ no        │
+│ profiled-… │ uniform   │ GASPerf │ cache=pro… │ ok   │ 158985.48 │ 95104.00   │ 67.17     │ 1.98      │ 1.93       │ 2.68      │ yes        │ no        │
+│ profiled-… │ divergent │ GPUPerf │ coalescin… │ ok   │ 315392.00 │ 183733.00  │ 71.66     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ divergent │ GASPerf │ coalescin… │ ok   │ 315392.00 │ 183733.00  │ 71.66     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ uniform   │ GPUPerf │ coalescin… │ ok   │ 161469.63 │ 95104.00   │ 69.78     │ 1.95      │ 1.93       │ 1.10      │ yes        │ no        │
+│ profiled-… │ uniform   │ GASPerf │ coalescin… │ ok   │ 158985.48 │ 95104.00   │ 67.17     │ 1.98      │ 1.93       │ 2.68      │ yes        │ no        │
+│ profiled-… │ divergent │ GPUPerf │ bank=prof… │ ok   │ 315392.00 │ 183733.00  │ 71.66     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ divergent │ GASPerf │ bank=prof… │ ok   │ 315392.00 │ 183733.00  │ 71.66     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ uniform   │ GPUPerf │ bank=prof… │ ok   │ 161469.63 │ 95104.00   │ 69.78     │ 1.95      │ 1.93       │ 1.10      │ yes        │ no        │
+│ profiled-… │ uniform   │ GASPerf │ bank=prof… │ ok   │ 158985.48 │ 95104.00   │ 67.17     │ 1.98      │ 1.93       │ 2.68      │ yes        │ no        │
+│ profiled-… │ divergent │ GPUPerf │ counts=pr… │ ok   │ 315543.70 │ 183733.00  │ 71.74     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ divergent │ GASPerf │ counts=pr… │ ok   │ 315543.70 │ 183733.00  │ 71.74     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ uniform   │ GPUPerf │ counts=pr… │ ok   │ 161392.59 │ 95104.00   │ 69.70     │ 1.96      │ 1.93       │ 1.20      │ yes        │ no        │
+│ profiled-… │ uniform   │ GASPerf │ counts=pr… │ ok   │ 158909.63 │ 95104.00   │ 67.09     │ 1.99      │ 1.93       │ 2.78      │ yes        │ no        │
+│ all-profi… │ divergent │ GPUPerf │ all=profi… │ ok   │ 315543.70 │ 183733.00  │ 71.74     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ all-profi… │ divergent │ GASPerf │ all=profi… │ ok   │ 315543.70 │ 183733.00  │ 71.74     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ all-profi… │ uniform   │ GPUPerf │ all=profi… │ ok   │ 161392.59 │ 95104.00   │ 69.70     │ 1.96      │ 1.93       │ 1.20      │ yes        │ no        │
+│ all-profi… │ uniform   │ GASPerf │ all=profi… │ ok   │ 158909.63 │ 95104.00   │ 67.09     │ 1.99      │ 1.93       │ 2.78      │ yes        │ no        │
+└────────────┴───────────┴─────────┴────────────┴──────┴───────────┴────────────┴───────────┴───────────┴────────────┴───────────┴────────────┴───────────┘
+[32msuccess[0m Wrote [1;36m28[0m records to .[35m/experiments/results/ablation/a100/batch_20261118_145843/divergence_n1048576_b64/[0m[95mablation.json[0m

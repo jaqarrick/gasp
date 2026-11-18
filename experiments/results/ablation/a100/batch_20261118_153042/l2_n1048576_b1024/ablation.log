@@ -1,0 +1,39 @@
+PYTHONPATH=src .venv/bin/python experiments/ablation/run_ablation.py --gpu a100 --config ./benchmarks/l2/configs/n1048576_b1024.toml --metrics ./experiments/results/ablation/a100/batch_20261118_153042/l2_n1048576_b1024/metrics.json --out ./experiments/results/ablation/a100/batch_20261118_153042/l2_n1048576_b1024/ablation.json
+[1;36m        ABLATION: ./BENCHMARKS/L2/CONFIGS/N1048576_B1024.TOML ON A100 (REFERENCE: DRAM_STREAM; ALL-PROFILED KEEPS STATIC ILP, MLP, SYNC_INST_COUNT)        [0m
+┏━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃[1m [0m[1mrow      [0m[1m [0m┃[1m [0m[1mkernel    [0m[1m [0m┃[1m [0m[1mmodel  [0m[1m [0m┃[1m [0m[1moverrides[0m[1m [0m┃[1m [0m[1mpico[0m[1m [0m┃[1m [0m[1mpredicted…[0m[1m [0m┃[1m [0m[1mmeasured…[0m[1m [0m┃[1m [0m[1merror_pct[0m[1m [0m┃[1m [0m[1mpredicted…[0m[1m [0m┃[1m [0m[1mmeasured…[0m[1m [0m┃[1m [0m[1mspeedup_e…[0m[1m [0m┃[1m [0m[1mitilp_ca…[0m[1m [0m┃[1m [0m[1mitmlp_cap…[0m[1m [0m┃
+┡━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│ all-stat… │ dram_stre… │ GPUPerf │ none      │ ok   │ 198655.97  │ 217679.00 │ -8.74     │ 1.00       │ 1.00      │ 0.00       │ yes       │ yes        │
+│ all-stat… │ dram_stre… │ GASPerf │ none      │ ok   │ 198655.97  │ 217679.00 │ -8.74     │ 1.00       │ 1.00      │ 0.00       │ yes       │ no         │
+│ all-stat… │ l2_reside… │ GPUPerf │ none      │ ok   │ 110357.65  │ 144798.00 │ -23.79    │ 1.80       │ 1.50      │ 19.74      │ yes       │ yes        │
+│ all-stat… │ l2_reside… │ GASPerf │ none      │ ok   │ 160639.46  │ 144798.00 │ 10.94     │ 1.24       │ 1.50      │ -17.74     │ yes       │ no         │
+│ crude     │ dram_stre… │ GPUPerf │ coalesci… │ ok   │ 198655.97  │ 217679.00 │ -8.74     │ 1.00       │ 1.00      │ 0.00       │ yes       │ yes        │
+│           │            │         │ bank=cru… │      │            │           │           │            │           │            │           │            │
+│ crude     │ dram_stre… │ GASPerf │ coalesci… │ ok   │ 198655.97  │ 217679.00 │ -8.74     │ 1.00       │ 1.00      │ 0.00       │ yes       │ no         │
+│           │            │         │ bank=cru… │      │            │           │           │            │           │            │           │            │
+│ crude     │ l2_reside… │ GPUPerf │ coalesci… │ ok   │ 110357.65  │ 144798.00 │ -23.79    │ 1.80       │ 1.50      │ 19.74      │ yes       │ yes        │
+│           │            │         │ bank=cru… │      │            │           │           │            │           │            │           │            │
+│ crude     │ l2_reside… │ GASPerf │ coalesci… │ ok   │ 160639.46  │ 144798.00 │ 10.94     │ 1.24       │ 1.50      │ -17.74     │ yes       │ no         │
+│           │            │         │ bank=cru… │      │            │           │           │            │           │            │           │            │
+│ profiled… │ dram_stre… │ GPUPerf │ cache=pr… │ ok   │ 198655.97  │ 217679.00 │ -8.74     │ 1.00       │ 1.00      │ 0.00       │ yes       │ yes        │
+│ profiled… │ dram_stre… │ GASPerf │ cache=pr… │ ok   │ 198655.97  │ 217679.00 │ -8.74     │ 1.00       │ 1.00      │ 0.00       │ yes       │ no         │
+│ profiled… │ l2_reside… │ GPUPerf │ cache=pr… │ ok   │ 140067.17  │ 144798.00 │ -3.27     │ 1.42       │ 1.50      │ -5.66      │ yes       │ yes        │
+│ profiled… │ l2_reside… │ GASPerf │ cache=pr… │ ok   │ 160639.46  │ 144798.00 │ 10.94     │ 1.24       │ 1.50      │ -17.74     │ yes       │ no         │
+│ profiled… │ dram_stre… │ GPUPerf │ coalesci… │ ok   │ 198655.97  │ 217679.00 │ -8.74     │ 1.00       │ 1.00      │ 0.00       │ yes       │ yes        │
+│ profiled… │ dram_stre… │ GASPerf │ coalesci… │ ok   │ 198655.97  │ 217679.00 │ -8.74     │ 1.00       │ 1.00      │ 0.00       │ yes       │ no         │
+│ profiled… │ l2_reside… │ GPUPerf │ coalesci… │ ok   │ 110357.65  │ 144798.00 │ -23.79    │ 1.80       │ 1.50      │ 19.74      │ yes       │ yes        │
+│ profiled… │ l2_reside… │ GASPerf │ coalesci… │ ok   │ 160639.46  │ 144798.00 │ 10.94     │ 1.24       │ 1.50      │ -17.74     │ yes       │ no         │
+│ profiled… │ dram_stre… │ GPUPerf │ bank=pro… │ ok   │ 198655.97  │ 217679.00 │ -8.74     │ 1.00       │ 1.00      │ 0.00       │ yes       │ yes        │
+│ profiled… │ dram_stre… │ GASPerf │ bank=pro… │ ok   │ 198655.97  │ 217679.00 │ -8.74     │ 1.00       │ 1.00      │ 0.00       │ yes       │ no         │
+│ profiled… │ l2_reside… │ GPUPerf │ bank=pro… │ ok   │ 110357.65  │ 144798.00 │ -23.79    │ 1.80       │ 1.50      │ 19.74      │ yes       │ yes        │
+│ profiled… │ l2_reside… │ GASPerf │ bank=pro… │ ok   │ 160639.46  │ 144798.00 │ 10.94     │ 1.24       │ 1.50      │ -17.74     │ yes       │ no         │
+│ profiled… │ dram_stre… │ GPUPerf │ counts=p… │ ok   │ 198655.97  │ 217679.00 │ -8.74     │ 1.00       │ 1.00      │ 0.00       │ yes       │ yes        │
+│ profiled… │ dram_stre… │ GASPerf │ counts=p… │ ok   │ 198655.97  │ 217679.00 │ -8.74     │ 1.00       │ 1.00      │ 0.00       │ yes       │ no         │
+│ profiled… │ l2_reside… │ GPUPerf │ counts=p… │ ok   │ 110357.65  │ 144798.00 │ -23.79    │ 1.80       │ 1.50      │ 19.74      │ yes       │ yes        │
+│ profiled… │ l2_reside… │ GASPerf │ counts=p… │ ok   │ 160639.46  │ 144798.00 │ 10.94     │ 1.24       │ 1.50      │ -17.74     │ yes       │ no         │
+│ all-prof… │ dram_stre… │ GPUPerf │ all=prof… │ ok   │ 198655.97  │ 217679.00 │ -8.74     │ 1.00       │ 1.00      │ 0.00       │ yes       │ yes        │
+│ all-prof… │ dram_stre… │ GASPerf │ all=prof… │ ok   │ 198655.97  │ 217679.00 │ -8.74     │ 1.00       │ 1.00      │ 0.00       │ yes       │ no         │
+│ all-prof… │ l2_reside… │ GPUPerf │ all=prof… │ ok   │ 140067.17  │ 144798.00 │ -3.27     │ 1.42       │ 1.50      │ -5.66      │ yes       │ yes        │
+│ all-prof… │ l2_reside… │ GASPerf │ all=prof… │ ok   │ 160639.46  │ 144798.00 │ 10.94     │ 1.24       │ 1.50      │ -17.74     │ yes       │ no         │
+└───────────┴────────────┴─────────┴───────────┴──────┴────────────┴───────────┴───────────┴────────────┴───────────┴────────────┴───────────┴────────────┘
+[32msuccess[0m Wrote [1;36m28[0m records to .[35m/experiments/results/ablation/a100/batch_20261118_153042/l2_n1048576_b1024/[0m[95mablation.json[0m

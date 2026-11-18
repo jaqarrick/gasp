@@ -1,0 +1,19 @@
+description: ablation (with e2e results included) on transpose (A100)
+
+started:     2026-11-18 15:46:14 EST
+gpu:         a100
+device:      NVIDIA A100-SXM4-40GB, 610.43.02
+nvcc:        Cuda compilation tools, release 12.6, V12.6.77
+host:        b-19-67
+profile:     hardware/profiles/a100.json (built-in for a100)
+profile sha: 75dafa3bd69779495a887dc5d9b3d1286b8b5ad33003a9ea9e6e460a02871ca0
+mode:        ablation (measure with ncu, then every ablation row)
+commit:      e2e6d90 on main (uncommitted changes)
+command:     ./scripts/batch_ablation.sh --description ablation (with e2e results included) on transpose (A100) a100 transpose
+benchmarks:  transpose
+configs:
+  benchmarks/transpose/configs/n1024_b32x32.toml
+  benchmarks/transpose/configs/n2048_b32x32.toml
+  benchmarks/transpose/configs/n512_b32x32.toml
+  benchmarks/transpose/configs/transpose.toml
+finished:    2026-11-18 15:48:35 EST
