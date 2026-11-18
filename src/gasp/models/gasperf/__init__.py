@@ -104,31 +104,46 @@ class GASPerf:
         h = self.h
         requests_per_sm = (k.mem_inst_count * o.total_warps) / o.active_sms
         self.amat = self._get_amat()
+
+        # Latency limit for all requests
         t_mem_latency = requests_per_sm / o.itmlp * self.amat
 
-        # L1 throughput limit
+        # how many 32-byte sectors one warp request touches (from Pico estimate)
         sectors_per_request = o.average_trans_warp * SECTORS_PER_LINE
         # Adjustment - check for strided access pattern
+        # How many 31 128byte lines the L1 has to server. With 4 sectors or less it is 1 line
+        # Above that, we assume every sector is ain a different line
+        # this is a big ASSUMPTION, so large requests that are coallesced will currently be overestimated
         lines_per_request = sectors_per_request if o.average_trans_warp > 1 else 1.0
         # a request that misses L1 holds its slot while L2 answers
-        cycles_per_request = (
+
+        # Determine the cycles from each request when L1 is busy
+        l1_transfer_cycles = (
+            lines_per_request * SECTORS_PER_LINE / h.l1_sectors_per_cycle
+        )
+        l1_miss_penalty = (1 - o.l1_hit_ratio) * h.l1_miss_cycles_per_request
+        l1_busy_cycles_per_request = (
             max(
                 h.l1_cycles_per_request,
-                lines_per_request * SECTORS_PER_LINE / h.l1_sectors_per_cycle,
+                l1_transfer_cycles,
             )
-            + (1 - o.l1_hit_ratio) * h.l1_miss_cycles_per_request
+            + l1_miss_penalty
         )
-        self.l1_time = requests_per_sm * cycles_per_request
+
+        self.l1_time = requests_per_sm * l1_busy_cycles_per_request
 
         # L2 throughput limit, the SM's share of the whole-GPU rate
-        l1_miss_bytes = (
-            requests_per_sm * sectors_per_request * (1 - o.l1_hit_ratio) * SECTOR_BYTES
-        )
+        l1_miss_fraction = 1 - o.l1_hit_ratio
+        sectors_requested = requests_per_sm * sectors_per_request
+        l1_miss_bytes = sectors_requested * l1_miss_fraction * SECTOR_BYTES
+
         self.l2_time = l1_miss_bytes / (h.l2_bandwidth / o.active_sms)
 
         # DRAM throughput limit, on the bytes that also miss L2
         l2_miss_bytes = l1_miss_bytes * (1 - o.l2_hit_ratio)
         self.dram_time = l2_miss_bytes / (h.dram_bandwidth / o.active_sms)
+
+        # GASP addition - GPUPerf only did t_mem_latency
         return max(t_mem_latency, self.l1_time, self.l2_time, self.dram_time)
 
     def _get_t_overlap(self, t_memory: float, t_comp: float) -> float:
