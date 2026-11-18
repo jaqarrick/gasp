@@ -1,0 +1,104 @@
+PYTHONPATH=src .venv/bin/python experiments/ablation/run_ablation.py --gpu a100 --config ./benchmarks/bank_conflict/configs/bank_conflict_loop_fill.toml --metrics ./experiments/results/ablation/a100/batch_20261118_135442/bank_conflict_bank_conflict_loop_fill/metrics.json --out ./experiments/results/ablation/a100/batch_20261118_135442/bank_conflict_bank_conflict_loop_fill/ablation.json
+[1;36m        ABLATION: ./BENCHMARKS/BANK_CONFLICT/CONFIGS/BANK_CONFLICT_LOOP_FILL.TOML ON A100 (REFERENCE: DEGREE_1; ALL-PROFILED KEEPS STATIC ILP, MLP,        [0m
+[1;36m                                                                     SYNC_INST_COUNT)                                                                      [0m
+┏━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃[1m [0m[1mrow       [0m[1m [0m┃[1m [0m[1mkernel   [0m[1m [0m┃[1m [0m[1mmodel  [0m[1m [0m┃[1m [0m[1moverrides [0m[1m [0m┃[1m [0m[1mpico[0m[1m [0m┃[1m [0m[1mpredicte…[0m[1m [0m┃[1m [0m[1mmeasured_…[0m[1m [0m┃[1m [0m[1merror_pct[0m[1m [0m┃[1m [0m[1mpredicte…[0m[1m [0m┃[1m [0m[1mmeasured_…[0m[1m [0m┃[1m [0m[1mspeedup_…[0m[1m [0m┃[1m [0m[1mitilp_cap…[0m[1m [0m┃[1m [0m[1mitmlp_ca…[0m[1m [0m┃
+┡━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ all-static │ degree_1  │ GPUPerf │ none       │ ok   │ 120172.99 │ 29758.00   │ 303.83    │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ all-static │ degree_1  │ GASPerf │ none       │ ok   │ 120172.99 │ 29758.00   │ 303.83    │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ all-static │ degree_2  │ GPUPerf │ none       │ ok   │ 158912.05 │ 46375.00   │ 242.67    │ 0.76      │ 0.64       │ 17.85     │ yes        │ no        │
+│ all-static │ degree_2  │ GASPerf │ none       │ ok   │ 158912.05 │ 46375.00   │ 242.67    │ 0.76      │ 0.64       │ 17.85     │ yes        │ no        │
+│ all-static │ degree_4  │ GPUPerf │ none       │ ok   │ 236390.16 │ 86374.00   │ 173.68    │ 0.51      │ 0.34       │ 47.56     │ yes        │ no        │
+│ all-static │ degree_4  │ GASPerf │ none       │ ok   │ 236390.16 │ 86374.00   │ 173.68    │ 0.51      │ 0.34       │ 47.56     │ yes        │ no        │
+│ all-static │ degree_8  │ GPUPerf │ none       │ ok   │ 391346.40 │ 169628.00  │ 130.71    │ 0.31      │ 0.18       │ 75.04     │ yes        │ no        │
+│ all-static │ degree_8  │ GASPerf │ none       │ ok   │ 391346.40 │ 169628.00  │ 130.71    │ 0.31      │ 0.18       │ 75.04     │ yes        │ no        │
+│ all-static │ degree_16 │ GPUPerf │ none       │ ok   │ 701258.86 │ 325672.00  │ 115.33    │ 0.17      │ 0.09       │ 87.54     │ yes        │ no        │
+│ all-static │ degree_16 │ GASPerf │ none       │ ok   │ 701258.86 │ 325672.00  │ 115.33    │ 0.17      │ 0.09       │ 87.54     │ yes        │ no        │
+│ all-static │ degree_32 │ GPUPerf │ none       │ ok   │ 1321083.… │ 645307.00  │ 104.72    │ 0.09      │ 0.05       │ 97.26     │ yes        │ no        │
+│ all-static │ degree_32 │ GASPerf │ none       │ ok   │ 1321083.… │ 645307.00  │ 104.72    │ 0.09      │ 0.05       │ 97.26     │ yes        │ no        │
+│ crude      │ degree_1  │ GPUPerf │ coalescin… │ ok   │ 45760.94  │ 29758.00   │ 53.78     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ degree_1  │ GASPerf │ coalescin… │ ok   │ 45116.07  │ 29758.00   │ 51.61     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ degree_2  │ GPUPerf │ coalescin… │ ok   │ 45760.94  │ 46375.00   │ -1.32     │ 1.00      │ 0.64       │ 55.84     │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ degree_2  │ GASPerf │ coalescin… │ ok   │ 45116.07  │ 46375.00   │ -2.71     │ 1.00      │ 0.64       │ 55.84     │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ degree_4  │ GPUPerf │ coalescin… │ ok   │ 45760.94  │ 86374.00   │ -47.02    │ 1.00      │ 0.34       │ 190.25    │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ degree_4  │ GASPerf │ coalescin… │ ok   │ 45116.07  │ 86374.00   │ -47.77    │ 1.00      │ 0.34       │ 190.25    │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ degree_8  │ GPUPerf │ coalescin… │ ok   │ 45760.94  │ 169628.00  │ -73.02    │ 1.00      │ 0.18       │ 470.02    │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ degree_8  │ GASPerf │ coalescin… │ ok   │ 45116.07  │ 169628.00  │ -73.40    │ 1.00      │ 0.18       │ 470.02    │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ degree_16 │ GPUPerf │ coalescin… │ ok   │ 45760.94  │ 325672.00  │ -85.95    │ 1.00      │ 0.09       │ 994.40    │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ degree_16 │ GASPerf │ coalescin… │ ok   │ 45116.07  │ 325672.00  │ -86.15    │ 1.00      │ 0.09       │ 994.40    │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ degree_32 │ GPUPerf │ coalescin… │ ok   │ 45760.94  │ 645307.00  │ -92.91    │ 1.00      │ 0.05       │ 2068.52   │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ degree_32 │ GASPerf │ coalescin… │ ok   │ 45116.07  │ 645307.00  │ -93.01    │ 1.00      │ 0.05       │ 2068.52   │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ profiled-… │ degree_1  │ GPUPerf │ cache=pro… │ ok   │ 120172.99 │ 29758.00   │ 303.83    │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ degree_1  │ GASPerf │ cache=pro… │ ok   │ 120172.99 │ 29758.00   │ 303.83    │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ degree_2  │ GPUPerf │ cache=pro… │ ok   │ 158912.05 │ 46375.00   │ 242.67    │ 0.76      │ 0.64       │ 17.85     │ yes        │ no        │
+│ profiled-… │ degree_2  │ GASPerf │ cache=pro… │ ok   │ 158912.05 │ 46375.00   │ 242.67    │ 0.76      │ 0.64       │ 17.85     │ yes        │ no        │
+│ profiled-… │ degree_4  │ GPUPerf │ cache=pro… │ ok   │ 236390.16 │ 86374.00   │ 173.68    │ 0.51      │ 0.34       │ 47.56     │ yes        │ no        │
+│ profiled-… │ degree_4  │ GASPerf │ cache=pro… │ ok   │ 236390.16 │ 86374.00   │ 173.68    │ 0.51      │ 0.34       │ 47.56     │ yes        │ no        │
+│ profiled-… │ degree_8  │ GPUPerf │ cache=pro… │ ok   │ 391346.40 │ 169628.00  │ 130.71    │ 0.31      │ 0.18       │ 75.04     │ yes        │ no        │
+│ profiled-… │ degree_8  │ GASPerf │ cache=pro… │ ok   │ 391346.40 │ 169628.00  │ 130.71    │ 0.31      │ 0.18       │ 75.04     │ yes        │ no        │
+│ profiled-… │ degree_16 │ GPUPerf │ cache=pro… │ ok   │ 701258.86 │ 325672.00  │ 115.33    │ 0.17      │ 0.09       │ 87.54     │ yes        │ no        │
+│ profiled-… │ degree_16 │ GASPerf │ cache=pro… │ ok   │ 701258.86 │ 325672.00  │ 115.33    │ 0.17      │ 0.09       │ 87.54     │ yes        │ no        │
+│ profiled-… │ degree_32 │ GPUPerf │ cache=pro… │ ok   │ 1321083.… │ 645307.00  │ 104.72    │ 0.09      │ 0.05       │ 97.26     │ yes        │ no        │
+│ profiled-… │ degree_32 │ GASPerf │ cache=pro… │ ok   │ 1321083.… │ 645307.00  │ 104.72    │ 0.09      │ 0.05       │ 97.26     │ yes        │ no        │
+│ profiled-… │ degree_1  │ GPUPerf │ coalescin… │ ok   │ 120172.99 │ 29758.00   │ 303.83    │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ degree_1  │ GASPerf │ coalescin… │ ok   │ 120172.99 │ 29758.00   │ 303.83    │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ degree_2  │ GPUPerf │ coalescin… │ ok   │ 158912.05 │ 46375.00   │ 242.67    │ 0.76      │ 0.64       │ 17.85     │ yes        │ no        │
+│ profiled-… │ degree_2  │ GASPerf │ coalescin… │ ok   │ 158912.05 │ 46375.00   │ 242.67    │ 0.76      │ 0.64       │ 17.85     │ yes        │ no        │
+│ profiled-… │ degree_4  │ GPUPerf │ coalescin… │ ok   │ 236390.16 │ 86374.00   │ 173.68    │ 0.51      │ 0.34       │ 47.56     │ yes        │ no        │
+│ profiled-… │ degree_4  │ GASPerf │ coalescin… │ ok   │ 236390.16 │ 86374.00   │ 173.68    │ 0.51      │ 0.34       │ 47.56     │ yes        │ no        │
+│ profiled-… │ degree_8  │ GPUPerf │ coalescin… │ ok   │ 391346.40 │ 169628.00  │ 130.71    │ 0.31      │ 0.18       │ 75.04     │ yes        │ no        │
+│ profiled-… │ degree_8  │ GASPerf │ coalescin… │ ok   │ 391346.40 │ 169628.00  │ 130.71    │ 0.31      │ 0.18       │ 75.04     │ yes        │ no        │
+│ profiled-… │ degree_16 │ GPUPerf │ coalescin… │ ok   │ 701258.86 │ 325672.00  │ 115.33    │ 0.17      │ 0.09       │ 87.54     │ yes        │ no        │
+│ profiled-… │ degree_16 │ GASPerf │ coalescin… │ ok   │ 701258.86 │ 325672.00  │ 115.33    │ 0.17      │ 0.09       │ 87.54     │ yes        │ no        │
+│ profiled-… │ degree_32 │ GPUPerf │ coalescin… │ ok   │ 1321083.… │ 645307.00  │ 104.72    │ 0.09      │ 0.05       │ 97.26     │ yes        │ no        │
+│ profiled-… │ degree_32 │ GASPerf │ coalescin… │ ok   │ 1321083.… │ 645307.00  │ 104.72    │ 0.09      │ 0.05       │ 97.26     │ yes        │ no        │
+│ profiled-… │ degree_1  │ GPUPerf │ bank=prof… │ ok   │ 45760.94  │ 29758.00   │ 53.78     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ degree_1  │ GASPerf │ bank=prof… │ ok   │ 45116.07  │ 29758.00   │ 51.61     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ degree_2  │ GPUPerf │ bank=prof… │ ok   │ 83855.12  │ 46375.00   │ 80.82     │ 0.55      │ 0.64       │ -14.96    │ yes        │ no        │
+│ profiled-… │ degree_2  │ GASPerf │ bank=prof… │ ok   │ 83855.12  │ 46375.00   │ 80.82     │ 0.54      │ 0.64       │ -16.15    │ yes        │ no        │
+│ profiled-… │ degree_4  │ GPUPerf │ bank=prof… │ ok   │ 161333.24 │ 86374.00   │ 86.78     │ 0.28      │ 0.34       │ -17.67    │ yes        │ no        │
+│ profiled-… │ degree_4  │ GASPerf │ bank=prof… │ ok   │ 161333.24 │ 86374.00   │ 86.78     │ 0.28      │ 0.34       │ -18.83    │ yes        │ no        │
+│ profiled-… │ degree_8  │ GPUPerf │ bank=prof… │ ok   │ 316289.47 │ 169628.00  │ 86.46     │ 0.14      │ 0.18       │ -17.53    │ yes        │ no        │
+│ profiled-… │ degree_8  │ GASPerf │ bank=prof… │ ok   │ 316289.47 │ 169628.00  │ 86.46     │ 0.14      │ 0.18       │ -18.69    │ yes        │ no        │
+│ profiled-… │ degree_16 │ GPUPerf │ bank=prof… │ ok   │ 626203.84 │ 325672.00  │ 92.28     │ 0.07      │ 0.09       │ -20.02    │ yes        │ no        │
+│ profiled-… │ degree_16 │ GASPerf │ bank=prof… │ ok   │ 626203.84 │ 325672.00  │ 92.28     │ 0.07      │ 0.09       │ -21.15    │ yes        │ no        │
+│ profiled-… │ degree_32 │ GPUPerf │ bank=prof… │ ok   │ 1246029.… │ 645307.00  │ 93.09     │ 0.04      │ 0.05       │ -20.36    │ yes        │ no        │
+│ profiled-… │ degree_32 │ GASPerf │ bank=prof… │ ok   │ 1246029.… │ 645307.00  │ 93.09     │ 0.04      │ 0.05       │ -21.48    │ yes        │ no        │
+│ profiled-… │ degree_1  │ GPUPerf │ counts=pr… │ ok   │ 119567.00 │ 29758.00   │ 301.80    │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ degree_1  │ GASPerf │ counts=pr… │ ok   │ 119567.00 │ 29758.00   │ 301.80    │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ degree_2  │ GPUPerf │ counts=pr… │ ok   │ 158306.05 │ 46375.00   │ 241.36    │ 0.76      │ 0.64       │ 17.70     │ yes        │ no        │
+│ profiled-… │ degree_2  │ GASPerf │ counts=pr… │ ok   │ 158306.05 │ 46375.00   │ 241.36    │ 0.76      │ 0.64       │ 17.70     │ yes        │ no        │
+│ profiled-… │ degree_4  │ GPUPerf │ counts=pr… │ ok   │ 235784.17 │ 86374.00   │ 172.98    │ 0.51      │ 0.34       │ 47.19     │ yes        │ no        │
+│ profiled-… │ degree_4  │ GASPerf │ counts=pr… │ ok   │ 235784.17 │ 86374.00   │ 172.98    │ 0.51      │ 0.34       │ 47.19     │ yes        │ no        │
+│ profiled-… │ degree_8  │ GPUPerf │ counts=pr… │ ok   │ 390740.40 │ 169628.00  │ 130.35    │ 0.31      │ 0.18       │ 74.43     │ yes        │ no        │
+│ profiled-… │ degree_8  │ GASPerf │ counts=pr… │ ok   │ 390740.40 │ 169628.00  │ 130.35    │ 0.31      │ 0.18       │ 74.43     │ yes        │ no        │
+│ profiled-… │ degree_16 │ GPUPerf │ counts=pr… │ ok   │ 700652.86 │ 325672.00  │ 115.14    │ 0.17      │ 0.09       │ 86.76     │ yes        │ no        │
+│ profiled-… │ degree_16 │ GASPerf │ counts=pr… │ ok   │ 700652.86 │ 325672.00  │ 115.14    │ 0.17      │ 0.09       │ 86.76     │ yes        │ no        │
+│ profiled-… │ degree_32 │ GPUPerf │ counts=pr… │ ok   │ 1320477.… │ 645307.00  │ 104.63    │ 0.09      │ 0.05       │ 96.36     │ yes        │ no        │
+│ profiled-… │ degree_32 │ GASPerf │ counts=pr… │ ok   │ 1320477.… │ 645307.00  │ 104.63    │ 0.09      │ 0.05       │ 96.36     │ yes        │ no        │
+│ all-profi… │ degree_1  │ GPUPerf │ all=profi… │ ok   │ 45144.66  │ 29758.00   │ 51.71     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ all-profi… │ degree_1  │ GASPerf │ all=profi… │ ok   │ 44510.07  │ 29758.00   │ 49.57     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ all-profi… │ degree_2  │ GPUPerf │ all=profi… │ ok   │ 83249.13  │ 46375.00   │ 79.51     │ 0.54      │ 0.64       │ -15.49    │ yes        │ no        │
+│ all-profi… │ degree_2  │ GASPerf │ all=profi… │ ok   │ 83249.13  │ 46375.00   │ 79.51     │ 0.53      │ 0.64       │ -16.68    │ yes        │ no        │
+│ all-profi… │ degree_4  │ GPUPerf │ all=profi… │ ok   │ 160727.25 │ 86374.00   │ 86.08     │ 0.28      │ 0.34       │ -18.47    │ yes        │ no        │
+│ all-profi… │ degree_4  │ GASPerf │ all=profi… │ ok   │ 160727.25 │ 86374.00   │ 86.08     │ 0.28      │ 0.34       │ -19.62    │ yes        │ no        │
+│ all-profi… │ degree_8  │ GPUPerf │ all=profi… │ ok   │ 315683.48 │ 169628.00  │ 86.10     │ 0.14      │ 0.18       │ -18.48    │ yes        │ no        │
+│ all-profi… │ degree_8  │ GASPerf │ all=profi… │ ok   │ 315683.48 │ 169628.00  │ 86.10     │ 0.14      │ 0.18       │ -19.63    │ yes        │ no        │
+│ all-profi… │ degree_16 │ GPUPerf │ all=profi… │ ok   │ 625597.84 │ 325672.00  │ 92.09     │ 0.07      │ 0.09       │ -21.03    │ yes        │ no        │
+│ all-profi… │ degree_16 │ GASPerf │ all=profi… │ ok   │ 625597.84 │ 325672.00  │ 92.09     │ 0.07      │ 0.09       │ -22.14    │ yes        │ no        │
+│ all-profi… │ degree_32 │ GPUPerf │ all=profi… │ ok   │ 1245423.… │ 645307.00  │ 93.00     │ 0.04      │ 0.05       │ -21.39    │ yes        │ no        │
+│ all-profi… │ degree_32 │ GASPerf │ all=profi… │ ok   │ 1245423.… │ 645307.00  │ 93.00     │ 0.04      │ 0.05       │ -22.50    │ yes        │ no        │
+└────────────┴───────────┴─────────┴────────────┴──────┴───────────┴────────────┴───────────┴───────────┴────────────┴───────────┴────────────┴───────────┘
+[32msuccess[0m Wrote [1;36m84[0m records to .[35m/experiments/results/ablation/a100/batch_20261118_135442/bank_conflict_bank_conflict_loop_fill/[0m[95mablation.json[0m

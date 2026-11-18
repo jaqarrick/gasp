@@ -1,0 +1,40 @@
+PYTHONPATH=src .venv/bin/python experiments/ablation/run_ablation.py --gpu a100 --config ./benchmarks/mm/configs/n512_b8x8.toml --metrics ./experiments/results/ablation/a100/batch_20261118_135245/mm_n512_b8x8/metrics.json --out ./experiments/results/ablation/a100/batch_20261118_135245/mm_n512_b8x8/ablation.json
+[33mwarn[0m divergence: branch at BB2: sides share [1m[[0m[32m'.L_x_2'[0m[1m][0m
+[1;36m             ABLATION: ./BENCHMARKS/MM/CONFIGS/N512_B8X8.TOML ON A100 (REFERENCE: BASIC; ALL-PROFILED KEEPS STATIC ILP, MLP, SYNC_INST_COUNT)              [0m
+┏━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃[1m [0m[1mrow       [0m[1m [0m┃[1m [0m[1mkernel[0m[1m [0m┃[1m [0m[1mmodel  [0m[1m [0m┃[1m [0m[1moverrides [0m[1m [0m┃[1m [0m[1mpico[0m[1m [0m┃[1m [0m[1mpredicted…[0m[1m [0m┃[1m [0m[1mmeasured_…[0m[1m [0m┃[1m [0m[1merror_pct[0m[1m [0m┃[1m [0m[1mpredicted…[0m[1m [0m┃[1m [0m[1mmeasured_…[0m[1m [0m┃[1m [0m[1mspeedup_e…[0m[1m [0m┃[1m [0m[1mitilp_cap…[0m[1m [0m┃[1m [0m[1mitmlp_ca…[0m[1m [0m┃
+┡━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ all-static │ basic  │ GPUPerf │ none       │ ok   │ 131752.55  │ 249234.00  │ -47.14    │ 1.00       │ 1.00       │ 0.00       │ yes        │ yes       │
+│ all-static │ basic  │ GASPerf │ none       │ ok   │ 202214.35  │ 249234.00  │ -18.87    │ 1.00       │ 1.00       │ 0.00       │ yes        │ no        │
+│ all-static │ tiled  │ GPUPerf │ none       │ ok   │ 84729.51   │ 99120.00   │ -14.52    │ 1.55       │ 2.51       │ -38.16     │ yes        │ no        │
+│ all-static │ tiled  │ GASPerf │ none       │ ok   │ 84729.51   │ 99120.00   │ -14.52    │ 2.39       │ 2.51       │ -5.09      │ yes        │ no        │
+│ crude      │ basic  │ GPUPerf │ coalescin… │ ok   │ 131752.55  │ 249234.00  │ -47.14    │ 1.00       │ 1.00       │ 0.00       │ yes        │ yes       │
+│            │        │         │ bank=crude │      │            │            │           │            │            │            │            │           │
+│ crude      │ basic  │ GASPerf │ coalescin… │ ok   │ 202214.35  │ 249234.00  │ -18.87    │ 1.00       │ 1.00       │ 0.00       │ yes        │ no        │
+│            │        │         │ bank=crude │      │            │            │           │            │            │            │            │           │
+│ crude      │ tiled  │ GPUPerf │ coalescin… │ ok   │ 84729.51   │ 99120.00   │ -14.52    │ 1.55       │ 2.51       │ -38.16     │ yes        │ no        │
+│            │        │         │ bank=crude │      │            │            │           │            │            │            │            │           │
+│ crude      │ tiled  │ GASPerf │ coalescin… │ ok   │ 84729.51   │ 99120.00   │ -14.52    │ 2.39       │ 2.51       │ -5.09      │ yes        │ no        │
+│            │        │         │ bank=crude │      │            │            │           │            │            │            │            │           │
+│ profiled-… │ basic  │ GPUPerf │ cache=pro… │ ok   │ 118163.41  │ 249234.00  │ -52.59    │ 1.00       │ 1.00       │ 0.00       │ yes        │ yes       │
+│ profiled-… │ basic  │ GASPerf │ cache=pro… │ ok   │ 201520.00  │ 249234.00  │ -19.14    │ 1.00       │ 1.00       │ 0.00       │ yes        │ no        │
+│ profiled-… │ tiled  │ GPUPerf │ cache=pro… │ ok   │ 84729.51   │ 99120.00   │ -14.52    │ 1.39       │ 2.51       │ -44.54     │ yes        │ no        │
+│ profiled-… │ tiled  │ GASPerf │ cache=pro… │ ok   │ 84729.51   │ 99120.00   │ -14.52    │ 2.38       │ 2.51       │ -5.41      │ yes        │ no        │
+│ profiled-… │ basic  │ GPUPerf │ coalescin… │ ok   │ 131752.55  │ 249234.00  │ -47.14    │ 1.00       │ 1.00       │ 0.00       │ yes        │ yes       │
+│ profiled-… │ basic  │ GASPerf │ coalescin… │ ok   │ 202214.35  │ 249234.00  │ -18.87    │ 1.00       │ 1.00       │ 0.00       │ yes        │ no        │
+│ profiled-… │ tiled  │ GPUPerf │ coalescin… │ ok   │ 84729.51   │ 99120.00   │ -14.52    │ 1.55       │ 2.51       │ -38.16     │ yes        │ no        │
+│ profiled-… │ tiled  │ GASPerf │ coalescin… │ ok   │ 84729.51   │ 99120.00   │ -14.52    │ 2.39       │ 2.51       │ -5.09      │ yes        │ no        │
+│ profiled-… │ basic  │ GPUPerf │ bank=prof… │ ok   │ 131752.55  │ 249234.00  │ -47.14    │ 1.00       │ 1.00       │ 0.00       │ yes        │ yes       │
+│ profiled-… │ basic  │ GASPerf │ bank=prof… │ ok   │ 202214.35  │ 249234.00  │ -18.87    │ 1.00       │ 1.00       │ 0.00       │ yes        │ no        │
+│ profiled-… │ tiled  │ GPUPerf │ bank=prof… │ ok   │ 85068.86   │ 99120.00   │ -14.18    │ 1.55       │ 2.51       │ -38.41     │ yes        │ no        │
+│ profiled-… │ tiled  │ GASPerf │ bank=prof… │ ok   │ 85068.86   │ 99120.00   │ -14.18    │ 2.38       │ 2.51       │ -5.46      │ yes        │ no        │
+│ profiled-… │ basic  │ GPUPerf │ counts=pr… │ ok   │ 129722.67  │ 249234.00  │ -47.95    │ 1.00       │ 1.00       │ 0.00       │ yes        │ yes       │
+│ profiled-… │ basic  │ GASPerf │ counts=pr… │ ok   │ 199101.48  │ 249234.00  │ -20.11    │ 1.00       │ 1.00       │ 0.00       │ yes        │ no        │
+│ profiled-… │ tiled  │ GPUPerf │ counts=pr… │ ok   │ 84729.51   │ 99120.00   │ -14.52    │ 1.53       │ 2.51       │ -39.11     │ yes        │ no        │
+│ profiled-… │ tiled  │ GASPerf │ counts=pr… │ ok   │ 84729.51   │ 99120.00   │ -14.52    │ 2.35       │ 2.51       │ -6.55      │ yes        │ no        │
+│ all-profi… │ basic  │ GPUPerf │ all=profi… │ ok   │ 116342.40  │ 249234.00  │ -53.32    │ 1.00       │ 1.00       │ 0.00       │ yes        │ yes       │
+│ all-profi… │ basic  │ GASPerf │ all=profi… │ ok   │ 198417.81  │ 249234.00  │ -20.39    │ 1.00       │ 1.00       │ 0.00       │ yes        │ no        │
+│ all-profi… │ tiled  │ GPUPerf │ all=profi… │ ok   │ 85068.86   │ 99120.00   │ -14.18    │ 1.37       │ 2.51       │ -45.61     │ yes        │ no        │
+│ all-profi… │ tiled  │ GASPerf │ all=profi… │ ok   │ 85068.86   │ 99120.00   │ -14.18    │ 2.33       │ 2.51       │ -7.24      │ yes        │ no        │
+└────────────┴────────┴─────────┴────────────┴──────┴────────────┴────────────┴───────────┴────────────┴────────────┴────────────┴────────────┴───────────┘
+[32msuccess[0m Wrote [1;36m28[0m records to .[35m/experiments/results/ablation/a100/batch_20261118_135245/mm_n512_b8x8/[0m[95mablation.json[0m

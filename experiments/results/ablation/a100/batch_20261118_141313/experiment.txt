@@ -1,0 +1,23 @@
+description: ablation (with e2e results included) on sfu (A100)
+
+started:     2026-11-18 14:13:13 EST
+gpu:         a100
+device:      NVIDIA A100-SXM4-40GB, 610.43.02
+nvcc:        Cuda compilation tools, release 12.6, V12.6.77
+host:        b-19-12
+profile:     hardware/profiles/a100.json (built-in for a100)
+profile sha: 75dafa3bd69779495a887dc5d9b3d1286b8b5ad33003a9ea9e6e460a02871ca0
+mode:        ablation (measure with ncu, then every ablation row)
+commit:      e2e6d90 on main (uncommitted changes)
+command:     ./scripts/batch_ablation.sh --description ablation (with e2e results included) on sfu (A100) a100 sfu
+benchmarks:  sfu
+configs:
+  benchmarks/sfu/configs/n1048576_b1024.toml
+  benchmarks/sfu/configs/n1048576_b128.toml
+  benchmarks/sfu/configs/n1048576_b512.toml
+  benchmarks/sfu/configs/n1048576_b64.toml
+  benchmarks/sfu/configs/n262144_b256.toml
+  benchmarks/sfu/configs/n4194304_b256.toml
+  benchmarks/sfu/configs/n65536_b256.toml
+  benchmarks/sfu/configs/sfu.toml
+finished:    2026-11-18 14:17:32 EST

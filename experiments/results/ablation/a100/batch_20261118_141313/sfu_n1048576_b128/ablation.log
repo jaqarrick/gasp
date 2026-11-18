@@ -1,0 +1,39 @@
+PYTHONPATH=src .venv/bin/python experiments/ablation/run_ablation.py --gpu a100 --config ./benchmarks/sfu/configs/n1048576_b128.toml --metrics ./experiments/results/ablation/a100/batch_20261118_141313/sfu_n1048576_b128/metrics.json --out ./experiments/results/ablation/a100/batch_20261118_141313/sfu_n1048576_b128/ablation.json
+[1;36m         ABLATION: ./BENCHMARKS/SFU/CONFIGS/N1048576_B128.TOML ON A100 (REFERENCE: SFU_BOUND; ALL-PROFILED KEEPS STATIC ILP, MLP, SYNC_INST_COUNT)         [0m
+┏━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃[1m [0m[1mrow       [0m[1m [0m┃[1m [0m[1mkernel   [0m[1m [0m┃[1m [0m[1mmodel  [0m[1m [0m┃[1m [0m[1moverrides [0m[1m [0m┃[1m [0m[1mpico[0m[1m [0m┃[1m [0m[1mpredicte…[0m[1m [0m┃[1m [0m[1mmeasured_…[0m[1m [0m┃[1m [0m[1merror_pct[0m[1m [0m┃[1m [0m[1mpredicte…[0m[1m [0m┃[1m [0m[1mmeasured_…[0m[1m [0m┃[1m [0m[1mspeedup_…[0m[1m [0m┃[1m [0m[1mitilp_cap…[0m[1m [0m┃[1m [0m[1mitmlp_ca…[0m[1m [0m┃
+┡━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ all-static │ sfu_bound │ GPUPerf │ none       │ ok   │ 1015680.… │ 1294534.00 │ -21.54    │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ all-static │ sfu_bound │ GASPerf │ none       │ ok   │ 1242756.… │ 1294534.00 │ -4.00     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ all-static │ sfu_free  │ GPUPerf │ none       │ ok   │ 742134.52 │ 637934.00  │ 16.33     │ 1.37      │ 2.03       │ -32.56    │ yes        │ no        │
+│ all-static │ sfu_free  │ GASPerf │ none       │ ok   │ 742134.52 │ 637934.00  │ 16.33     │ 1.67      │ 2.03       │ -17.48    │ yes        │ no        │
+│ crude      │ sfu_bound │ GPUPerf │ coalescin… │ ok   │ 1015680.… │ 1294534.00 │ -21.54    │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ sfu_bound │ GASPerf │ coalescin… │ ok   │ 1242756.… │ 1294534.00 │ -4.00     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ sfu_free  │ GPUPerf │ coalescin… │ ok   │ 742134.52 │ 637934.00  │ 16.33     │ 1.37      │ 2.03       │ -32.56    │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ crude      │ sfu_free  │ GASPerf │ coalescin… │ ok   │ 742134.52 │ 637934.00  │ 16.33     │ 1.67      │ 2.03       │ -17.48    │ yes        │ no        │
+│            │           │         │ bank=crude │      │           │            │           │           │            │           │            │           │
+│ profiled-… │ sfu_bound │ GPUPerf │ cache=pro… │ ok   │ 1015680.… │ 1294534.00 │ -21.54    │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ sfu_bound │ GASPerf │ cache=pro… │ ok   │ 1242756.… │ 1294534.00 │ -4.00     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ sfu_free  │ GPUPerf │ cache=pro… │ ok   │ 742134.52 │ 637934.00  │ 16.33     │ 1.37      │ 2.03       │ -32.56    │ yes        │ no        │
+│ profiled-… │ sfu_free  │ GASPerf │ cache=pro… │ ok   │ 742134.52 │ 637934.00  │ 16.33     │ 1.67      │ 2.03       │ -17.48    │ yes        │ no        │
+│ profiled-… │ sfu_bound │ GPUPerf │ coalescin… │ ok   │ 1015680.… │ 1294534.00 │ -21.54    │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ sfu_bound │ GASPerf │ coalescin… │ ok   │ 1242756.… │ 1294534.00 │ -4.00     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ sfu_free  │ GPUPerf │ coalescin… │ ok   │ 742134.52 │ 637934.00  │ 16.33     │ 1.37      │ 2.03       │ -32.56    │ yes        │ no        │
+│ profiled-… │ sfu_free  │ GASPerf │ coalescin… │ ok   │ 742134.52 │ 637934.00  │ 16.33     │ 1.67      │ 2.03       │ -17.48    │ yes        │ no        │
+│ profiled-… │ sfu_bound │ GPUPerf │ bank=prof… │ ok   │ 1015680.… │ 1294534.00 │ -21.54    │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ sfu_bound │ GASPerf │ bank=prof… │ ok   │ 1242756.… │ 1294534.00 │ -4.00     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ sfu_free  │ GPUPerf │ bank=prof… │ ok   │ 742134.52 │ 637934.00  │ 16.33     │ 1.37      │ 2.03       │ -32.56    │ yes        │ no        │
+│ profiled-… │ sfu_free  │ GASPerf │ bank=prof… │ ok   │ 742134.52 │ 637934.00  │ 16.33     │ 1.67      │ 2.03       │ -17.48    │ yes        │ no        │
+│ profiled-… │ sfu_bound │ GPUPerf │ counts=pr… │ ok   │ 1015680.… │ 1294534.00 │ -21.54    │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ sfu_bound │ GASPerf │ counts=pr… │ ok   │ 1242756.… │ 1294534.00 │ -4.00     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled-… │ sfu_free  │ GPUPerf │ counts=pr… │ ok   │ 742134.52 │ 637934.00  │ 16.33     │ 1.37      │ 2.03       │ -32.56    │ yes        │ no        │
+│ profiled-… │ sfu_free  │ GASPerf │ counts=pr… │ ok   │ 742134.52 │ 637934.00  │ 16.33     │ 1.67      │ 2.03       │ -17.48    │ yes        │ no        │
+│ all-profi… │ sfu_bound │ GPUPerf │ all=profi… │ ok   │ 1015680.… │ 1294534.00 │ -21.54    │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ all-profi… │ sfu_bound │ GASPerf │ all=profi… │ ok   │ 1242756.… │ 1294534.00 │ -4.00     │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ all-profi… │ sfu_free  │ GPUPerf │ all=profi… │ ok   │ 742134.52 │ 637934.00  │ 16.33     │ 1.37      │ 2.03       │ -32.56    │ yes        │ no        │
+│ all-profi… │ sfu_free  │ GASPerf │ all=profi… │ ok   │ 742134.52 │ 637934.00  │ 16.33     │ 1.67      │ 2.03       │ -17.48    │ yes        │ no        │
+└────────────┴───────────┴─────────┴────────────┴──────┴───────────┴────────────┴───────────┴───────────┴────────────┴───────────┴────────────┴───────────┘
+[32msuccess[0m Wrote [1;36m28[0m records to .[35m/experiments/results/ablation/a100/batch_20261118_141313/sfu_n1048576_b128/[0m[95mablation.json[0m

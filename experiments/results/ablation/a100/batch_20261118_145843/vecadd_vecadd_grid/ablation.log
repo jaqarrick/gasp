@@ -1,0 +1,41 @@
+PYTHONPATH=src .venv/bin/python experiments/ablation/run_ablation.py --gpu a100 --config ./benchmarks/vecadd/configs/vecadd_grid.toml --metrics ./experiments/results/ablation/a100/batch_20261118_145843/vecadd_vecadd_grid/metrics.json --out ./experiments/results/ablation/a100/batch_20261118_145843/vecadd_vecadd_grid/ablation.json
+[33mwarn[0m pico returned no usable cost: invalid literal for [1;35mint[0m[1m([0m[1m)[0m with base [1;36m10[0m: [32m'Σ_[0m[32m{[0m[32mi | 0 ≤ i ≤ ⌊[0m[32m([0m[32m([0m[32mN - 1[0m[32m)[0m[32m - [0m[32m([0m[32mblockIdx.x * 256[0m[32m)[0m[32m)[0m[32m / [0m[32m([0m[32m256 * 272[0m[32m)[0m[32m⌋[0m[32m}[0m[32m 96'[0m
+[31merror[0m stride: PICO error
+[1;36m           ABLATION: ./BENCHMARKS/VECADD/CONFIGS/VECADD_GRID.TOML ON A100 (REFERENCE: GOOD; ALL-PROFILED KEEPS STATIC ILP, MLP, SYNC_INST_COUNT)           [0m
+┏━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃[1m [0m[1mrow      [0m[1m [0m┃[1m [0m[1mkernel[0m[1m [0m┃[1m [0m[1mmodel  [0m[1m [0m┃[1m [0m[1moverrides [0m[1m [0m┃[1m [0m[1mpico    [0m[1m [0m┃[1m [0m[1mpredicte…[0m[1m [0m┃[1m [0m[1mmeasured_…[0m[1m [0m┃[1m [0m[1merror_pct[0m[1m [0m┃[1m [0m[1mpredicte…[0m[1m [0m┃[1m [0m[1mmeasured_…[0m[1m [0m┃[1m [0m[1mspeedup_…[0m[1m [0m┃[1m [0m[1mitilp_cap…[0m[1m [0m┃[1m [0m[1mitmlp_ca…[0m[1m [0m┃
+┡━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ all-stat… │ good   │ GPUPerf │ none       │ ok       │ 8694.75   │ 10824.00   │ -19.67    │ 1.00      │ 1.00       │ 0.00      │ yes        │ yes       │
+│ all-stat… │ good   │ GASPerf │ none       │ ok       │ 8694.64   │ 10824.00   │ -19.67    │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ all-stat… │ stride │ GPUPerf │ none       │ fallback │ 8806.70   │ 15455.00   │ -43.02    │ 0.99      │ 0.70       │ 40.97     │ yes        │ yes       │
+│ all-stat… │ stride │ GASPerf │ none       │ fallback │ 8694.64   │ 15455.00   │ -43.74    │ 1.00      │ 0.70       │ 42.78     │ yes        │ no        │
+│ crude     │ good   │ GPUPerf │ coalescin… │ ok       │ 8694.75   │ 10824.00   │ -19.67    │ 1.00      │ 1.00       │ 0.00      │ yes        │ yes       │
+│           │        │         │ bank=crude │          │           │            │           │           │            │           │            │           │
+│ crude     │ good   │ GASPerf │ coalescin… │ ok       │ 8694.64   │ 10824.00   │ -19.67    │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│           │        │         │ bank=crude │          │           │            │           │           │            │           │            │           │
+│ crude     │ stride │ GPUPerf │ coalescin… │ fallback │ 8806.70   │ 15455.00   │ -43.02    │ 0.99      │ 0.70       │ 40.97     │ yes        │ yes       │
+│           │        │         │ bank=crude │          │           │            │           │           │            │           │            │           │
+│ crude     │ stride │ GASPerf │ coalescin… │ fallback │ 8694.64   │ 15455.00   │ -43.74    │ 1.00      │ 0.70       │ 42.78     │ yes        │ no        │
+│           │        │         │ bank=crude │          │           │            │           │           │            │           │            │           │
+│ profiled… │ good   │ GPUPerf │ cache=pro… │ ok       │ 8696.31   │ 10824.00   │ -19.66    │ 1.00      │ 1.00       │ 0.00      │ yes        │ yes       │
+│ profiled… │ good   │ GASPerf │ cache=pro… │ ok       │ 8696.31   │ 10824.00   │ -19.66    │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled… │ stride │ GPUPerf │ cache=pro… │ fallback │ 9081.38   │ 15455.00   │ -41.24    │ 0.96      │ 0.70       │ 36.73     │ yes        │ yes       │
+│ profiled… │ stride │ GASPerf │ cache=pro… │ fallback │ 9081.38   │ 15455.00   │ -41.24    │ 0.96      │ 0.70       │ 36.73     │ yes        │ no        │
+│ profiled… │ good   │ GPUPerf │ coalescin… │ ok       │ 8694.75   │ 10824.00   │ -19.67    │ 1.00      │ 1.00       │ 0.00      │ yes        │ yes       │
+│ profiled… │ good   │ GASPerf │ coalescin… │ ok       │ 8694.64   │ 10824.00   │ -19.67    │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled… │ stride │ GPUPerf │ coalescin… │ fallback │ 8806.70   │ 15455.00   │ -43.02    │ 0.99      │ 0.70       │ 40.97     │ yes        │ yes       │
+│ profiled… │ stride │ GASPerf │ coalescin… │ fallback │ 8694.64   │ 15455.00   │ -43.74    │ 1.00      │ 0.70       │ 42.78     │ yes        │ no        │
+│ profiled… │ good   │ GPUPerf │ bank=prof… │ ok       │ 8694.75   │ 10824.00   │ -19.67    │ 1.00      │ 1.00       │ 0.00      │ yes        │ yes       │
+│ profiled… │ good   │ GASPerf │ bank=prof… │ ok       │ 8694.64   │ 10824.00   │ -19.67    │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled… │ stride │ GPUPerf │ bank=prof… │ fallback │ 8806.70   │ 15455.00   │ -43.02    │ 0.99      │ 0.70       │ 40.97     │ yes        │ yes       │
+│ profiled… │ stride │ GASPerf │ bank=prof… │ fallback │ 8694.64   │ 15455.00   │ -43.74    │ 1.00      │ 0.70       │ 42.78     │ yes        │ no        │
+│ profiled… │ good   │ GPUPerf │ counts=pr… │ ok       │ 8693.08   │ 10824.00   │ -19.69    │ 1.00      │ 1.00       │ 0.00      │ yes        │ yes       │
+│ profiled… │ good   │ GASPerf │ counts=pr… │ ok       │ 8692.97   │ 10824.00   │ -19.69    │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ profiled… │ stride │ GPUPerf │ counts=pr… │ fallback │ 8431.66   │ 15455.00   │ -45.44    │ 1.03      │ 0.70       │ 47.21     │ yes        │ yes       │
+│ profiled… │ stride │ GASPerf │ counts=pr… │ fallback │ 8324.37   │ 15455.00   │ -46.14    │ 1.04      │ 0.70       │ 49.11     │ yes        │ no        │
+│ all-prof… │ good   │ GPUPerf │ all=profi… │ ok       │ 8694.64   │ 10824.00   │ -19.67    │ 1.00      │ 1.00       │ 0.00      │ yes        │ yes       │
+│ all-prof… │ good   │ GASPerf │ all=profi… │ ok       │ 8694.64   │ 10824.00   │ -19.67    │ 1.00      │ 1.00       │ 0.00      │ yes        │ no        │
+│ all-prof… │ stride │ GPUPerf │ all=profi… │ fallback │ 8694.64   │ 15455.00   │ -43.74    │ 1.00      │ 0.70       │ 42.78     │ yes        │ yes       │
+│ all-prof… │ stride │ GASPerf │ all=profi… │ fallback │ 8694.64   │ 15455.00   │ -43.74    │ 1.00      │ 0.70       │ 42.78     │ yes        │ no        │
+└───────────┴────────┴─────────┴────────────┴──────────┴───────────┴────────────┴───────────┴───────────┴────────────┴───────────┴────────────┴───────────┘
+[32msuccess[0m Wrote [1;36m28[0m records to .[35m/experiments/results/ablation/a100/batch_20261118_145843/vecadd_vecadd_grid/[0m[95mablation.json[0m
