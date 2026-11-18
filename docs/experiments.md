@@ -151,14 +151,15 @@ Every row names its GPU, so to compare GPUs, run the ablation on each and concat
 make all-experiments GPU=rtx2080ti
 ```
 
-This runs the ablation batch on `mm` (`make batch-ablation-experiment BMKS=mm`), then the e2e batch on every benchmark (`make batch-e2e-experiment`).
+This runs the ablation batch on `mm`, `bank_conflict`, `transpose` and `l2` (`make batch-ablation-experiment BMKS='mm bank_conflict transpose l2'`), then the e2e batch on every benchmark (`make batch-e2e-experiment`). mm is the main ablation target; the other three exercise the bank-conflict, coalescing and cache inputs that mm barely varies.
 
 **It asks for both descriptions first, before anything runs:** one for the ablation batch, then one for the e2e batch. After that it runs to the end without asking for anything, so you can leave it.
 
 - `ABLATION_DESC='<text>'` and `E2E_DESC='<text>'` give the descriptions up front and skip the questions. Give both when there's no terminal (for example under `nohup`), or it stops at once with an error.
+- `ABLATION_BMKS='mm transpose'` replaces the ablation's list of benchmarks.
 - `PROFILE=<path>` goes to both batches.
 - If the ablation batch fails (any config), the e2e batch doesn't start.
 
 ```sh
-nohup make all-experiments GPU=rtx2080ti ABLATION_DESC='mm ablation, new L1 model' E2E_DESC='full e2e, new L1 model' > all.log 2>&1 &
+nohup make all-experiments GPU=rtx2080ti ABLATION_DESC='ablation, new L1 model' E2E_DESC='full e2e, new L1 model' > all.log 2>&1 &
 ```

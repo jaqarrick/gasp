@@ -182,7 +182,7 @@ The full ablation, one row per override set, is in [`experiments/ablation`](expe
 make all-experiments GPU=rtx2080ti
 ```
 
-This runs the ablation batch on `mm`, then the e2e batch on every benchmark. It needs the GPU.
+This runs the ablation batch on `mm`, `bank_conflict`, `transpose` and `l2`, then the e2e batch on every benchmark. It needs the GPU. `ABLATION_BMKS='mm transpose'` replaces the ablation's list.
 
 **It asks for two descriptions at the start, one per batch, before anything runs.** After you answer them it runs to the end without stopping for input. To skip the questions, pass both: `ABLATION_DESC='<text>' E2E_DESC='<text>'`. Without a terminal (e.g. `nohup`) you must pass both, or it stops right away with an error. If the ablation batch fails, the e2e batch doesn't start. See [`docs/experiments.md`](docs/experiments.md) section 7.
 
