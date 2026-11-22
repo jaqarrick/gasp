@@ -157,6 +157,7 @@ help:
 	@echo "  make run ARGS='--gpu b200 kernels.cu::good kernels.cu::poor'"
 	@echo "  make run ARGS='--gpu b200 --config benchmarks/vecadd/configs/vecadd.toml'"
 	@echo "  make run ARGS='--profile hardware/profiles/rtx2080ti.json kernel.cu'"
+	@echo "  make run ARGS='--gpu rtx2080ti --model all --config benchmarks/vecadd/configs/vecadd.toml'"
 	@echo "  make run ARGS='--gpu rtx2080ti --run --config benchmarks/vecadd/configs/vecadd.toml --save-metrics vecadd.metrics.json'"
 	@echo "  make run ARGS='--gpu rtx2080ti --config benchmarks/vecadd/configs/vecadd.toml --metrics vecadd.metrics.json --override cache=profiled'"
 	@echo "  make ablation ARGS='--gpu rtx2080ti --config benchmarks/vecadd/configs/vecadd.toml --metrics vecadd.metrics.json'"

@@ -84,7 +84,7 @@ make batch-results BATCH=experiments/results/e2e/rtx2080ti/batch_<timestamp>
 ```
 
 - `ARGS='--csv'` prints CSV instead.
-- `ARGS='--model all'` shows every model, not only GASPerf.
+- `ARGS='--model all'` shows every model, not only GASPerf. The batch runs GASP with `--model all`, so `result.json` always holds both.
 
 ## 5. Add your own configs
 

@@ -2,6 +2,7 @@ import argparse
 import shlex
 import statistics
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -37,7 +38,7 @@ from gasp.metrics_file import (
     median_metrics,
     save_metrics,
 )
-from gasp.models import DEFAULT_MODEL, MODELS
+from gasp.models import DEFAULT_MODEL, MODELS, display_name
 from gasp.models.gpuperf.types import HardwareParameters, LaunchParameters
 from gasp.occupancy import OccupancyInput, OccupancyOutput, calculate_occupancy
 from gasp.overrides import (
@@ -134,6 +135,24 @@ def trace_modules(value: str) -> set[str]:
             f"expected a comma-separated list of: {', '.join(sorted(valid))}"
         )
     return modules
+
+
+# --model values -> the models.MODELS names they run
+MODEL_CHOICES: dict[str, list[str]] = {
+    "gasp": ["GASPerf"],
+    "gasperf": ["GASPerf"],
+    "gpuperf": ["GPUPerf"],
+    "all": list(MODELS),
+}
+
+
+def model_choice(value: str) -> list[str]:
+    models = MODEL_CHOICES.get(value.strip().lower())
+    if models is None:
+        raise argparse.ArgumentTypeError(
+            f"unknown model '{value}', expected one of: gasp, gpuperf, all"
+        )
+    return models
 
 
 def resolve_traces(
@@ -295,6 +314,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Replace a group of the model's static inputs (repeatable). Groups: "
         f"{', '.join(GROUPS)}, or all. Sources: profiled (from --metrics), or "
         "crude for coalescing and bank (no Pico: coalesced, no conflicts)",
+    )
+    parser.add_argument(
+        "--model",
+        type=model_choice,
+        default=MODEL_CHOICES["gasp"],
+        metavar="MODEL",
+        help="Model to predict with: gasp (default), gpuperf (the GPUPerf "
+        "baseline), or all for both",
     )
     parser.add_argument(
         "--json",
@@ -700,7 +727,9 @@ def predict_kernel(
     except OverrideError as e:
         logger.error(f"{name}: {e}")
         sys.exit(1)
-    logger.trace("predict", f"=== {name} [{model}]: overrides {label} ===")
+    logger.trace(
+        "predict", f"=== {name} [{display_name(model)}]: overrides {label} ==="
+    )
 
     prediction = predict(
         PredictionInput(
@@ -717,7 +746,7 @@ def predict_kernel(
         logger=logger,
     )
     logger.table(
-        f"Prediction: {name} [{model}] (overrides: {label})",
+        f"Prediction: {name} [{display_name(model)}] (overrides: {label})",
         ["Parameter", "Value"],
         [
             ["ITILP", f"{prediction.itilp:.2f}"],
@@ -767,13 +796,15 @@ def predict_all_models(
     choices: dict[str, str],
     saved: SavedMetrics | None,
     logger: Logger,
+    models: Iterable[str] = tuple(MODELS),
 ) -> list[KernelResult]:
-    """Every kernel under every model, once each: kernel by kernel, models in
-    models.MODELS order."""
+    """Every kernel under each of models (default: all), once each: kernel by
+    kernel, models in models.MODELS order."""
+    chosen = [model for model in MODELS if model in models]
     return [
         predict_kernel(p, choices, saved, logger, model)
         for p in prepared
-        for model in MODELS
+        for model in chosen
     ]
 
 
@@ -799,7 +830,7 @@ def report_comparison(
         p = r.prediction
         row = [
             r.spec.name,
-            r.model,
+            display_name(r.model),
             f"<<<{format_dims(r.spec.grid_dim)}, {format_dims(r.spec.block_dim)}>>>",
             f"{p.t_comp:.0f}",
             f"{p.t_mem:.0f}",
@@ -846,7 +877,7 @@ def report_measured(
         t_gpu = r.prediction.t_gpu
         row = [
             r.spec.name,
-            r.model,
+            display_name(r.model),
             f"{t_gpu:.0f}",
             f"{m.cycles:.0f}",
             f"{m.cycles_min:.0f}-{m.cycles_max:.0f}",
@@ -903,7 +934,7 @@ def trace_measured(
             p = r.prediction
             timing.append(
                 [
-                    r.model,
+                    display_name(r.model),
                     f"{p.t_comp:.0f}",
                     f"{p.t_mem:.0f}",
                     f"{p.t_overlap:.0f}",
@@ -1052,7 +1083,7 @@ def main() -> None:
         prepare_kernel(spec, arch, hp, warn_shared_program=args.run, logger=logger)
         for spec in specs
     ]
-    results = predict_all_models(prepared, choices, saved, logger)
+    results = predict_all_models(prepared, choices, saved, logger, args.model)
     report_comparison(results, reference, logger)
 
     measured: dict[str, ProfileOutput] | None = None

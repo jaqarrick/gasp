@@ -14,6 +14,8 @@ from gasp.cli import (
     check_args,
     loop_counts_template,
     main,
+    model_choice,
+    predict_all_models,
     report_comparison,
     report_loops,
     report_measured,
@@ -772,9 +774,9 @@ def test_comparison_has_a_row_per_kernel_and_model(report_logger):
 
     assert [(row["Kernel"], row["Model"]) for row in rows] == [
         ("good", "GPUPerf"),
-        ("good", "GASPerf"),
+        ("good", "GASP"),
         ("poor", "GPUPerf"),
-        ("poor", "GASPerf"),
+        ("poor", "GASP"),
     ]
 
 
@@ -800,10 +802,51 @@ def test_measured_report_speedup_is_within_each_model(report_logger):
     report_measured(BOTH_MODELS, profiles, "good", 1, report_logger)
     _, rows = table(report_logger)
 
-    assert [row["Model"] for row in rows] == ["GPUPerf", "GASPerf"] * 2
+    assert [row["Model"] for row in rows] == ["GPUPerf", "GASP"] * 2
     assert [row["Pred speedup"] for row in rows] == ["1.00", "1.00", "0.50", "0.25"]
     # the measurement is per kernel, the same under every model
     assert rows[2]["Meas speedup (range)"] == rows[3]["Meas speedup (range)"]
+
+
+@pytest.mark.parametrize(
+    "value, models",
+    [
+        ("gasp", ["GASPerf"]),
+        ("GASPerf", ["GASPerf"]),
+        ("GPUPerf", ["GPUPerf"]),
+        ("all", ["GPUPerf", "GASPerf"]),
+    ],
+)
+def test_model_choice(value, models):
+    assert model_choice(value) == models
+
+
+def test_model_choice_rejects_unknown():
+    with pytest.raises(Exception, match="gasp, gpuperf, all"):
+        model_choice("foo")
+
+
+def test_model_defaults_to_gasp():
+    args = build_parser().parse_intermixed_args(["--gpu", "rtx2080ti", "k.cu"])
+    assert args.model == ["GASPerf"]
+
+
+def test_predict_all_models_runs_chosen_models(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        "gasp.cli.predict_kernel",
+        lambda p, choices, saved, logger, model: calls.append((p, model)),
+    )
+    predict_all_models(["a", "b"], {}, None, None)
+    assert calls == [
+        ("a", "GPUPerf"),
+        ("a", "GASPerf"),
+        ("b", "GPUPerf"),
+        ("b", "GASPerf"),
+    ]
+    calls.clear()
+    predict_all_models(["a"], {}, None, None, ["GASPerf"])
+    assert calls == [("a", "GASPerf")]
 
 
 def test_unique_kernels_keeps_the_first_model_of_each():
@@ -870,7 +913,7 @@ def test_trace_measured_writes_three_tables_per_kernel():
     ]
     _, _, columns, timing = logger.trace_table.call_args_list[1].args
     # a row per model, both against the same measurement
-    assert [row[0] for row in timing] == ["GPUPerf", "GASPerf"]
+    assert [row[0] for row in timing] == ["GPUPerf", "GASP"]
     assert [row[columns.index("Error")] for row in timing] == ["+0.0%", "-50.0%"]
     runs = logger.trace_table.call_args_list[2].args[3]
     assert [row[1] for row in runs] == ["90", "100", "110"]

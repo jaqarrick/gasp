@@ -122,7 +122,7 @@ fi
 mkdir -p "$EXP_OUT_DIR"
 EXP_OUT_FNAME="result.json"
 
-GASP_ARGS="$PROFILE_ARG --json --verbose --config $BMK_CONFIG --trace-file $EXP_OUT_DIR/traces.log"
+GASP_ARGS="$PROFILE_ARG --model all --json --verbose --config $BMK_CONFIG --trace-file $EXP_OUT_DIR/traces.log"
 if [ "$DRY_RUN" -eq 0 ]; then
     GASP_ARGS="$GASP_ARGS --run --save-metrics $EXP_OUT_DIR/metrics.json"
 fi

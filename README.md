@@ -104,6 +104,7 @@ make run ARGS="--profile hardware/profiles/rtx2080ti.json benchmarks/vecadd/veca
 - **Names:** `name` in a config. Otherwise the kernel name from `file.cu::kernel`, or else the file name without `.cu`.
 - **Same work:** compared kernels should do the same work. Different problem sizes, program arguments or `params` print a warning.
 - **Pico:** the `Pico` column shows `fallback` when Pico gave no usable cost for that kernel. A warning is printed if only some kernels fell back, because their speedups then compare different coalescing assumptions.
+- **Model (optional):** the `Model` column shows `GASP`, or `GPUPerf` and `GASP` with `--model all`. Speedups are computed within each model.
 
 ### GASP Options
 
@@ -115,6 +116,7 @@ These apply to the whole run:
 | `--profile`           | Path to a hardware profile JSON (same format as `hardware/profiles/*.json`); can't be combined with `--gpu` |
 | `--config`            | TOML file listing the kernels and their settings         |
 | `--reference`         | Kernel the others are compared with (default: the first) |
+| `--model`             | Model to predict with: `gasp` (default), `gpuperf` (the GPUPerf baseline), or `all` for both |
 | `--run`               | Run each program under `ncu` and compare with the prediction |
 | `--repeats`           | `ncu` runs per kernel with `--run` (default: 3)          |
 | `--save-metrics FILE` | With `--run`: save the ncu measurements to `FILE` (JSON) |
