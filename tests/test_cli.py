@@ -313,6 +313,21 @@ class TestLoadProfileFile:
         for name in ("dram_latency_cycles", "warp_size", "chip"):
             assert name in msg
 
+    def test_launch_overhead_fields_optional(self, tmp_path, logger):
+        data = json.loads(json.dumps(VALID_PROFILE))
+        del data["profiled"]["launch_overhead_base_cycles"]
+        del data["profiled"]["launch_overhead_per_thread_cycles"]
+        hp = load_profile_file(write_profile(tmp_path, data), logger)
+        assert hp.launch_overhead_base_cycles is None
+        assert hp.launch_overhead_per_thread_cycles is None
+
+    def test_launch_overhead_wrong_type_exits(self, tmp_path, logger):
+        data = json.loads(json.dumps(VALID_PROFILE))
+        data["profiled"]["launch_overhead_base_cycles"] = "slow"
+        with pytest.raises(SystemExit):
+            load_profile_file(write_profile(tmp_path, data), logger)
+        assert "launch_overhead_base_cycles" in error_message(logger)
+
     def test_unknown_field_exits(self, tmp_path, logger):
         data = json.loads(json.dumps(VALID_PROFILE))
         data["profiled"]["bogus_field"] = 1

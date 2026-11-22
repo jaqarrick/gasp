@@ -66,8 +66,6 @@ class HardwareParameters:
     shared_mem_carveouts_bytes: list[int]
     l2_cache_size_bytes: int
     bank_penalty: float
-    launch_overhead_base: float  # cycles per launch
-    launch_overhead_per_thread: float  # cycles per launched thread
     dram_bandwidth: float  # bytes per cycle, whole GPU
     # SM cycles per warp shared access with the pipe saturated (GASPerf only)
     shared_mem_throughput: float
@@ -80,6 +78,9 @@ class HardwareParameters:
     # extra L1 cycles per global request that misses L1, from l1_miss_cost.cu
     # (GASPerf only)
     l1_miss_cycles_per_request: float
+    # optional in the profile; used only if INCLUDE_LAUNCH_OVERHEAD (GASPerf)
+    launch_overhead_base: float | None = None  # cycles per launch
+    launch_overhead_per_thread: float | None = None  # cycles per launched thread
 
 
 @dataclass

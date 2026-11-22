@@ -1,6 +1,6 @@
 import json
 import sys
-from dataclasses import dataclass, fields
+from dataclasses import MISSING, dataclass, fields
 from pathlib import Path
 
 from gasp.dependency import LatencyTable
@@ -40,8 +40,6 @@ class HardwareProfile:
     shared_mem_carveouts_bytes: list[int]
 
     # profiled
-    launch_overhead_base_cycles: float
-    launch_overhead_per_thread_cycles: float
     departure_delay_cycles: int
     sync_factor: float
     dram_latency_cycles: int
@@ -67,6 +65,10 @@ class HardwareProfile:
     # whole-GPU L2 bandwidth with every load hitting L2 (GASPerf's L2 limit)
     l2_bandwidth_bytes_per_cycle: float
     const_mem_latency_cycles: int
+
+    # optional: GASPerf leaves launch overhead out (INCLUDE_LAUNCH_OVERHEAD)
+    launch_overhead_base_cycles: float | None = None
+    launch_overhead_per_thread_cycles: float | None = None
 
 
 def load_hardware_profile(gpu: str, logger: Logger) -> HardwareProfile:
@@ -135,7 +137,8 @@ def load_profile_file(path: str | Path, logger: Logger) -> HardwareProfile:
     flat = {**profile, **spec, **profiled}
 
     expected = {f.name: f.type for f in fields(HardwareProfile)}
-    missing = [name for name in expected if name not in flat]
+    optional = {f.name for f in fields(HardwareProfile) if f.default is not MISSING}
+    missing = [name for name in expected if name not in flat and name not in optional]
     if missing:
         _fail(
             logger,
@@ -150,7 +153,8 @@ def load_profile_file(path: str | Path, logger: Logger) -> HardwareProfile:
     wrong = [
         f"{name} (expected {getattr(kind, '__name__', kind)}, got {flat[name]!r})"
         for name, kind in expected.items()
-        if not _has_type(flat[name], kind)
+        if name in flat
+        and not _has_type(flat[name], float if name in optional else kind)
     ]
     if wrong:
         _fail(

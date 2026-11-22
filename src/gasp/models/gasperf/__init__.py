@@ -45,6 +45,14 @@ class GASPerf:
     def predict_launch_overhead_cycles(self):
         """Launch overhead fit by launch_overhead_bench.cu: base + per thread
         launched. Not in GPUPerf."""
+        if (
+            self.h.launch_overhead_base is None
+            or self.h.launch_overhead_per_thread is None
+        ):
+            raise ValueError(
+                "INCLUDE_LAUNCH_OVERHEAD needs launch_overhead_base_cycles and "
+                "launch_overhead_per_thread_cycles in the hardware profile"
+            )
         threads = self.l.block_size * self.l.grid_size
         return self.h.launch_overhead_base + self.h.launch_overhead_per_thread * threads
 
