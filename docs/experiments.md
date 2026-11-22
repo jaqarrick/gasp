@@ -166,3 +166,23 @@ This runs the ablation batch on `mm`, `bank_conflict`, `transpose` and `l2` (`ma
 ```sh
 nohup make all-experiments GPU=rtx2080ti ABLATION_DESC='ablation, new L1 model' E2E_DESC='full e2e, new L1 model' > all.log 2>&1 &
 ```
+
+## 8. Export the report's figure data
+
+```sh
+make report-data DATA=~/grad/gpu/research/report/data
+```
+
+The report draws its figures in LaTeX (pgfplots) from CSV files next to `draft.tex`. This writes those CSVs from one ablation batch per GPU, with the scripts in `scripts/results/`. It only reads the batches, so it needs no GPU. The all-static row of each batch is its e2e result, and the numbers come from the same code as `make ablation-results`.
+
+- `DATA=<dir>` is the folder the CSVs go in, usually the report's `data/` folder. It has to exist.
+- `BATCHES='<dir> <dir> ...'` replaces the batches. The default is the final batch of each of the four GPUs. Each batch's GPU is the name of its parent folder.
+
+| Script | Writes | For |
+|---|---|---|
+| `export_speedup_scatter.py` | `speedup_<gpu>.csv`: every compared kernel's measured and predicted speedup (all-static) | `fig:scatter`, and the input of the next two |
+| `export_mm.py` | `mm_<gpu>.csv`: median speedup of each mm variant over `basic` | `fig:mm` |
+| `export_bars.py` | `bars_<gpu>.csv`, `bank_<gpu>.csv`, `l1_<gpu>.csv`: the other benchmarks, bank-conflict degrees, L1 line patterns | `fig:bars`, `fig:bank-l1` |
+| `export_ablation.py` | `ablation_<gpu>.csv`: change in median speedup error from all-static, per row and benchmark | `fig:ablation` |
+
+`export_mm.py` and `export_bars.py` read the `speedup_<gpu>.csv` files in `DATA`, so `export_speedup_scatter.py` runs first. Each script also runs on its own: `python3 scripts/results/<script> --out <dir>`.

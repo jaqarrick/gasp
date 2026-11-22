@@ -174,7 +174,7 @@ make run ARGS="--gpu rtx2080ti --config benchmarks/vecadd/configs/vecadd.toml --
 - The metrics file holds ncu's raw values for every run, keyed by kernel name. GASP stops if the GPU, a kernel name, or a kernel's block or grid size differs from the file, or if a metric a `profiled` override needs is missing.
 - `--metrics` also prints the predicted vs measured table from the file. It can't be combined with `--run`.
 
-The full ablation, one row per override set, is in [`experiments/ablation`](experiments/ablation/README.md): `make ablation ARGS="..."` for one config, `make batch-ablation-experiment GPU=<gpu>` to measure and ablate every config on a GPU, and `make ablation-results BATCH=<dir>` for the error decomposition.
+The full ablation, one row per override set, is in [`experiments/ablation`](experiments/ablation/README.md): `make ablation ARGS="..."` for one config, `make batch-ablation-experiment GPU=<gpu>` to measure and ablate every config on a GPU, and `make ablation-results BATCH=<dir>` for the error decomposition. `make report-data DATA=<dir>` writes the CSVs the report's figures are drawn from (see [`docs/experiments.md`](docs/experiments.md) section 8).
 
 ### Running every experiment
 
@@ -241,3 +241,21 @@ These set a kernel's settings, and apply to every input file on the command line
 | `--nvcc-flags`        | `nvcc_flags`      | Extra flags passed to `nvcc`                            |
 | `--program-args`      | `program_args`    | Arguments passed to the program with `--run`            |
 | `--param NAME=VALUE`  | `params`          | Value of a kernel argument for Pico, such as `M=1024` (repeatable) |
+
+## Citing Faial
+
+Pico's bank-conflict and coalescing analysis runs on [Faial](https://gitlab.com/umb-svl/faial) (`faial-cost`), MIT licensed. If you use GASP's Pico results, please also cite Faial:
+
+```bibtex
+@article{faial:fmsd23,
+  title={Memory access protocols: certified data-race freedom for GPU kernels},
+  author={Cogumbreiro, Tiago and Lange, Julien and Liew, Dennis and Zicarelli, Hannah},
+  journal={Formal Methods in System Design},
+  volume={63},
+  number={1},
+  pages={134--171},
+  year={2024},
+  publisher={Springer},
+  doi={10.1007/s10703-023-00415-0},
+}
+```

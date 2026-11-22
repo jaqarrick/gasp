@@ -167,6 +167,27 @@ def print_table(columns: list[str], rows: list[dict]) -> None:
             print("  ".join("-" * w for w in widths))
 
 
+def load_batch(
+    batch_dir: Path, only_model: str | None
+) -> tuple[list[dict], list[str], list[str]]:
+    """The records of every ablation.json in a batch, the configs that left none
+    (as "<config>: <error>"), and the ablation rows in the order the batch ran them."""
+    records, missing, row_order = [], [], []
+    for config_dir in sorted(p for p in batch_dir.iterdir() if p.is_dir()):
+        path = config_dir / "ablation.json"
+        try:
+            doc = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError) as e:
+            # a failed config leaves no or a partial ablation.json
+            missing.append(f"{config_dir.name}: {e}")
+            continue
+        for row in doc["rows"]:
+            if row not in row_order:
+                row_order.append(row)
+        records.extend(records_of(config_dir.name, doc, only_model))
+    return records, missing, row_order
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("batch_dir", type=Path, help="a batch_<timestamp> folder")
@@ -187,23 +208,9 @@ def main() -> int:
         print(f"error: {args.batch_dir} is not a directory", file=sys.stderr)
         return 1
 
-    records, missing, row_order = [], [], []
-    for config_dir in sorted(p for p in args.batch_dir.iterdir() if p.is_dir()):
-        path = config_dir / "ablation.json"
-        try:
-            doc = json.loads(path.read_text())
-        except (OSError, json.JSONDecodeError) as e:
-            # a failed config leaves no or a partial ablation.json
-            missing.append(f"{config_dir.name}: {e}")
-            continue
-        for row in doc["rows"]:
-            if row not in row_order:
-                row_order.append(row)
-        records.extend(
-            records_of(
-                config_dir.name, doc, None if args.model == "all" else args.model
-            )
-        )
+    records, missing, row_order = load_batch(
+        args.batch_dir, None if args.model == "all" else args.model
+    )
 
     if args.records:
         columns, rows = RECORD_COLUMNS, records
