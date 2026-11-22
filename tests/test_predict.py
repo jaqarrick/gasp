@@ -79,7 +79,7 @@ def prediction_input(mem_inst_count: int = 2, grid_size: int = 40) -> Prediction
             total_warps=320,
             active_sms=10,
             num_reps=1,
-            mwp=32.0,
+            mwp_latency_bound=32.0,
             warps_per_block=8,
             blocks_per_sm=4,
         ),

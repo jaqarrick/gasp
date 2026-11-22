@@ -91,7 +91,7 @@ class PredictionOutput:
     static_inputs: ModelInputs | None = None
     total_warps: int = 0
     occupancy: float = 0.0  # theoretical
-    # whether ILP and MLP were cut off by a cap (see the model's ModelOutput)
+    # track if ILP or MLP were cut off by a cap
     itilp_max: float = 0.0
     itilp_capped: bool = False
     itmlp_capped: bool = False

@@ -38,7 +38,7 @@ class OccupancyParams:
     num_reps: int  # scheduling rounds
     # actually lets calculate these two inside the module
     itilp: float  # min(ilp * N, itilp_max)
-    itmlp: float  # min(mlp * mwp_cp, mwp_peak_bw)
+    itmlp: float
 
     # need to compute in module as well
     cwp: float  # Mem_L / (comp_cycles / mem_inst_count)

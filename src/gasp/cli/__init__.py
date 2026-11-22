@@ -542,7 +542,7 @@ def prepare_kernel(
             ["Num Reps", str(occupancy_results.num_reps)],
             [
                 "MWP latency bound (Mem_L / delta, capped at N)",
-                f"{occupancy_results.mwp:.2f}",
+                f"{occupancy_results.mwp_latency_bound:.2f}",
             ],
         ],
         trace="occupancy",

@@ -219,14 +219,15 @@ def run(
     # Eq. 15
     mwp_cp = min(max(1, cwp - 1), mwp)
 
-    # Compute-bound (CWP < MWP, Hong-Kim's MWP > CWP case): Eq. 15 sets MWP_cp to
-    # CWP - 1 (at least 1), so a compute-heavy kernel's requests are charged
-    # nearly one at a time, which can make T_mem larger
-    # than T_comp in a kernel the model itself calls compute-bound. Here the
-    # warps' requests overlap up to MWP (capped at N), still limited by MLP.
-    # Strict <: CWP = MWP = N keeps Eq. 15. DRAM bandwidth is a floor on T_mem
-    # (_get_t_mem), not a cap on ITMLP, so it only limits traffic that misses L2.
-    # GPUPerf unchanged.
+    # Compute-bound (CWP < MWP): Eq. 15 sets MWP_cp to CWP - 1 (at least 1),
+    # which makes T_lat roughly equal to the compute time, so T_exec comes out
+    # about T_comp / N above T_comp. Using MWP instead hides T_lat under the
+    # compute, so T_exec = T_comp. Hong-Kim (Eq. 3) add one memory period
+    # instead. Checked on the 2026-11-18 batches (110-144 of 162 kernels per
+    # GPU take this branch): using MWP_cp here moves the median runtime and
+    # speedup errors by at most 0.4 points. Strict <: CWP = MWP = N keeps
+    # Eq. 15. DRAM bandwidth is a floor on T_mem (_get_t_mem), not a cap on
+    # ITMLP, so it only limits traffic that misses L2. GPUPerf unchanged.
     if cwp < mwp:
         itmlp = m.mlp * mwp
     else:
