@@ -5,10 +5,11 @@ in ROWS order and benchmarks in BENCHMARKS order within each, with x and y indic
 GASP's median absolute speedup error in that cell and its change from all-static
 (delta, percentage points).
 
-The numbers come from read_ablation.summarize, the same code as make ablation-results.
+The numbers come from read_ablation.summarize, the same code as make ablation-results,
+with each speedup comparison counted once (read_ablation.mark_duplicates).
 
 Example usage:
-    scripts/results/export_ablation.py --out ~/grad/gpu/research/report/data
+    scripts/results/export_ablation.py --out /some/directory
     scripts/results/export_ablation.py --out <dir> <batch_dir> ...
 """
 

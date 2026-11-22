@@ -826,8 +826,10 @@ def test_model_choice_rejects_unknown():
         model_choice("foo")
 
 
-def test_model_defaults_to_gasp():
-    args = build_parser().parse_intermixed_args(["--gpu", "rtx2080ti", "k.cu"])
+def test_model_defaults_to_gasp(tmp_path):
+    kernel = tmp_path / "k.cu"
+    kernel.write_text("")
+    args = build_parser().parse_intermixed_args(["--gpu", "rtx2080ti", str(kernel)])
     assert args.model == ["GASPerf"]
 
 

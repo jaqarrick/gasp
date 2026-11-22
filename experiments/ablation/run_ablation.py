@@ -26,7 +26,7 @@ from gasp.cli import (
 )
 from gasp.cli.config import ConfigError, load_config
 from gasp.cli.utils import GPU_PROFILES
-from gasp.compare import measured_speedup, speedup
+from gasp.compare import measured_speedup, relative_error_pct, speedup
 from gasp.logger import Logger
 from gasp.overrides import parse_overrides
 
@@ -61,10 +61,6 @@ COLUMNS = [
     "itilp_capped",
     "itmlp_capped",
 ]
-
-
-def error_pct(predicted: float, measured: float) -> float | None:
-    return None if measured == 0 else (predicted - measured) / measured * 100
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -104,10 +100,10 @@ def row_records(
                 "pico": "fallback" if r.pico_error else "ok",
                 "predicted_cycles": t_gpu,
                 "measured_cycles": measured[name].cycles,
-                "error_pct": error_pct(t_gpu, measured[name].cycles),
+                "error_pct": relative_error_pct(t_gpu, measured[name].cycles),
                 "predicted_speedup": predicted,
                 "measured_speedup": actual,
-                "speedup_error_pct": error_pct(predicted, actual),
+                "speedup_error_pct": relative_error_pct(predicted, actual),
                 "itilp_capped": p.itilp_capped,
                 "itmlp_capped": p.itmlp_capped,
                 # ILP and MLP are never overridden, so the static ones were used

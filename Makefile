@@ -60,7 +60,7 @@ ablation-results:
 	@test -n "$(BATCH)" || { echo "usage: make ablation-results BATCH=experiments/results/ablation/<gpu>/batch_<timestamp> [ARGS='--csv --model all --records']"; exit 1; }
 	@$(PYTHON) experiments/ablation/read_ablation.py $(ARGS) $(BATCH)
 
-# CSVs for the report's pgfplots figures from the ablation batches (BATCHES), into DATA
+# CSVs for the report's pgfplots figures and e2e tables from the ablation batches (BATCHES), into DATA
 # (the report's data folder); the scatter export first, since the mm and bar exports read it
 report-data:
 	@test -n "$(DATA)" || { echo "usage: make report-data DATA=<report data folder> [BATCHES='..']"; exit 1; }
@@ -68,6 +68,7 @@ report-data:
 	$(PYTHON) scripts/results/export_ablation.py --out $(DATA) $(BATCHES)
 	$(PYTHON) scripts/results/export_mm.py --out $(DATA)
 	$(PYTHON) scripts/results/export_bars.py --out $(DATA)
+	$(PYTHON) scripts/results/export_e2e.py --out $(DATA) $(BATCHES)
 
 # DRY_RUN=1 only predicts (no GPU or ncu); PROFILE=<path> uses that profile instead of GPU's built-in one;
 # DESC='<text>' gives the experiment description instead of asking for it
@@ -133,7 +134,7 @@ help:
 	@echo "make ablation ARGS='...'         - run the ablation from a saved metrics file"
 	@echo "make batch-ablation-experiment GPU=.. [BMKS='..'] [PROFILE=..] [REPLAY=..] [DESC='..'] - measure and ablate every benchmarks/*/configs/*.toml (REPLAY=<e2e batch>: no GPU)"
 	@echo "make ablation-results BATCH=.. [ARGS='--csv'] - error decomposition of an ablation batch (GASPerf only unless ARGS='--model all'; ARGS='--records' for every record)"
-	@echo "make report-data DATA=.. [BATCHES='..'] - the report's figure CSVs from one ablation batch per GPU (default: the four final batches), into DATA"
+	@echo "make report-data DATA=.. [BATCHES='..'] - the report's figure and e2e CSVs from one ablation batch per GPU (default: the four final batches), into DATA"
 	@echo "make test                        - run tests"
 	@echo "make batch-e2e-experiment GPU=.. [BMKS='..'] [DRY_RUN=1] [PROFILE=..] [DESC='..'] - e2e accuracy for every benchmarks/*/configs/*.toml"
 	@echo "make batch-results BATCH=.. [ARGS='--csv'] - table of a batch's launches, T_GPU and speedups (GASPerf only unless ARGS='--model all')"

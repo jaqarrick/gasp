@@ -6,7 +6,7 @@ model's predicted speedup, plus the median absolute speedup error of each model.
 Reads every speedup_<gpu>.csv in --out (from export_speedup_scatter.py).
 
 Example usage:
-    scripts/results/export_mm.py --out ~/grad/gpu/research/report/data
+    scripts/results/export_mm.py --out /to/some/dir
 """
 
 import csv

@@ -170,10 +170,10 @@ nohup make all-experiments GPU=rtx2080ti ABLATION_DESC='ablation, new L1 model' 
 ## 8. Export the report's figure data
 
 ```sh
-make report-data DATA=~/grad/gpu/research/report/data
+make report-data DATA=~/path/to/data/directory
 ```
 
-The report draws its figures in LaTeX (pgfplots) from CSV files next to `draft.tex`. This writes those CSVs from one ablation batch per GPU, with the scripts in `scripts/results/`. It only reads the batches, so it needs no GPU. The all-static row of each batch is its e2e result, and the numbers come from the same code as `make ablation-results`.
+The report draws its figures in LaTeX (pgfplots) from CSV files next to `draft.tex`, and takes its e2e tables from them. This writes those CSVs from one ablation batch per GPU, with the scripts in `scripts/results/`. It only reads the batches, so it needs no GPU. The all-static row of each batch is its e2e result, and the numbers come from the same code as `make ablation-results`.
 
 - `DATA=<dir>` is the folder the CSVs go in, usually the report's `data/` folder. It has to exist.
 - `BATCHES='<dir> <dir> ...'` replaces the batches. The default is the final batch of each of the four GPUs. Each batch's GPU is the name of its parent folder.
@@ -184,5 +184,8 @@ The report draws its figures in LaTeX (pgfplots) from CSV files next to `draft.t
 | `export_mm.py` | `mm_<gpu>.csv`: median speedup of each mm variant over `basic` | `fig:mm` |
 | `export_bars.py` | `bars_<gpu>.csv`, `bank_<gpu>.csv`, `l1_<gpu>.csv`: the other benchmarks, bank-conflict degrees, L1 line patterns | `fig:bars`, `fig:bank-l1` |
 | `export_ablation.py` | `ablation_<gpu>.csv`: change in median speedup error from all-static, per row and benchmark | `fig:ablation` |
+| `export_e2e.py` | `e2e_<gpu>.csv`: every kernel and model (all-static) with its T_GPU and speedup errors, model terms and static and measured inputs; `e2e_summary.csv`: per GPU and model, the runtime, signed and speedup errors and the ranking; `e2e_benchmarks.csv`: the same per benchmark; `e2e_kernels.csv`: per kernel name over its configs; `e2e_bank_cost.csv`: predicted against measured time added by bank conflicts; `e2e_inputs.csv`: static against measured inputs per GPU, benchmark and input | `sec:results-e2e`, `tab:e2e-summary` |
 
-`export_mm.py` and `export_bars.py` read the `speedup_<gpu>.csv` files in `DATA`, so `export_speedup_scatter.py` runs first. Each script also runs on its own: `python3 scripts/results/<script> --out <dir>`.
+`export_mm.py` and `export_bars.py` read the `speedup_<gpu>.csv` files in `DATA`, so `export_speedup_scatter.py` runs first.
+
+Some configs repeat a kernel run of another config: `mm.toml` and `n1024_b16x16.toml` both run `basic` and `tiled` at 1024 with 16x16 blocks, and `mm_basic.toml` runs `basic` a third time. Every script counts each kernel run, speedup comparison and ranking pair once. Going through the configs in name order, the first config that has it keeps it (`mark_duplicates` in `experiments/ablation/read_ablation.py`, which `make ablation-results` uses too; two runs are the same if file, kernel, grid, block, problem size, footprint, reuse, loop counts and parameters match). `e2e_<gpu>.csv` keeps every row and marks the duplicates in `duplicate_run` and `duplicate_speedup`. Each script also runs on its own: `python3 scripts/results/<script> --out <dir>`.

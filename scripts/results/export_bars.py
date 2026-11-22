@@ -11,7 +11,7 @@ speedup error.
 Reads every speedup_<gpu>.csv in --out (from export_speedup_scatter.py).
 
 Example usage:
-    scripts/results/export_bars.py --out ~/grad/gpu/research/report/data
+    scripts/results/export_bars.py --out /to/some/dir
 """
 
 import csv

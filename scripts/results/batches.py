@@ -2,7 +2,10 @@
 and the command line every script takes.
 
 The all-static row of each ablation batch is its end-to-end result, so these four
-batches hold every result the report plots. The list matches BATCHES in the Makefile."""
+batches hold every result the report plots. The list matches BATCHES in the Makefile.
+
+Every export counts a kernel run, and a speedup comparison, once: read_ablation.load_batch
+marks the records that repeat another config's run (read_ablation.mark_duplicates)."""
 
 import argparse
 import sys

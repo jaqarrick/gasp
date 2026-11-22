@@ -7,8 +7,10 @@ prints every record instead. Only GASPerf by default; --model picks another mode
 or all.
 
 The speedup columns leave out each config's reference kernel, whose speedup is 1
-by definition. Every row carries the GPU, so the CSVs of several batches (one per
-GPU) can be concatenated.
+by definition. A kernel run that an earlier config (in name order) already ran, and a
+speedup comparison an earlier config already made, are counted once (mark_duplicates);
+--records prints them all, marked in duplicate_run and duplicate_speedup. Every row
+carries the GPU, so the CSVs of several batches (one per GPU) can be concatenated.
 
 Example usage:
     experiments/ablation/read_ablation.py experiments/results/ablation/rtx2080ti/batch_20261118_101500
@@ -39,6 +41,8 @@ RECORD_COLUMNS = [
     "speedup_error_pct",
     "itilp_capped",
     "itmlp_capped",
+    "duplicate_run",
+    "duplicate_speedup",
 ]
 
 SUMMARY_COLUMNS = [
@@ -60,6 +64,10 @@ SUMMARY_COLUMNS = [
 TEXT_COLUMNS = {"gpu", "benchmark", "config", "row", "kernel", "model", "pico"}
 
 ALL_BENCHMARKS = "all"
+
+# the settings that define a kernel run: two kernels with the same values are the same run
+RUN_FIELDS = ["file", "kernel", "grid_dim", "block_dim", "problem_size", "footprint", "reuse",
+              "loop_iterations", "loop_counts", "params"]
 
 
 def benchmark_of(config: str) -> str:
@@ -87,6 +95,48 @@ def records_of(config_dir: str, doc: dict, only_model: str | None) -> list[dict]
             }
         )
     return out
+
+
+def mark_duplicates(batch: Path, records: list[dict]) -> None:
+    """Add run_key, duplicate_run and duplicate_speedup to each record of a batch.
+
+    Some configs repeat a kernel run of another config (same RUN_FIELDS, from the configs'
+    result.json); mm.toml and n1024_b16x16.toml both run basic and tiled at 1024, 16x16.
+    Going through the configs in name order, a run is a duplicate if an earlier config
+    already ran it, and a speedup is a duplicate if an earlier config compared the same
+    kernel run with the same reference run. A config without a readable result.json
+    gives no duplicates."""
+    keys: dict[tuple[str, str], str] = {}
+    order: list[tuple[str, list[str], str]] = []
+    for config_dir in sorted(p for p in batch.iterdir() if p.is_dir()):
+        try:
+            doc = json.loads((config_dir / "result.json").read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        kernels = doc["prediction"]["kernels"]
+        for name, k in kernels.items():
+            keys[(config_dir.name, name)] = json.dumps({f: k.get(f) for f in RUN_FIELDS}, sort_keys=True)
+        order.append((config_dir.name, list(kernels), doc["reference"]))
+    seen_runs: set[str] = set()
+    seen_speedups: set[tuple[str, str]] = set()
+    duplicate_run: set[tuple[str, str]] = set()
+    duplicate_speedup: set[tuple[str, str]] = set()
+    for config, names, reference in order:
+        for name in names:
+            key = keys[(config, name)]
+            if key in seen_runs:
+                duplicate_run.add((config, name))
+            seen_runs.add(key)
+            if name != reference and (config, reference) in keys:
+                pair = (keys[(config, reference)], key)
+                if pair in seen_speedups:
+                    duplicate_speedup.add((config, name))
+                seen_speedups.add(pair)
+    for r in records:
+        where = (r["config"], r["kernel"])
+        r["run_key"] = keys.get(where)
+        r["duplicate_run"] = where in duplicate_run
+        r["duplicate_speedup"] = where in duplicate_speedup
 
 
 def abs_values(records: list[dict], key: str) -> list[float]:
@@ -118,9 +168,9 @@ def summarize(records: list[dict], row_order: list[str]) -> list[dict]:
     summary = []
     for key in sorted(groups, key=order):
         gpu, benchmark, model, row = key
-        group = groups[key]
+        group = [r for r in groups[key] if not r.get("duplicate_run")]
         errors = abs_values(group, "error_pct")
-        compared = [r for r in group if not r["is_reference"]]
+        compared = [r for r in groups[key] if not r["is_reference"] and not r.get("duplicate_speedup")]
         speedup_errors = abs_values(compared, "speedup_error_pct")
         summary.append(
             {
@@ -170,8 +220,9 @@ def print_table(columns: list[str], rows: list[dict]) -> None:
 def load_batch(
     batch_dir: Path, only_model: str | None
 ) -> tuple[list[dict], list[str], list[str]]:
-    """The records of every ablation.json in a batch, the configs that left none
-    (as "<config>: <error>"), and the ablation rows in the order the batch ran them."""
+    """The records of every ablation.json in a batch, marked by mark_duplicates, the
+    configs that left none (as "<config>: <error>"), and the ablation rows in the order
+    the batch ran them."""
     records, missing, row_order = [], [], []
     for config_dir in sorted(p for p in batch_dir.iterdir() if p.is_dir()):
         path = config_dir / "ablation.json"
@@ -185,6 +236,7 @@ def load_batch(
             if row not in row_order:
                 row_order.append(row)
         records.extend(records_of(config_dir.name, doc, only_model))
+    mark_duplicates(batch_dir, records)
     return records, missing, row_order
 
 

@@ -206,3 +206,77 @@ def test_main_reports_missing_config(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr()
     assert out.out.splitlines()[0] == ",".join(read_ablation.SUMMARY_COLUMNS)
     assert "skipped failed_config" in out.err
+
+
+def kernel_settings(file: str) -> dict:
+    return {
+        "file": file,
+        "kernel": file,
+        "grid_dim": [64, 64],
+        "block_dim": [16, 16],
+        "problem_size": 1024,
+        "footprint": 1,
+        "reuse": None,
+        "loop_iterations": None,
+        "loop_counts": None,
+        "params": {"n": 1024},
+    }
+
+
+def write_duplicate_batch(tmp_path: Path) -> Path:
+    batch = tmp_path / "batch"
+    configs = {
+        "mm_a": [
+            ("basic", 10.0, 0.0),
+            ("tiled", 20.0, 5.0),
+            ("uncoalesced", 30.0, 7.0),
+        ],
+        "mm_b": [("basic", 12.0, 0.0), ("tiled", 40.0, 9.0)],
+    }
+    for name, kernels in configs.items():
+        (batch / name).mkdir(parents=True)
+        doc = {
+            "gpu": "rtx2080ti",
+            "config": "benchmarks/mm/configs/x.toml",
+            "reference": "basic",
+            "rows": {"all-static": []},
+            "records": [
+                record("all-static", k, "GASPerf", e, s) for k, e, s in kernels
+            ],
+        }
+        (batch / name / "ablation.json").write_text(json.dumps(doc))
+        result = {
+            "reference": "basic",
+            "prediction": {"kernels": {k: kernel_settings(k) for k, _, _ in kernels}},
+        }
+        (batch / name / "result.json").write_text(json.dumps(result))
+    return batch
+
+
+def test_duplicates_are_marked_and_counted_once(tmp_path):
+    records, missing, rows = read_ablation.load_batch(
+        write_duplicate_batch(tmp_path), None
+    )
+    assert missing == []
+    flags = {
+        (r["config"], r["kernel"]): (r["duplicate_run"], r["duplicate_speedup"])
+        for r in records
+    }
+    assert flags == {
+        ("mm_a", "basic"): (False, False),
+        ("mm_a", "tiled"): (False, False),
+        ("mm_a", "uncoalesced"): (False, False),
+        ("mm_b", "basic"): (True, False),
+        ("mm_b", "tiled"): (True, True),
+    }
+    summary = read_ablation.summarize(records, rows)
+    mm = next(s for s in summary if s["benchmark"] == "mm")
+    assert mm["kernels"] == 3
+    assert mm["abs_err_mean"] == pytest.approx(20.0)
+    assert mm["speedups"] == 2
+    assert mm["abs_speedup_err_mean"] == pytest.approx(6.0)
+
+
+def test_no_result_json_means_no_duplicates(tmp_path):
+    records, _, _ = read_ablation.load_batch(write_batch(tmp_path), None)
+    assert not any(r["duplicate_run"] or r["duplicate_speedup"] for r in records)

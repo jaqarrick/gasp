@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Write speedup_<gpu>.csv for the report's speedup scatter (fig:scatter): one row per
-compared kernel (every kernel but its config's reference), all-static row, with the
-measured speedup and both models' predicted speedups. export_mm.py and export_bars.py
+compared kernel (every kernel but its config's reference, and each comparison once, see
+read_ablation.mark_duplicates), all-static row, with the measured speedup and both models'
+predicted speedups. export_mm.py and export_bars.py
 read these files, so run this first (make report-data does).
 
 Example usage:
-    scripts/results/export_speedup_scatter.py --out ~/grad/gpu/research/report/data
+    scripts/results/export_speedup_scatter.py --out /to/some/dir
     scripts/results/export_speedup_scatter.py --out <dir> <batch_dir> ...
 """
 
@@ -25,7 +26,7 @@ def main() -> int:
             print(f"{gpu}: missing {missing}", file=sys.stderr)
         rows: dict[tuple[str, str], dict] = {}
         for r in records:
-            if r["row"] != "all-static" or r["is_reference"]:
+            if r["row"] != "all-static" or r["is_reference"] or r["duplicate_speedup"]:
                 continue
             if r.get("predicted_speedup") is None or r.get("measured_speedup") is None:
                 continue
