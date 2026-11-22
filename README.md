@@ -8,7 +8,7 @@ GASP predicts each kernel's total runtime in clock cycles, $T_k$, and gives the 
 S_k = \frac{T_r}{T_k}
 ```
 
-where $T_r$ is the predicted runtime of the reference kernel (the first kernel in the config, or the one named with `--reference`) and $T_k$ is that of kernel $k$. $S_k > 1$ means kernel $k$ is faster than the reference.
+where $T_r$ is the predicted runtime of the reference kernel and $T_k$ is that of kernel $k$. $S_k > 1$ means kernel $k$ is faster than the reference.
 
 ## Prerequisites
 - Python 3.12+
