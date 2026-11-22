@@ -3,7 +3,7 @@
 How to measure a GPU, check a speedup against it, and run many configs at once. Every command runs from the repo root, on a machine with the GPU, `nvcc` and `ncu`.
 
 
-The first time you clone the repo you'll need to run `make install` the, afterwards, possible `source .venv/bin/activate`
+The first time you clone the repo, run `make install`. After that, run `source .venv/bin/activate` in each new shell.
 
 ## 1. Run the microbenchmark suite
 
@@ -31,7 +31,7 @@ The folder also has each benchmark's logs, and `rtx2080ti.1_2.sources.json`, whi
 
 ## 2. Test a speedup config with that profile
 
-A speedup config lists two kernels that do the same work, such as `benchmarks/vecadd/configs/vecadd.toml` (`good` and `poor`). GASP predicts both and reports the second kernel's speedup over the first.
+A speedup config lists two kernels that do the same work, such as `benchmarks/vecadd/configs/vecadd.toml` (`good` and `poor`). GASP predicts each kernel and reports every other kernel's speedup over the first.
 
 Pass the new profile with `--profile`, and add `--run` to also measure both kernels with `ncu`:
 
@@ -43,7 +43,7 @@ The output shows the predicted and measured speedup, and how far apart they are.
 
 ## 3. Update the built-in profile
 
-If you see positive results across kernels, you can replace the built in profile in `./hardware/profiles`
+If you see positive results across kernels, you can replace the built-in profile in `./hardware/profiles`.
 
 ## 4. Run batch experiments
 
@@ -111,7 +111,7 @@ file = "benchmarks/vecadd/vecadd_poor.cu"
 - A setting under a `[[kernel]]` overrides the one in `[defaults]` for that kernel.
 - Put the file in `benchmarks/<name>/configs/` and `make batch-e2e-experiment` picks it up.
 - Run one config on its own with `make run ARGS='--gpu rtx2080ti --config <path>'`.
-- The main `README.md` lists every setting. Look there first if you're confused about any of the arguments. 
+- The main `README.md` lists every setting. Look there first if you're confused about any of the arguments.
 
 ## 6. Run the ablation
 

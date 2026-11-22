@@ -10,7 +10,7 @@ Every profile, built-in or passed with `--profile`, needs:
 - a `spec` object with the NVIDIA spec values
 - a `profiled` object with the microbenchmark results
 
-The required fields are the ones in `HardwareProfile` (`src/gasp/cli/utils.py`). GASP stops with an error that lists any missing, unknown, or non-numeric fields.
+The fields are the ones in `HardwareProfile` (`src/gasp/cli/utils.py`). All are required except `launch_overhead_base_cycles` and `launch_overhead_per_thread_cycles`, which GASP doesn't use. GASP stops with an error that lists any missing, unknown, or non-numeric fields.
 
 ## Checking a profile's spec
 
