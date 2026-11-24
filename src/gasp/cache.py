@@ -18,10 +18,7 @@ def get_cache_hit_rate_from_working_set(
     alpha: float = 1.0,
     beta: float = 1.0,
 ) -> float:
-    """
-    Piecewise cache hit rate from working set size vs cache capacity.
-    Adapted from Jarmusch [2026], Table III (there for the MI300A last-level cache)
-    """
+    """Piecewise hit rate from working set vs capacity (Jarmusch [2026], Table III)."""
     W = working_set_size_bytes
     C = cache_size_bytes
 
@@ -45,11 +42,7 @@ def get_cache_hit_rate_from_working_set(
 def get_l1_size(
     array_bytes: int, carveouts_bytes: list[int], shared_needed_bytes: int
 ) -> tuple[int, int]:
-    """L1 bytes per SM and the shared-memory carveout that leaves them.
-
-    L1 and shared memory are one array per SM. The driver picks the smallest
-    supported carveout that holds the resident blocks' shared memory; if none
-    does (occupancy should prevent it), the largest."""
+    """L1 bytes per SM, and the smallest shared-memory carveout that fits the resident blocks."""
     options = sorted(carveouts_bytes)
     if not options:
         return max(0, array_bytes), 0
@@ -60,9 +53,7 @@ def get_l1_size(
 def get_concurrent_working_set(
     working_set_total_bytes: int, resident_blocks: int, total_blocks: int
 ) -> int:
-    """The share of the kernel's working set used by the blocks resident at the
-    same time: working set x resident blocks / total blocks. Assumes the
-    resident blocks share data no more and no less than blocks on average."""
+    """Working set of the blocks resident at the same time: working set x resident / total blocks."""
     if total_blocks <= 0:
         return working_set_total_bytes
     share = min(1.0, resident_blocks / total_blocks)
@@ -77,9 +68,7 @@ def get_reuse_fraction(reusable_access_count: int, global_access_count: int) -> 
 
 
 def get_footprint_reuse_fraction(footprint_bytes: int, bytes_accessed: int) -> float:
-    """Share of accessed bytes that are not first touches
-    Each byte of the footprint must come from DRAM once (a compulsory miss);
-    every other access to it is a repeat that a cache can serve."""
+    """Share of accessed bytes that are not first touches (compulsory misses)."""
     if bytes_accessed <= 0:
         return 0.0
     return 1.0 - min(1.0, footprint_bytes / bytes_accessed)

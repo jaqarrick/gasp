@@ -8,15 +8,12 @@ from gasp.occupancy import OccupancyOutput
 
 from .types import KernelParameters, ModelOutput, OccupancyParams
 
-# Off: on the pairs measured so far, every kernel in a pair launches the same
-# We included this from Alvani, but hasn't shown any significant improvement
-# In some cases, it increased error from GpuPerf model
+# Alvani's launch overhead: off, since it gave no clear improvement and sometimes more error
 INCLUDE_LAUNCH_OVERHEAD = False
 
 
 def non_sfu_inst_count(total_inst_count: float, sfu_inst_count: float) -> float:
-    """#insts as in GPUPerf: instructions per warp excluding SFU ones (Table 1).
-    SFU cost enters only through O_SFU (Eq. 9)."""
+    """#insts as in GPUPerf (Table 1): instructions per warp excluding SFU ones."""
     return max(total_inst_count - sfu_inst_count, 0.0)
 
 
@@ -45,6 +42,14 @@ class GASPerf:
     def predict_launch_overhead_cycles(self):
         """Launch overhead fit by launch_overhead_bench.cu: base + per thread
         launched. Not in GPUPerf."""
+        if (
+            self.h.launch_overhead_base is None
+            or self.h.launch_overhead_per_thread is None
+        ):
+            raise ValueError(
+                "INCLUDE_LAUNCH_OVERHEAD needs launch_overhead_base_cycles and "
+                "launch_overhead_per_thread_cycles in the hardware profile"
+            )
         threads = self.l.block_size * self.l.grid_size
         return self.h.launch_overhead_base + self.h.launch_overhead_per_thread * threads
 
@@ -52,8 +57,7 @@ class GASPerf:
         k = self.k
         h = self.h
         o = self.o
-        # divergent instructions are part of total_inst_count; charged in O_CFdiv
-        # instead of W_parallel, at the same cost per instruction
+        # divergent instructions are charged in O_CFdiv instead of W_parallel
         insts = non_sfu_inst_count(k.total_inst_count, k.sfu_inst_count)
         divergent = min(k.divergent_inst_count, insts)
         effective_throughput = k.average_inst_latency / o.itilp
@@ -89,8 +93,7 @@ class GASPerf:
             self.fp64_pipe_time,
             self.sfu_pipe_time,
         )
-        # Pico's count is per warp (extra shared accesses, N - 1 for an N-way
-        # conflict), so it scales by warps per SM like the other W_serial terms.
+        # Pico's count is per warp, so scale by warps per SM
         o_bank = (
             (k.bank_conflict_count * o.total_warps) / o.active_sms
         ) * h.bank_penalty
@@ -110,10 +113,8 @@ class GASPerf:
 
         # how many 32-byte sectors one warp request touches (from Pico estimate)
         sectors_per_request = o.average_trans_warp * SECTORS_PER_LINE
-        # Adjustment - check for strided access pattern
-        # How many 31 128byte lines the L1 has to server. With 4 sectors or less it is 1 line
-        # Above that, we assume every sector is ain a different line
-        # this is a big ASSUMPTION, so large requests that are coallesced will currently be overestimated
+        # 128-byte lines the L1 serves: 1 for up to 4 sectors, else one per sector.
+        # ASSUMPTION: overestimates large coalesced requests
         lines_per_request = sectors_per_request if o.average_trans_warp > 1 else 1.0
         # a request that misses L1 holds its slot while L2 answers
 
@@ -170,9 +171,7 @@ def amat(
     l2_hit_ratio: float,
     average_trans_warp: float,
 ) -> float:
-    """Eq. 12 over two cache levels. Every latency is end-to-end, so a miss
-    costs the next level's latency with no lookup added on top: all misses
-    gives exactly the average DRAM latency."""
+    """Eq. 12 over two cache levels, with end-to-end latencies (a miss costs the next level's)."""
     dram = average_dram_latency(h, average_trans_warp)
     l1_miss_latency = l2_hit_ratio * h.l2_hit_latency + (1 - l2_hit_ratio) * dram
     return l1_hit_ratio * h.l1_hit_latency + (1 - l1_hit_ratio) * l1_miss_latency
@@ -219,14 +218,8 @@ def run(
     # Eq. 15
     mwp_cp = min(max(1, cwp - 1), mwp)
 
-    # Compute-bound (CWP < MWP, Hong-Kim's MWP > CWP case): Eq. 15 sets MWP_cp to
-    # CWP - 1 (at least 1), so a compute-heavy kernel's requests are charged
-    # nearly one at a time, which can make T_mem larger
-    # than T_comp in a kernel the model itself calls compute-bound. Here the
-    # warps' requests overlap up to MWP (capped at N), still limited by MLP.
-    # Strict <: CWP = MWP = N keeps Eq. 15. DRAM bandwidth is a floor on T_mem
-    # (_get_t_mem), not a cap on ITMLP, so it only limits traffic that misses L2.
-    # GPUPerf unchanged.
+    # Compute-bound: use MWP rather than Eq. 15's MWP_cp so T_lat hides under
+    # T_comp (changes median errors by at most 0.4 points on the 2026-11-18 batches)
     if cwp < mwp:
         itmlp = m.mlp * mwp
     else:

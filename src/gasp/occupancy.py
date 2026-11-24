@@ -31,7 +31,7 @@ class OccupancyOutput:
     total_warps: int
     active_sms: int
     num_reps: int
-    mwp: float
+    mwp_latency_bound: float
     warps_per_block: int
     blocks_per_sm: int
     occupancy: float = 0.0
@@ -65,7 +65,7 @@ def calculate_occupancy(input: OccupancyInput, logger: Logger) -> OccupancyOutpu
     active_sms = min(input.sms_per_gpu, total_blocks)
     num_reps = ceil(total_blocks / (blocks_per_sm * active_sms))
 
-    mwp = min(input.dram_latency_cycles / input.departure_delay_cycles, N)
+    mwp_latency_bound = min(input.dram_latency_cycles / input.departure_delay_cycles, N)
 
     logger.trace(
         "occupancy",
@@ -80,7 +80,7 @@ def calculate_occupancy(input: OccupancyInput, logger: Logger) -> OccupancyOutpu
         total_warps=total_warps,
         active_sms=active_sms,
         num_reps=num_reps,
-        mwp=mwp,
+        mwp_latency_bound=mwp_latency_bound,
         warps_per_block=warps_per_block,
         blocks_per_sm=blocks_per_sm,
         occupancy=N / input.max_warps_per_sm,

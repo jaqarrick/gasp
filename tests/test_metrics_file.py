@@ -1,4 +1,4 @@
-"""Tests for gasp.metrics_file — saving and replaying ncu measurements."""
+"""Tests for gasp.metrics_file: saving and replaying ncu measurements."""
 
 import json
 from types import SimpleNamespace

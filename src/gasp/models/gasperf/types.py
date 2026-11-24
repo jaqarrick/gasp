@@ -30,7 +30,7 @@ class KernelParameters:
 class OccupancyParams:
     """All these inputs are from the occupancy / simulation module"""
 
-    active_warps: int  # N — active warps per SM
+    active_warps: int  # N: active warps per SM
     active_sms: int  # SMs that receive at least one block
     total_warps: int  # grid_size * warps_per_block
     warps_per_block: int  # ceil(block_size / warp_size)
@@ -38,7 +38,7 @@ class OccupancyParams:
     num_reps: int  # scheduling rounds
     # actually lets calculate these two inside the module
     itilp: float  # min(ilp * N, itilp_max)
-    itmlp: float  # min(mlp * mwp_cp, mwp_peak_bw)
+    itmlp: float
 
     # need to compute in module as well
     cwp: float  # Mem_L / (comp_cycles / mem_inst_count)

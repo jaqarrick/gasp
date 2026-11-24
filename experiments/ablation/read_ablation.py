@@ -1,14 +1,8 @@
 #!/usr/bin/env python3
-"""Read every ablation.json of a batch from scripts/batch_ablation.sh and print the
-error decomposition: per benchmark (and all together), model and ablation row, the
-mean and median absolute T_GPU error and speedup error, and how many kernels had
-ITILP or ITMLP at a cap (where ILP or MLP can't change the prediction). --records
-prints every record instead. Only GASPerf by default; --model picks another model,
-or all.
+"""Print the error decomposition of an ablation batch, per benchmark, model and row.
 
-The speedup columns leave out each config's reference kernel, whose speedup is 1
-by definition. Every row carries the GPU, so the CSVs of several batches (one per
-GPU) can be concatenated.
+References are left out of the speedup columns, and repeated runs and comparisons are
+counted once (mark_duplicates). --records prints every record instead.
 
 Example usage:
     experiments/ablation/read_ablation.py experiments/results/ablation/rtx2080ti/batch_20261118_101500
@@ -39,6 +33,8 @@ RECORD_COLUMNS = [
     "speedup_error_pct",
     "itilp_capped",
     "itmlp_capped",
+    "duplicate_run",
+    "duplicate_speedup",
 ]
 
 SUMMARY_COLUMNS = [
@@ -60,6 +56,10 @@ SUMMARY_COLUMNS = [
 TEXT_COLUMNS = {"gpu", "benchmark", "config", "row", "kernel", "model", "pico"}
 
 ALL_BENCHMARKS = "all"
+
+# kernels with equal values here are the same run
+RUN_FIELDS = ["file", "kernel", "grid_dim", "block_dim", "problem_size", "footprint", "reuse",
+              "loop_iterations", "loop_counts", "params"]
 
 
 def benchmark_of(config: str) -> str:
@@ -89,6 +89,45 @@ def records_of(config_dir: str, doc: dict, only_model: str | None) -> list[dict]
     return out
 
 
+def mark_duplicates(batch: Path, records: list[dict]) -> None:
+    """Mark each record's run_key, duplicate_run and duplicate_speedup.
+
+    A run or comparison is a duplicate if an earlier config (in name order) has the same
+    RUN_FIELDS, e.g. mm.toml and n1024_b16x16.toml both run basic and tiled.
+    """
+    keys: dict[tuple[str, str], str] = {}
+    order: list[tuple[str, list[str], str]] = []
+    for config_dir in sorted(p for p in batch.iterdir() if p.is_dir()):
+        try:
+            doc = json.loads((config_dir / "result.json").read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        kernels = doc["prediction"]["kernels"]
+        for name, k in kernels.items():
+            keys[(config_dir.name, name)] = json.dumps({f: k.get(f) for f in RUN_FIELDS}, sort_keys=True)
+        order.append((config_dir.name, list(kernels), doc["reference"]))
+    seen_runs: set[str] = set()
+    seen_speedups: set[tuple[str, str]] = set()
+    duplicate_run: set[tuple[str, str]] = set()
+    duplicate_speedup: set[tuple[str, str]] = set()
+    for config, names, reference in order:
+        for name in names:
+            key = keys[(config, name)]
+            if key in seen_runs:
+                duplicate_run.add((config, name))
+            seen_runs.add(key)
+            if name != reference and (config, reference) in keys:
+                pair = (keys[(config, reference)], key)
+                if pair in seen_speedups:
+                    duplicate_speedup.add((config, name))
+                seen_speedups.add(pair)
+    for r in records:
+        where = (r["config"], r["kernel"])
+        r["run_key"] = keys.get(where)
+        r["duplicate_run"] = where in duplicate_run
+        r["duplicate_speedup"] = where in duplicate_speedup
+
+
 def abs_values(records: list[dict], key: str) -> list[float]:
     return [abs(r[key]) for r in records if r.get(key) is not None]
 
@@ -102,8 +141,7 @@ def median(values: list[float]) -> float | None:
 
 
 def summarize(records: list[dict], row_order: list[str]) -> list[dict]:
-    """One summary row per (benchmark, model, ablation row), plus the same over
-    all benchmarks. Rows keep the order of the ablation's ROWS."""
+    """One row per (benchmark, model, ablation row), plus one over all benchmarks."""
     groups: dict[tuple[str, str, str, str], list[dict]] = {}
     for r in records:
         for benchmark in (r["benchmark"], ALL_BENCHMARKS):
@@ -118,9 +156,9 @@ def summarize(records: list[dict], row_order: list[str]) -> list[dict]:
     summary = []
     for key in sorted(groups, key=order):
         gpu, benchmark, model, row = key
-        group = groups[key]
+        group = [r for r in groups[key] if not r.get("duplicate_run")]
         errors = abs_values(group, "error_pct")
-        compared = [r for r in group if not r["is_reference"]]
+        compared = [r for r in groups[key] if not r["is_reference"] and not r.get("duplicate_speedup")]
         speedup_errors = abs_values(compared, "speedup_error_pct")
         summary.append(
             {
@@ -167,6 +205,27 @@ def print_table(columns: list[str], rows: list[dict]) -> None:
             print("  ".join("-" * w for w in widths))
 
 
+def load_batch(
+    batch_dir: Path, only_model: str | None
+) -> tuple[list[dict], list[str], list[str]]:
+    """Return the batch's records (duplicates marked), its failed configs, and its rows in run order."""
+    records, missing, row_order = [], [], []
+    for config_dir in sorted(p for p in batch_dir.iterdir() if p.is_dir()):
+        path = config_dir / "ablation.json"
+        try:
+            doc = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError) as e:
+            # a failed config leaves no or a partial ablation.json
+            missing.append(f"{config_dir.name}: {e}")
+            continue
+        for row in doc["rows"]:
+            if row not in row_order:
+                row_order.append(row)
+        records.extend(records_of(config_dir.name, doc, only_model))
+    mark_duplicates(batch_dir, records)
+    return records, missing, row_order
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("batch_dir", type=Path, help="a batch_<timestamp> folder")
@@ -187,23 +246,9 @@ def main() -> int:
         print(f"error: {args.batch_dir} is not a directory", file=sys.stderr)
         return 1
 
-    records, missing, row_order = [], [], []
-    for config_dir in sorted(p for p in args.batch_dir.iterdir() if p.is_dir()):
-        path = config_dir / "ablation.json"
-        try:
-            doc = json.loads(path.read_text())
-        except (OSError, json.JSONDecodeError) as e:
-            # a failed config leaves no or a partial ablation.json
-            missing.append(f"{config_dir.name}: {e}")
-            continue
-        for row in doc["rows"]:
-            if row not in row_order:
-                row_order.append(row)
-        records.extend(
-            records_of(
-                config_dir.name, doc, None if args.model == "all" else args.model
-            )
-        )
+    records, missing, row_order = load_batch(
+        args.batch_dir, None if args.model == "all" else args.model
+    )
 
     if args.records:
         columns, rows = RECORD_COLUMNS, records

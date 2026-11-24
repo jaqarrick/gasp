@@ -14,8 +14,10 @@ BMKS ?=
 DRY_RUN ?=
 BATCH ?=
 REPLAY ?=
+BATCHES ?= experiments/results/ablation/titanv/batch_20261118_090628 experiments/results/ablation/rtx2080ti/batch_20261118_090535 experiments/results/ablation/a100/batch_20261118_135245 experiments/results/ablation/rtx4070/batch_20261118_090605
+DATA ?=
 
-.PHONY: all build install run test lint lint-fix format pre-commit clean docker-clean docker-run help microbenchmarks microbenchmarks-hpmll microbenchmarks-gpu-benches check_spec gpu-spec ablation batch-ablation-experiment ablation-results batch-e2e-experiment batch-results all-experiments
+.PHONY: all build install run test lint lint-fix format pre-commit clean docker-clean docker-run help microbenchmarks microbenchmarks-hpmll microbenchmarks-gpu-benches check_spec gpu-spec ablation batch-ablation-experiment ablation-results report-data batch-e2e-experiment batch-results all-experiments
 
 $(VENV):
 	PYTHON=$(PYTHON) ./scripts/init_python.sh
@@ -47,9 +49,7 @@ run:
 ablation:
 	$(PY) experiments/ablation/run_ablation.py $(ARGS)
 
-# measure every config with ncu, then run every ablation row on it; needs the GPU.
-# REPLAY=<e2e batch dir> skips the measuring and uses that batch's metrics.json files (no GPU).
-# PROFILE=<path> uses that profile instead of GPU's built-in one; DESC='<text>' as for batch-e2e-experiment
+# measure every config, then run every ablation row; REPLAY=<e2e batch dir> reuses its measurements
 batch-ablation-experiment:
 	@test -n "$(GPU)" || { echo "usage: make batch-ablation-experiment GPU=<gpu> [BMKS='mm vecadd'] [PROFILE=<path>] [REPLAY=<e2e batch dir>] [DESC='<text>']"; exit 1; }
 	./scripts/batch_ablation.sh $(if $(PROFILE),--profile $(PROFILE)) $(if $(REPLAY),--replay $(REPLAY)) $(if $(DESC),--description "$(DESC)") $(GPU) $(BMKS)
@@ -58,8 +58,16 @@ ablation-results:
 	@test -n "$(BATCH)" || { echo "usage: make ablation-results BATCH=experiments/results/ablation/<gpu>/batch_<timestamp> [ARGS='--csv --model all --records']"; exit 1; }
 	@$(PYTHON) experiments/ablation/read_ablation.py $(ARGS) $(BATCH)
 
-# DRY_RUN=1 only predicts (no GPU or ncu); PROFILE=<path> uses that profile instead of GPU's built-in one;
-# DESC='<text>' gives the experiment description instead of asking for it
+# report CSVs from BATCHES into DATA; the scatter export runs first, the mm and bar exports read it
+report-data:
+	@test -n "$(DATA)" || { echo "usage: make report-data DATA=<report data folder> [BATCHES='..']"; exit 1; }
+	$(PYTHON) scripts/results/export_speedup_scatter.py --out $(DATA) $(BATCHES)
+	$(PYTHON) scripts/results/export_ablation.py --out $(DATA) $(BATCHES)
+	$(PYTHON) scripts/results/export_mm.py --out $(DATA)
+	$(PYTHON) scripts/results/export_bars.py --out $(DATA)
+	$(PYTHON) scripts/results/export_e2e.py --out $(DATA) $(BATCHES)
+
+# DRY_RUN=1 only predicts (no GPU or ncu)
 batch-e2e-experiment:
 	@test -n "$(GPU)" || { echo "usage: make batch-e2e-experiment GPU=<gpu> [BMKS='mm vecadd'] [DRY_RUN=1] [PROFILE=<path>] [DESC='<text>']"; exit 1; }
 	./scripts/batch_experiment.sh $(if $(DRY_RUN),--dry-run) $(if $(PROFILE),--profile $(PROFILE)) $(if $(DESC),--description "$(DESC)") $(GPU) $(BMKS)
@@ -68,15 +76,12 @@ batch-results:
 	@test -n "$(BATCH)" || { echo "usage: make batch-results BATCH=experiments/results/e2e/<gpu>/batch_<timestamp> [ARGS='--csv --model all']"; exit 1; }
 	@$(PYTHON) scripts/read_batch.py $(ARGS) $(BATCH)
 
-# the ablation on mm, bank_conflict, transpose and l2 (ABLATION_BMKS='..' replaces the list), then the e2e batch on every benchmark; needs the GPU. Asks for both
-# descriptions up front (unless ABLATION_DESC and E2E_DESC are given), so it never waits halfway.
-# PROFILE=<path> goes to both batches
+# the ablation batch (mm, bank_conflict, transpose, l2), then the e2e batch on every benchmark
 all-experiments:
 	@test -n "$(GPU)" || { echo "usage: make all-experiments GPU=<gpu> [PROFILE=<path>] [ABLATION_BMKS='mm transpose'] [ABLATION_DESC='<text>'] [E2E_DESC='<text>']"; exit 1; }
 	./scripts/all_experiments.sh $(if $(PROFILE),--profile $(PROFILE)) $(if $(ABLATION_BMKS),--ablation-benchmarks "$(ABLATION_BMKS)") $(if $(ABLATION_DESC),--ablation-description "$(ABLATION_DESC)") $(if $(E2E_DESC),--e2e-description "$(E2E_DESC)") $(GPU)
 
-# The complete profile: HPMLL (its valid fields), gpu-stream (DRAM bandwidth) and gasp-bm (the
-# rest, and HPMLL's fallback), all at base clock; needs a GPU, nvcc, ncu and both submodules.
+# full profile from HPMLL, gpu-stream and gasp-bm, at base clock
 microbenchmarks:
 	@test -n "$(GPU)" -a -n "$(VERSION)" || { echo "usage: make microbenchmarks GPU=<gpu> VERSION=<label> [ARCH=sm_XX] [ARGS='--only hpmll,... --force']"; exit 1; }
 	$(PYTHON) hardware/microbenchmarks/gasp-bm/run_all.py --gpu $(GPU) --version $(VERSION) $(if $(ARCH),--arch $(ARCH)) $(ARGS)
@@ -85,8 +90,7 @@ microbenchmarks-hpmll:
 	@test -n "$(GPU)" -a -n "$(VERSION)" || { echo "usage: make microbenchmarks-hpmll GPU=<gpu> VERSION=<label> [ARCH=sm_XX] [ARGS='--only ... --reps N --force']"; exit 1; }
 	$(PYTHON) scripts/run/run_hpmll_bmks.py --gpu $(GPU) --version $(VERSION) $(if $(ARCH),--arch $(ARCH)) $(ARGS)
 
-# DRAM bandwidth from gpu-benches' gpu-stream, written as a run JSON for `make microbenchmarks`
-# (which also calls this), plus a comparison with the profiles.
+# DRAM bandwidth from gpu-stream, plus a comparison with the profiles
 microbenchmarks-gpu-benches:
 	@test -n "$(GPU)" -a -n "$(VERSION)" || { echo "usage: make microbenchmarks-gpu-benches GPU=<gpu> VERSION=<label> [ARCH=sm_XX] [ARGS='--force']"; exit 1; }
 	$(PYTHON) scripts/run/run_gpu_benches.py --gpu $(GPU) --version $(VERSION) $(if $(ARCH),--arch $(ARCH)) $(ARGS)
@@ -122,6 +126,7 @@ help:
 	@echo "make ablation ARGS='...'         - run the ablation from a saved metrics file"
 	@echo "make batch-ablation-experiment GPU=.. [BMKS='..'] [PROFILE=..] [REPLAY=..] [DESC='..'] - measure and ablate every benchmarks/*/configs/*.toml (REPLAY=<e2e batch>: no GPU)"
 	@echo "make ablation-results BATCH=.. [ARGS='--csv'] - error decomposition of an ablation batch (GASPerf only unless ARGS='--model all'; ARGS='--records' for every record)"
+	@echo "make report-data DATA=.. [BATCHES='..'] - the report's figure and e2e CSVs from one ablation batch per GPU (default: the four final batches), into DATA"
 	@echo "make test                        - run tests"
 	@echo "make batch-e2e-experiment GPU=.. [BMKS='..'] [DRY_RUN=1] [PROFILE=..] [DESC='..'] - e2e accuracy for every benchmarks/*/configs/*.toml"
 	@echo "make batch-results BATCH=.. [ARGS='--csv'] - table of a batch's launches, T_GPU and speedups (GASPerf only unless ARGS='--model all')"
@@ -145,6 +150,7 @@ help:
 	@echo "  make run ARGS='--gpu b200 kernels.cu::good kernels.cu::poor'"
 	@echo "  make run ARGS='--gpu b200 --config benchmarks/vecadd/configs/vecadd.toml'"
 	@echo "  make run ARGS='--profile hardware/profiles/rtx2080ti.json kernel.cu'"
+	@echo "  make run ARGS='--gpu rtx2080ti --model all --config benchmarks/vecadd/configs/vecadd.toml'"
 	@echo "  make run ARGS='--gpu rtx2080ti --run --config benchmarks/vecadd/configs/vecadd.toml --save-metrics vecadd.metrics.json'"
 	@echo "  make run ARGS='--gpu rtx2080ti --config benchmarks/vecadd/configs/vecadd.toml --metrics vecadd.metrics.json --override cache=profiled'"
 	@echo "  make ablation ARGS='--gpu rtx2080ti --config benchmarks/vecadd/configs/vecadd.toml --metrics vecadd.metrics.json'"

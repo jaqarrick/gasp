@@ -60,8 +60,7 @@ def post_dominators(cfg: ControlFlowGraph) -> dict[str, set[str]]:
         else:
             next_blocks[node] = [VIRTUAL_EXIT]
 
-    # a block stuck in a loop with no way out never reaches the end, so its
-    # guess would never shrink: give it an edge to the virtual exit too
+    # give blocks in a loop with no exit an edge to the virtual exit
     reaches_end = {n for n in reachable if next_blocks[n] == [VIRTUAL_EXIT]}
     stack = list(reaches_end)
     while stack:
@@ -123,8 +122,7 @@ def side_blocks(
 
 
 def leaves_loop(node: str, succs: set[str], loops: dict[str, set[str]]) -> bool:
-    """True if a branch at node has one successor inside a loop containing
-    node and one outside it."""
+    """True if a branch at node has one successor inside a loop containing node and one outside."""
     for loop_nodes in loops.values():
         if node in loop_nodes and len(succs & loop_nodes) == 1:
             return True

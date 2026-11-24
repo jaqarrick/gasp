@@ -29,8 +29,7 @@ class PredictionInput:
     hardware: HardwareParameters
     launch: LaunchParameters
     footprint_bytes: int | None = None
-    # share of global accesses that hit L1 on data the same block just loaded
-    # (--reuse), None to use L1's capacity term
+    # L1 hit share from --reuse, or None to use L1's capacity term
     block_reuse: float | None = None
     # values that replace static model inputs (--override), None for none
     overrides: ModelOverrides | None = None
@@ -91,26 +90,14 @@ class PredictionOutput:
     static_inputs: ModelInputs | None = None
     total_warps: int = 0
     occupancy: float = 0.0  # theoretical
-    # whether ILP and MLP were cut off by a cap (see the model's ModelOutput)
+    # track if ILP or MLP were cut off by a cap
     itilp_max: float = 0.0
     itilp_capped: bool = False
     itmlp_capped: bool = False
 
 
 def get_average_trans_warp(p: PicoOutput, mem_inst_count: int) -> float:
-    """128-byte transactions per warp memory access, 1 = coalesced.
-
-    For now we output sectors per transaction
-    ua -> uncoalesced access count
-    count -> total memory inst per warp
-
-    So we return the average ua/count
-
-    PICO's output is in sectors
-    GPUPerf wants cache lines
-
-    4 sectors (32B)= 1 cache line (128B)
-    """
+    """128-byte transactions per warp memory access (1 = coalesced), from Pico's sector counts (4 sectors per line)."""
     if p.error or mem_inst_count == 0 or p.memory_accesses_count == 0:
         return 1.0
     sectors_per_access = p.uncoalesced_count / p.memory_accesses_count
@@ -118,9 +105,7 @@ def get_average_trans_warp(p: PicoOutput, mem_inst_count: int) -> float:
 
 
 def get_average_inst_latency(d: DependencyOutput) -> float:
-    """Average latency of the non-SFU instructions, which W_parallel and CWP
-    charge. SFU instructions are charged only in O_SFU (Eq. 9). A kernel of SFU
-    instructions only keeps the average over all of them."""
+    """Average latency of the non-SFU instructions (SFU ones are charged in O_SFU, Eq. 9)."""
     non_sfu = d.total_inst_count - d.sfu_inst_count
     if non_sfu <= 0:
         return d.total_latency / d.total_inst_count
@@ -178,9 +163,7 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         reuse_source = (
             f"per thread {d.reusable_access_count}/{d.global_access_count} reusable"
         )
-    # GASPerf's L2 term: only the blocks resident at the same time compete for
-    # L2, so data reused while they run hits even when the whole kernel's data
-    # is larger than L2
+    # GASPerf's L2 term: only the concurrently resident blocks compete for L2
     working_set_concurrent = get_concurrent_working_set(
         working_set_total, occ.blocks_per_sm * occ.active_sms, l.grid_size
     )
@@ -194,8 +177,7 @@ def predict(input: PredictionInput, logger: Logger) -> PredictionOutput:
         f" ({get_capacity_regime(working_set_concurrent, h.l2_cache_size_bytes)})"
     )
     if input.block_reuse is not None:
-        # given by the user (--reuse): replaces L1's capacity term, which only
-        # sees totals and misses data reused within a block right after loading
+        # --reuse replaces L1's capacity term
         l1_hit_ratio, l2_hit_ratio = get_hit_ratios_given_l1(
             input.block_reuse, reuse_fraction, l2_capacity_hit
         )

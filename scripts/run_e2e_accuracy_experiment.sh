@@ -1,12 +1,6 @@
 #!/bin/bash
-# Run one benchmark config end to end (predict, then measure under ncu) and save the JSON results.
-# --dry-run only predicts: no --run, so no GPU or ncu is needed.
-# --config <path> runs that config instead of benchmarks/<benchmark>/configs/<benchmark>.toml,
-# such as another one from benchmarks/<benchmark>/configs/.
-# --out-dir <dir> saves the results in <dir> instead of a new
-# experiments/results/e2e/<gpu>/<benchmark>_<timestamp>/ (scripts/batch_experiment.sh uses it).
-# --profile <path> uses that hardware profile (such as one from make microbenchmarks)
-# instead of the built-in one for <gpu>; <gpu> then only names the results folder.
+# Predict and measure one benchmark config, and save the JSON results.
+# --dry-run only predicts, so no GPU or ncu is needed.
 #
 # Example usage:
 #   scripts/run_e2e_accuracy_experiment.sh [--dry-run] [--config <path>] [--out-dir <dir>] [--profile <path>] <benchmark> <gpu>
@@ -60,7 +54,7 @@ fi
 BMK="${POSITIONAL[0]}"
 GPU="${POSITIONAL[1]}"
 
-# a relative --config, --out-dir or --profile is relative to where the script was called from
+# relative paths are relative to the caller's directory
 if [ -n "$CONFIG" ] && [[ "$CONFIG" != /* ]]; then
     CONFIG="$PWD/$CONFIG"
 fi
@@ -77,8 +71,7 @@ BMK_DIR="./benchmarks/$BMK"
 BMK_CONFIG="${CONFIG:-$BMK_DIR/configs/$BMK.toml}"
 echo "Running $BMK on $GPU with $BMK_CONFIG${PROFILE:+ and profile $PROFILE}"
 
-# First check if the benchmark config and path exists in ./benchmarks
-# e.g. argument is "mm" we look for mm.toml in ./benchmarks/mm/configs/
+# default config: benchmarks/<benchmark>/configs/<benchmark>.toml
 if [ ! -d "$BMK_DIR" ]; then
     echo "error: benchmark directory $BMK_DIR not found" >&2
     exit 1
@@ -94,8 +87,7 @@ if [ -n "$PROFILE" ]; then
     fi
     PROFILE_ARG="--profile $PROFILE"
 else
-    # the built-in profile for --gpu is <gpu>.json
-    # (GPU_PROFILES in src/gasp/cli/utils.py)
+    # built-in profile (GPU_PROFILES in src/gasp/cli/utils.py)
     if [ ! -f "./hardware/profiles/$GPU.json" ]; then
         echo "error: no hardware/profiles/$GPU.json; pass --profile" >&2
         exit 1
@@ -111,7 +103,7 @@ fi
 
 # create the output / target directory if not there
 STAMP="$(date +%Y%m%d_%H%M%S)"
-# a --config run is named after its config too, so runs of one benchmark don't collide
+# name --config runs after the config
 if [ -n "$OUT_DIR" ]; then
     EXP_OUT_DIR="$OUT_DIR"
 elif [ -n "$CONFIG" ]; then
@@ -122,7 +114,7 @@ fi
 mkdir -p "$EXP_OUT_DIR"
 EXP_OUT_FNAME="result.json"
 
-GASP_ARGS="$PROFILE_ARG --json --verbose --config $BMK_CONFIG --trace-file $EXP_OUT_DIR/traces.log"
+GASP_ARGS="$PROFILE_ARG --model all --json --verbose --config $BMK_CONFIG --trace-file $EXP_OUT_DIR/traces.log"
 if [ "$DRY_RUN" -eq 0 ]; then
     GASP_ARGS="$GASP_ARGS --run --save-metrics $EXP_OUT_DIR/metrics.json"
 fi

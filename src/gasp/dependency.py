@@ -108,8 +108,7 @@ def get_ilp_mlp_for_node(instructions: list[SASSInstruction], latency: LatencyTa
     critical_path = max(d + latency.get(inst) for d, inst in zip(dist, instructions))
     ilp: float = total_latency / critical_path
 
-    # mlp
-    # memory loads on longest path from start of block to instruction i, inclusive
+    # mlp: memory loads on the longest path to instruction i, inclusive
     load_count = [0] * len(instructions)
 
     for i, inst in enumerate(instructions):
@@ -189,8 +188,7 @@ def find_loops(cfg: ControlFlowGraph) -> tuple[dict[str, set[str]], list]:
 
     back_edges = dfs_cfg(cfg, successors)
 
-    # one loop per header: several back edges to the same head (e.g. `continue`)
-    # are the same loop and must only multiply by its count once
+    # one loop per header, even with several back edges (e.g. `continue`)
     loops: dict[str, set[str]] = {}
     for tail, head in back_edges:
         loop_nodes = loops.setdefault(head, {head})
@@ -201,8 +199,7 @@ def find_loops(cfg: ControlFlowGraph) -> tuple[dict[str, set[str]], list]:
                 loop_nodes.add(node)
                 queue.extend(predecessors[node])
 
-    # DFS finds back edges in no useful order; nvdisasm lists nodes by address,
-    # so this is the order loop_counts follows
+    # sort by address, the order loop_counts follows
     position = {node_id: i for i, node_id in enumerate(cfg.nodes)}
     ordered = dict(sorted(loops.items(), key=lambda item: position[item[0]]))
     return ordered, back_edges
@@ -252,8 +249,7 @@ def analyze(
     logger: Logger,
     loop_counts: list[int] | None = None,
 ) -> DependencyOutput:
-    """loop_counts: trips per entry for each loop, in code order. It wins over
-    loop_iterations, which gives every loop the same count."""
+    """loop_counts gives trips per loop in code order and overrides loop_iterations."""
 
     loops, back_edges = find_loops(cfg)
 
@@ -298,8 +294,7 @@ def analyze(
     ]
     two_way.sort(key=lambda b: len(b.taken | b.fall_through))
 
-    # cheaper sides of divergent branches; summed after all drops, so a
-    # divergent branch inside a dropped side adds nothing
+    # cheaper sides of divergent branches, summed after all drops
     divergent_blocks: set[str] = set()
     for b in two_way:
         if not b.taken or not b.fall_through:
@@ -347,10 +342,7 @@ def analyze(
         num_address_groups += count_arrays(groups)
         global_bytes_per_thread += sum(groups.values()) * node_iterations[node_id]
 
-        # estimate memory reuse:
-        # an access in a loop may hit data from an earlier iteration;
-        # in a block that runs once, only repeats of an address already
-        # touched in the block can hit, the first touch is always a miss
+        # reuse: loop accesses may hit earlier iterations; elsewhere only repeats can hit
         global_insts = [i for i in node if i.category in GLOBAL_MEMORY_CATEGORIES]
         accesses = len(global_insts)
         global_access_count += accesses * node_iterations[node_id]

@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""Read every result.json of a batch from scripts/batch_experiment.sh and print one
-row per config, kernel and model: the launch, then predicted and measured T_GPU and
-speedup with their errors. A dry-run batch has no measurements, so those columns
-are blank. Only GASPerf rows by default; --model picks another model, or all.
+"""Print predicted and measured T_GPU and speedup for every result.json in an e2e batch.
 
 Example usage:
     scripts/read_batch.py experiments/results/e2e/rtx2080ti/batch_20261113_153012

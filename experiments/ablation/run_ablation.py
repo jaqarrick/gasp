@@ -1,13 +1,10 @@
-"""The ablation: predict every kernel of a config once per row of ROWS, each row
-a different set of overrides, under every model (GPUPerf and GASPerf), and
-compare each with the saved measurements.
+"""Predict a config once per ablation row and compare each with saved measurements.
 
-    make ablation ARGS="--gpu rtx2080ti --config benchmarks/vecadd/configs/vecadd.toml \\
+Needs no GPU: the measurements come from `gasp --run --save-metrics`.
+
+    make ablation ARGS="--gpu rtx2080ti --config benchmarks/vecadd/configs/vecadd.toml \
         --metrics vecadd.metrics.json --out vecadd.ablation.json"
-
-Needs no GPU: the measurements come from a metrics file written earlier by
-`gasp --run --save-metrics`. --out saves the results as JSON; read_ablation.py
-prints them as a table or CSV. See README.md here."""
+"""
 
 import argparse
 import json
@@ -26,7 +23,7 @@ from gasp.cli import (
 )
 from gasp.cli.config import ConfigError, load_config
 from gasp.cli.utils import GPU_PROFILES
-from gasp.compare import measured_speedup, speedup
+from gasp.compare import measured_speedup, relative_error_pct, speedup
 from gasp.logger import Logger
 from gasp.overrides import parse_overrides
 
@@ -41,9 +38,7 @@ ROWS: dict[str, list[str]] = {
     "all-profiled": ["all=profiled"],
 }
 
-# inputs no row can profile: ncu has no counter for them, so "all-profiled"
-# keeps the static ones. The itilp_capped / itmlp_capped columns show where
-# ILP and MLP can't change the prediction anyway.
+# no ncu counter for these, so all-profiled keeps the static values
 NOT_PROFILED = ["ilp", "mlp", "sync_inst_count"]
 
 COLUMNS = [
@@ -61,10 +56,6 @@ COLUMNS = [
     "itilp_capped",
     "itmlp_capped",
 ]
-
-
-def error_pct(predicted: float, measured: float) -> float | None:
-    return None if measured == 0 else (predicted - measured) / measured * 100
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -104,10 +95,10 @@ def row_records(
                 "pico": "fallback" if r.pico_error else "ok",
                 "predicted_cycles": t_gpu,
                 "measured_cycles": measured[name].cycles,
-                "error_pct": error_pct(t_gpu, measured[name].cycles),
+                "error_pct": relative_error_pct(t_gpu, measured[name].cycles),
                 "predicted_speedup": predicted,
                 "measured_speedup": actual,
-                "speedup_error_pct": error_pct(predicted, actual),
+                "speedup_error_pct": relative_error_pct(predicted, actual),
                 "itilp_capped": p.itilp_capped,
                 "itmlp_capped": p.itmlp_capped,
                 # ILP and MLP are never overridden, so the static ones were used

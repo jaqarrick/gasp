@@ -1,4 +1,4 @@
-"""Tests for gasp.compare — speedups and work-mismatch warnings."""
+"""Tests for gasp.compare: speedups and work-mismatch warnings."""
 
 import dataclasses
 

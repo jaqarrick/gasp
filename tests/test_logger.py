@@ -1,4 +1,4 @@
-"""Tests for gasp.logger — module-scoped traces."""
+"""Tests for gasp.logger: module-scoped traces."""
 
 import json
 

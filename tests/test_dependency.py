@@ -1,4 +1,4 @@
-"""Tests for gasp.dependency — register DAG, ILP/MLP, loop weighting, counts."""
+"""Tests for gasp.dependency: register DAG, ILP/MLP, loop weighting, counts."""
 
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -65,9 +65,7 @@ def one_inst_per_node(node_ids):
     return {n: [ffma(f"R{i}")] for i, n in enumerate(node_ids)}
 
 
-# ---------------------------------------------------------------------------
 # get_ilp_mlp_for_node
-# ---------------------------------------------------------------------------
 
 
 def test_ilp_independent_instructions():
@@ -126,9 +124,7 @@ def test_mlp_no_loads():
     assert mlp == -1
 
 
-# ---------------------------------------------------------------------------
 # analyze: loop weighting
-# ---------------------------------------------------------------------------
 
 
 def test_no_loops(logger):
@@ -248,9 +244,7 @@ def test_two_back_edges_same_header_count_once(logger):
     assert out.total_inst_count == 1 + 10 + 10 + 10 + 1
 
 
-# ---------------------------------------------------------------------------
 # analyze: per-loop counts
-# ---------------------------------------------------------------------------
 
 # three self-loops, written so DFS meets the last one first
 THREE_LOOPS = ["entry", "a", "mid", "b", "c", "exit"]
@@ -406,9 +400,7 @@ def test_empty_block_skipped(logger):
     assert out.total_inst_count == 2
 
 
-# ---------------------------------------------------------------------------
 # analyze: counts and kernel-wide ILP/MLP
-# ---------------------------------------------------------------------------
 
 
 def test_category_counts(logger):
@@ -512,9 +504,7 @@ def test_kernel_mlp_defaults_to_1_without_loads(logger):
     assert out.mlp == 1
 
 
-# ---------------------------------------------------------------------------
 # analyze on nvdisasm fixtures
-# ---------------------------------------------------------------------------
 
 
 def parse_fixture(path, kernel, arch, logger):
@@ -598,9 +588,7 @@ def test_other_kernels_loop_does_not_require_iterations(logger):
     analyze(cfg, {}, None, LATENCY, logger)
 
 
-# ---------------------------------------------------------------------------
 # address groups and working set
-# ---------------------------------------------------------------------------
 
 
 def gmem(opcode, category, base, width=4, dst=(), offset=0):
@@ -693,9 +681,7 @@ def test_working_set_counts_unrolled_offsets(logger):
     assert out.num_address_groups == 1
 
 
-# ---------------------------------------------------------------------------
 # reuse counts (GitHub #63)
-# ---------------------------------------------------------------------------
 
 
 def test_straight_line_first_touches_are_not_reusable(logger):
@@ -762,9 +748,7 @@ def test_bytes_accessed_counts_repeats_and_trips(logger):
     assert out.global_bytes_per_thread == 4 + 8 * 10 + 16  # repeats collapsed
 
 
-# ---------------------------------------------------------------------------
 # branches: which side is counted
-# ---------------------------------------------------------------------------
 
 
 def branch_on(special_register: str, target: str) -> list[SASSInstruction]:

@@ -1,4 +1,4 @@
-"""Tests for gasp.cache — piecewise capacity hit rate (Jarmusch Table III)."""
+"""Tests for gasp.cache: piecewise capacity hit rate (Jarmusch Table III)."""
 
 import pytest
 

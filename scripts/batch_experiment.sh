@@ -1,22 +1,6 @@
 #!/bin/bash
-# Run the e2e accuracy experiment for every config in benchmarks/*/configs/*.toml
-# on one GPU. Benchmark names after the GPU limit the run to those benchmarks.
-# --profile <path> uses that hardware profile (such as one from make microbenchmarks)
-# instead of the built-in one for <gpu>; <gpu> then only names the results folder.
-# A failed config doesn't stop the others.
-#
-# Before it starts, it asks for a short description of the experiment and saves it,
-# with the date, GPU, profile, code version and configs, in experiment.txt.
-# --description "<text>" gives it without the prompt (needed without a terminal).
-#
-# Results go in one folder per batch, a subfolder per config, and two text files:
-#   experiments/results/e2e/<gpu>/batch_<timestamp>/<benchmark>_<config>/
-#   experiments/results/e2e/<gpu>/batch_<timestamp>/experiment.txt
-#   experiments/results/e2e/<gpu>/batch_<timestamp>/summary.txt
-# Under Slurm the folder is batch_<timestamp>_<job id>, so parallel jobs that start in the
-# same second get their own folders. If the folder already exists, the run stops.
-# summary.txt holds the pass/fail list and the results table from scripts/read_batch.py
-# (GASPerf only); it is printed at the end of the run.
+# Run the e2e experiment for every config (or the named benchmarks) on one GPU.
+# Output layout: docs/experiments.md, section 4.
 #
 # Example usage:
 #   scripts/batch_experiment.sh [--dry-run] [--profile <path>] [--description <text>] <gpu> [benchmark ...]
@@ -106,7 +90,7 @@ if ! ./scripts/check_requirements.sh > /dev/null; then
     make install
 fi
 
-# ask before creating anything, so Ctrl-C here leaves no batch folder behind
+# ask before creating the batch folder
 if [ -z "$DESCRIPTION" ]; then
     if [ ! -t 0 ]; then
         echo "error: no terminal to ask for a description; pass --description \"<text>\"" >&2
@@ -134,7 +118,7 @@ BATCH_DIR="$BATCH_PARENT/batch_$(date +%Y%m%d_%H%M%S)${SLURM_JOB_ID:+_$SLURM_JOB
 mkdir -p "$BATCH_PARENT"
 mkdir "$BATCH_DIR" || { echo "error: $BATCH_DIR already exists" >&2; exit 1; }
 
-# what was run, where and with what, so the batch can be told apart and repeated later
+# record what was run, for experiment.txt
 {
     echo "description: $DESCRIPTION"
     echo
@@ -200,7 +184,7 @@ done
     [ "${#FAILED[@]}" -eq 0 ] || printf '  failed: %s\n' "${FAILED[@]}"
     echo
     echo "results (GASPerf; make batch-results BATCH=$BATCH_DIR ARGS='--model all' for every model):"
-    # read_batch exits 1 when a config left no result.json; the FAILED check below already covers that
+    # failures are reported by the FAILED check below
     .venv/bin/python scripts/read_batch.py "$BATCH_DIR" 2>&1 || true
 } > "$BATCH_DIR/summary.txt"
 

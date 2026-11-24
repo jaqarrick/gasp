@@ -1,4 +1,4 @@
-"""Tests for gasp.profiler — ncu output parsing and command construction."""
+"""Tests for gasp.profiler: ncu output parsing and command construction."""
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch

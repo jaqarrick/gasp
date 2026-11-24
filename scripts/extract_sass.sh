@@ -1,5 +1,5 @@
 #!/bin/bash
-# extract_sass.sh — compile a CUDA file and extract SASS, CFG, and resource usage
+# extract_sass.sh: compile a CUDA file and extract SASS, CFG, and resource usage
 
 set -e
 

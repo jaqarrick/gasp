@@ -27,3 +27,4 @@ class Args:
     metrics: str | None
     override: list[str]
     json: bool
+    model: list[str]

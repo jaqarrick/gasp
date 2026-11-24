@@ -47,10 +47,7 @@ if ! ./scripts/check_requirements.sh > /dev/null; then
     make install
 fi
 
-# EXPERIMENT 1 (we can add more below)
-# for each benchmark in ./benchmarks/* run the e2e accuracy experiment. Only
-# directories with a <name>/<name>.toml config are experiments; the rest are
-# skipped. A failed benchmark doesn't stop the others.
+# e2e experiment for each benchmark with a <name>/<name>.toml config
 PASSED=()
 FAILED=()
 SKIPPED=()

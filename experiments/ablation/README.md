@@ -1,6 +1,6 @@
 # Ablation
 
-Measures which static inputs matter: each model (GPUPerf and GASPerf) is run once per row below, each row replacing some static inputs with profiled (ncu) or crude values, and every row is compared with the same measurements.
+Measures which static inputs matter: each model (GPUPerf and GASPerf; the ablation always runs both) is run once per row below, each row replacing some static inputs with profiled (ncu) or crude values, and every row is compared with the same measurements.
 
 | Row | Overrides | What it shows |
 |---|---|---|

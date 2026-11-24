@@ -73,8 +73,7 @@ def work_mismatches(
 def carveout_mismatches(
     predictions: dict[str, PredictionOutput], measured: dict[str, ProfileOutput]
 ) -> list[str]:
-    """Kernels whose measured shared-memory carveout isn't the predicted one,
-    so the L1 size the cache model used is wrong for them."""
+    """Kernels whose measured shared-memory carveout differs from the predicted one."""
     warnings = []
     for name, prediction in predictions.items():
         actual = measured[name].shared_mem_config_bytes

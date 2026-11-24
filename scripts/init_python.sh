@@ -1,12 +1,6 @@
 #!/bin/bash
-# Find a Python >= 3.12 and create .venv with it.
-#
-# Tries, in order: $PYTHON (default python3), python3.13 / python3.12 on PATH,
-# then the newest python environment module (module load ...). If .venv exists
-# but was built with an older Python, it is recreated.
-#
-# A script can't load a module into your shell, so if a module was needed this
-# prints the `module load` line to run (or add to ~/.bashrc) before using gasp.
+# Find a Python >= 3.12 (PATH, then environment modules) and create .venv with it.
+# If a module was needed, prints the `module load` line to run before using gasp.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -47,7 +41,7 @@ if [ -z "$python" ]; then
   fi
 
   if type module > /dev/null 2>&1; then
-    # Terse listing is one module per line, e.g. python-3.12.1 or python/3.12.1(default)
+    # one module per line, e.g. python/3.12.1(default)
     best="$(module -t avail 2>&1 \
       | grep -iE '^python[-/]?3\.[0-9]+' \
       | sed -E 's/\(.*\)$//' \

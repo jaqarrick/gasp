@@ -46,11 +46,7 @@ _INSTRUCTION = re.compile(r"^\s*/\*[0-9a-f]+\*/")
 
 
 def parse_label_lines(disassembly: str) -> LabelLines:
-    """Source line of each label's first instruction, from `nvdisasm -g` output.
-
-    nvdisasm writes a `//## File` comment only when the line changes, so a label
-    with none before its first instruction is still on the line seen last.
-    """
+    """Source line of each label's first instruction, from `nvdisasm -g` output."""
     lines: LabelLines = {}
     current: tuple[str, int] | None = None
     pending: list[str] = []
@@ -124,8 +120,7 @@ class CUDAExtractor:
         return result.stdout
 
     def get_label_lines(self) -> LabelLines:
-        """Source lines of the labels. Only used to describe loops, so a failure
-        only warns."""
+        """Source lines of the labels, for describing loops; a failure only warns."""
         result = subprocess.run(
             ["nvdisasm", "-g", self.cubin_path],
             capture_output=True,

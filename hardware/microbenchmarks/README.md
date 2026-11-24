@@ -1,5 +1,5 @@
 # Microbenchmarks
-This are targeted CUDA programs for specific operation measurements
+These are targeted CUDA programs for specific operation measurements.
 
 ## Building a profile
 `make microbenchmarks GPU=<gpu> VERSION=<label>` (`gasp-bm/run_all.py`) runs three suites and merges them into one profile, `hardware/runs/<gpu>/<version>/<gpu>.<version>.json`. Each field takes the first valid result of:

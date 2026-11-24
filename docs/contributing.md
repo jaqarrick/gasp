@@ -13,7 +13,7 @@ This project includes a [dev container](https://containers.dev/) configuration f
 
 1. Clone the repo:
 ```bash
-   git clone --recurse-submodules https://github.com/you/gasp.git
+   git clone --recurse-submodules git@github.com:jaqarrick/gasp.git
 ```
 2. Open in VS Code
 3. When prompted, click **"Reopen in Container"** (or run `Dev Containers: Reopen in Container` from the command palette)
@@ -23,7 +23,7 @@ This project includes a [dev container](https://containers.dev/) configuration f
 
 ```bash
 docker build -t gasp-dev .
-docker run -it --rm -v $(PWD):/app gasp-dev /bin/bash
+docker run -it --rm -v $(pwd):/app gasp-dev /bin/bash
 ```
 
 ## Commit Conventions & Hooks

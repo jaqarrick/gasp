@@ -1,0 +1,13 @@
+# Configuration files
+
+It is recommended to use a config file, since it's much cleaner than providing everything via a flag:
+
+- A setting comes from the kernel entry, then `[defaults]`, then the built-in default.
+- Settings are `file`, `name`, `kernel`, `problem_size`, `footprint`, `reuse`, `block_size`, `grid_size`, `loop_iterations`, `loop_counts`, `include_dirs`, `nvcc_flags`, `program_args` and `params`. `name` and `loop_counts` are only allowed on a kernel entry.
+- `include_dirs`, `nvcc_flags` and `program_args` are arrays of strings, such as `program_args = ["1000000"]`.
+- `footprint` is the number of distinct bytes of global memory the kernel reads and writes, such as `footprint = 12000000` for vecadd on 1000000 floats (three arrays of 4-byte elements). The cache model takes footprint / bytes accessed as the share of accesses that are first touches and must come from DRAM, so reuse between threads counts. L2 then holds what it can of the rest, by the footprint against the L2 size. Without it, GASP estimates reuse from each thread's own accesses only, which misses kernels where threads share data, such as matrix multiply.
+- `reuse` is the share of global accesses, from 0 to 1, that hit L1 on data the same block just loaded, and sets the L1 hit ratio directly. Work it out from the code, by 32-byte sectors (8 floats): in a 16x16 matrix multiply, each row of `a` misses once every 8 iterations of the `k` loop, and the warps of a block share each sector of `b`, so only the first warp to load it misses. Both give 7/8, so `reuse = 0.875` (the same reasoning gives 0.8 for 8x8 and 0.95 for 32x32 blocks); a kernel whose threads read only their own data has `reuse = 0`. Without it, L1 is estimated from the working set, which misses reuse that happens right after a load.
+- `block_size` and `grid_size` are a number or an array of up to 3 dimensions, such as `block_size = [16, 16]`. A `block_size` with several dimensions needs `grid_size`, because the grid can't be derived from `problem_size`.
+- `params` gives Pico the values of the kernel's arguments, such as `params = { M = 1024, N = 1024, K = 1024 }`. Without them, a cost that depends on an argument makes Pico fall back. Every name must be an argument of the kernel, or Pico fails and falls back for that kernel, so keep `params` in `[defaults]` only for kernels with the same arguments. A kernel's `params` are merged name by name over those in `[defaults]`, so `params = { K = 512 }` changes only `K`.
+- Paths are relative to the directory GASP runs from, not to the config file.
+- `--config` can't be combined with input files or per-kernel flags.

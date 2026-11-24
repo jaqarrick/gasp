@@ -1,6 +1,5 @@
 #!/bin/bash
-# Post-installation check: verify everything gasp needs is available.
-# Exits non-zero if any required check fails.
+# Check that everything gasp needs is installed; exits non-zero on a failure.
 set -uo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -18,8 +17,7 @@ fail() {
 hint() { echo "         -> $*"; }
 
 echo "Python"
-# gasp runs from the venv, so its interpreter is the one that matters, not the
-# system python3 (which may be older, e.g. when the venv came from a module)
+# check the venv's interpreter, not the system python3
 if [ -x "$VENV/bin/python" ]; then
   version="$("$VENV/bin/python" -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
   if "$VENV/bin/python" -c "import sys; sys.exit(sys.version_info[:2] < tuple(map(int, '$MIN_PYTHON'.split('.'))))"; then

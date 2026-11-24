@@ -1,4 +1,4 @@
-"""Tests for gasp.divergence — per-thread registers and branch kinds."""
+"""Tests for gasp.divergence: per-thread registers and branch kinds."""
 
 from unittest.mock import MagicMock
 
@@ -45,9 +45,7 @@ def make_cfg(node_ids, edges) -> ControlFlowGraph:
     )
 
 
-# ---------------------------------------------------------------------------
 # is_register_uniform
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -75,9 +73,7 @@ def test_unknown_special_register_is_per_thread_with_warning(logger):
     logger.warning.assert_called_once()
 
 
-# ---------------------------------------------------------------------------
-# analyze_divergence — small graphs
-# ---------------------------------------------------------------------------
+# analyze_divergence: small graphs
 
 
 def test_block_index_is_uniform(parse, logger):
@@ -161,10 +157,7 @@ def test_loop_back_edge_carries_per_thread_value(parse, logger):
     assert "R7" in end["X"]
 
 
-# ---------------------------------------------------------------------------
-# analyze_divergence — the `divergent` kernel of
-# tests/fixtures/probes/07_branches.cu, sm_80 SASS, loops left out
-# ---------------------------------------------------------------------------
+# analyze_divergence: `divergent` in tests/fixtures/probes/07_branches.cu (sm_80, no loops)
 
 
 def divergent_probe(parse):
@@ -246,9 +239,7 @@ def test_probe_rejoin_recomputes_per_thread_address(parse, logger):
     assert {"R2", "R3", "R5"} <= end[".L_x_21"]
 
 
-# ---------------------------------------------------------------------------
 # find_branches
-# ---------------------------------------------------------------------------
 
 
 def branches_of(cfg, insts, logger):
@@ -469,9 +460,7 @@ def test_probe_branch_kinds(parse, logger):
     )
 
 
-# ---------------------------------------------------------------------------
 # post_dominators / immediate_post_dominator
-# ---------------------------------------------------------------------------
 
 
 def test_post_dominators_diamond():
@@ -542,9 +531,7 @@ def test_loop_with_no_way_out_does_not_break_the_others():
     assert immediate_post_dominator("A", pdom) == VIRTUAL_EXIT
 
 
-# ---------------------------------------------------------------------------
-# find_branches — rejoin points
-# ---------------------------------------------------------------------------
+# find_branches: rejoin points
 
 
 def test_divergent_branch_rejoin(parse, logger):
@@ -612,9 +599,7 @@ def test_probe_rejoin_is_the_bsync_block_not_the_bssy_label(parse, logger):
     assert by_node[".L_x_22"].rejoin == ".L_x_23"
 
 
-# ---------------------------------------------------------------------------
-# find_branches — sides
-# ---------------------------------------------------------------------------
+# find_branches: sides
 
 
 def branch_to(target: str, source: str = "SR_TID.X") -> list[str]:
