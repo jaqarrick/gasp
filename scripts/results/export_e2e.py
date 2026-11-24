@@ -57,6 +57,13 @@ INPUT_COLUMNS = [
     "mdape", "mape", "mpe", "zero_measured",
 ]
 
+# The mean over benchmarks of each e2e_benchmarks.csv metric, so every benchmark counts
+# once however many configs it has. Counts become percentages of the benchmark's total.
+BENCHMARK_MEAN_COLUMNS = [
+    "gpu", "model", "benchmarks", "t_gpu_mdape", "t_gpu_mape", "t_gpu_mpe",
+    "speedup_mdape", "speedup_mape", "speedup_within_25_pct", "rank_correct_pct",
+]
+
 BANK_COLUMNS = [
     "gpu", "model", "config", "pred_added", "meas_added", "added_ratio",
     "t_gpu_err_min", "t_gpu_err_max", "count_static_d1", "count_meas_d1",
@@ -192,6 +199,23 @@ def input_summary(gpu: str, benchmark: str, name: str, rows: list[dict]) -> dict
     }
 
 
+def benchmark_mean(gpu: str, model: str, rows: list[dict]) -> dict:
+    """The BENCHMARK_MEAN_COLUMNS of one model's e2e_benchmarks.csv rows."""
+    def average(column: str) -> float | None:
+        return mean([row[column] for row in rows if row[column] is not None])
+
+    def share(count: str, total: str) -> float | None:
+        return mean([100 * row[count] / row[total] for row in rows if row[total]])
+
+    return {
+        "gpu": gpu, "model": model, "benchmarks": len(rows),
+        **{c: average(c) for c in ["t_gpu_mdape", "t_gpu_mape", "t_gpu_mpe",
+                                   "speedup_mdape", "speedup_mape"]},
+        "speedup_within_25_pct": share("speedup_within_25", "speedups"),
+        "rank_correct_pct": share("rank_correct", "rank_pairs"),
+    }
+
+
 def bank_cost(gpu: str, model: str, config: str, rows: list[dict]) -> dict | None:
     by_kernel = {r["kernel"]: r for r in rows}
     d1, d32 = by_kernel.get("degree_1"), by_kernel.get("degree_32")
@@ -248,6 +272,10 @@ def main() -> int:
                     bank.append(cost)
     write(args.out / "e2e_summary.csv", ["gpu", "model"] + METRIC_COLUMNS, summary)
     write(args.out / "e2e_benchmarks.csv", ["gpu", "model", "benchmark"] + METRIC_COLUMNS, benchmarks)
+    means = [benchmark_mean(gpu, model, [b for b in benchmarks
+                                          if (b["gpu"], b["model"]) == (gpu, model)])
+             for gpu, model in dict.fromkeys((s["gpu"], s["model"]) for s in summary)]
+    write(args.out / "e2e_benchmark_mean.csv", BENCHMARK_MEAN_COLUMNS, means)
     write(args.out / "e2e_kernels.csv", KERNEL_SUMMARY_COLUMNS, kernels)
     write(args.out / "e2e_bank_cost.csv", BANK_COLUMNS, bank)
     write(args.out / "e2e_inputs.csv", INPUT_COLUMNS, inputs)

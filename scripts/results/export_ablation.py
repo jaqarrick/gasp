@@ -2,7 +2,9 @@
 """Write ablation_<gpu>.csv for the profiled-input heatmap, one file per batch.
 
 Each cell is GASP's median absolute speedup error and its change from all-static,
-from read_ablation.summarize (the same as make ablation-results).
+from read_ablation.summarize (the same as make ablation-results). ablation_summary.csv
+has all of that summary: every GPU, model, benchmark (and "all") and row, with runtime
+and speedup errors and each one's change from the same model's all-static row.
 
 Example usage:
     scripts/results/export_ablation.py --out /some/directory
@@ -19,6 +21,28 @@ BASE = "all-static"
 ROWS = ["crude", "profiled-cache", "profiled-coalescing", "profiled-bank", "profiled-counts", "all-profiled"]
 BENCHMARKS = ["bank_conflict", "divergence", "l1_lines", "l2", "mm", "sfu", "transpose", "vecadd"]
 GASP = "GASPerf"
+METRICS = ["abs_err_median", "abs_err_mean", "abs_speedup_err_median", "abs_speedup_err_mean"]
+SUMMARY_COLUMNS = (
+    ["gpu", "model", "benchmark", "row", "kernels", "speedups"]
+    + METRICS
+    + [f"{m}_delta" for m in METRICS]
+    + ["itilp_capped", "itmlp_capped"]
+)
+
+
+def write_summary(path, cells: dict) -> None:
+    """Every summarize() row, with each metric's change from the same model's all-static row."""
+    with path.open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=SUMMARY_COLUMNS)
+        w.writeheader()
+        for (gpu, benchmark, model, _), s in cells.items():
+            base = cells.get((gpu, benchmark, model, BASE), {})
+            row = {k: s[k] for k in SUMMARY_COLUMNS if k in s}
+            for m in METRICS:
+                if s[m] is not None and base.get(m) is not None:
+                    row[f"{m}_delta"] = s[m] - base[m]
+            w.writerow({k: (f"{v:.6g}" if isinstance(v, float) else v) for k, v in row.items()})
+    print(f"wrote {path}")
 
 
 def main() -> int:
@@ -51,6 +75,7 @@ def main() -> int:
                     w.writerow([x, y, row, benchmark, f"{v:.1f}", f"{v - base:.1f}"])
         print(f"wrote {path}")
 
+    write_summary(out_dir / "ablation_summary.csv", cells)
     return 0
 
 
