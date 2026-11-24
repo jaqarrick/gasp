@@ -1,13 +1,10 @@
-"""The ablation: predict every kernel of a config once per row of ROWS, each row
-a different set of overrides, under every model (GPUPerf and GASPerf), and
-compare each with the saved measurements.
+"""Predict a config once per ablation row and compare each with saved measurements.
 
-    make ablation ARGS="--gpu rtx2080ti --config benchmarks/vecadd/configs/vecadd.toml \\
+Needs no GPU: the measurements come from `gasp --run --save-metrics`.
+
+    make ablation ARGS="--gpu rtx2080ti --config benchmarks/vecadd/configs/vecadd.toml \
         --metrics vecadd.metrics.json --out vecadd.ablation.json"
-
-Needs no GPU: the measurements come from a metrics file written earlier by
-`gasp --run --save-metrics`. --out saves the results as JSON; read_ablation.py
-prints them as a table or CSV. See README.md here."""
+"""
 
 import argparse
 import json
@@ -41,9 +38,7 @@ ROWS: dict[str, list[str]] = {
     "all-profiled": ["all=profiled"],
 }
 
-# inputs no row can profile: ncu has no counter for them, so "all-profiled"
-# keeps the static ones. The itilp_capped / itmlp_capped columns show where
-# ILP and MLP can't change the prediction anyway.
+# no ncu counter for these, so all-profiled keeps the static values
 NOT_PROFILED = ["ilp", "mlp", "sync_inst_count"]
 
 COLUMNS = [

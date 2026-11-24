@@ -11,8 +11,7 @@
 set -euo pipefail
 
 # ---- what to run -----------------------------------------------------------
-# GPU label (names the profile and output dir: hardware/runs/$GPU/$VERSION/),
-# a VERSION label, and the CUDA arch for the GPU on this partition.
+# GPU and VERSION name the output dir hardware/runs/$GPU/$VERSION/
 #   A100 -> sm_80   H100 -> sm_90   B200 -> sm_100
 #   V100 -> sm_70   RTX2080Ti -> sm_75   TitanV -> sm_70   RTX4070 -> sm_89
 GPU=a100
@@ -29,14 +28,8 @@ REPO="$SLURM_SUBMIT_DIR"
 cd "$REPO"
 
 # ---- preflight -------------------------------------------------------------
-# The suite needs BOTH submodules' files actually checked out. The compute node
-# usually has no internet (and hpmll uses an ssh URL), so fetch them on the
-# LOGIN node before submitting:
+# both submodules must be checked out; fetch them on a login node:
 #   git submodule update --init hardware/microbenchmarks/hpmll hardware/microbenchmarks/gpu-benches
-#
-# Check the real content paths the runners use, not just a .git entry: a
-# submodule can be registered (dir present) without its files checked out, which
-# silently skips dram_bandwidth (gpu-stream) and then fails sync_cost.
 missing=0
 if [ ! -d hardware/microbenchmarks/hpmll/RegularUnits ]; then
   echo "ERROR: hpmll submodule not checked out (hpmll/RegularUnits missing)." >&2
@@ -53,12 +46,10 @@ if [ "$missing" -ne 0 ]; then
   exit 1
 fi
 
-nvidia-smi                                # host driver info, for your records
+nvidia-smi
 
 # ---- run -------------------------------------------------------------------
-# Call run_all.py directly (no `make`, which may be absent in the container).
-# It builds each .cu with nvcc and runs them under `ncu --clock-control base`,
-# so no manual clock locking is needed. Output: hardware/runs/$GPU/$VERSION/
+# runs under ncu --clock-control base; output: hardware/runs/$GPU/$VERSION/
 singularity exec --nv "$IMG" \
   python3 hardware/microbenchmarks/gasp-bm/run_all.py \
     --gpu "$GPU" --version "$VERSION" --arch "$ARCH" $EXTRA_ARGS

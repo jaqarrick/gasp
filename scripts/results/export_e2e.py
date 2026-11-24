@@ -1,38 +1,9 @@
 #!/usr/bin/env python3
-"""Write the end-to-end result CSVs for the report (sec:results-e2e, tab:e2e-summary),
-all-static row, from the ablation batches. Each kernel run and each speedup comparison
-is counted once (read_ablation.mark_duplicates, applied by load_batch).
+"""Write the end-to-end result CSVs (e2e_*.csv) for the report from the ablation batches.
 
-    e2e_<gpu>.csv        one row per config, kernel and model, duplicates included and
-                         marked: predicted and measured T_GPU and speedup with their
-                         errors, the model's terms, and the static and measured inputs
-    e2e_summary.csv      per GPU and model: the metrics of tab:e2e-summary
-    e2e_benchmarks.csv   the same metrics per GPU, model and benchmark
-    e2e_kernels.csv      per GPU, model, benchmark and kernel name (over its configs):
-                         runtime error range and median, median speedup error, and the
-                         median measured and predicted speedup
-    e2e_bank_cost.csv    per GPU, model and bank_conflict config: the predicted and
-                         measured time added from degree 1 to degree 32, their ratio,
-                         and the static and measured conflict counts
-    e2e_inputs.csv       per GPU, benchmark (and "all") and input: how close GASP's
-                         static inputs are to the measured ones
-
-The metrics: median and mean absolute T_GPU error and mean signed T_GPU error over the
-kernel runs; median and mean absolute speedup error and the number within 25% over the
-compared kernels (each config's reference left out); and the ranking, kernel pairs within
-a config whose predicted order (faster, slower or equal) is the measured one, each pair of
-runs counted once.
-
-The input summary counts each kernel run once and uses the inputs from result.json, which
-are the same for both models. Per input: the runs, how many match exactly, and over the runs
-whose measured value is not 0, the median and mean absolute and the mean signed % error of
-the static value; zero_measured counts the runs whose measured value is 0 while the static
-one is not (no % error for those).
-
-The errors come from ablation.json, as in make ablation-results. The terms and inputs come
-from the config's result.json, which is the e2e prediction; ablation.json predicts again,
-and the two can differ (a Pico fallback in one and not the other). result_agrees is 0 for
-those rows, and their terms and inputs belong to the result.json prediction.
+Uses the all-static row of each batch, with each run and comparison counted once.
+Errors come from ablation.json, terms and inputs from result.json; result_agrees is 0
+where the two predictions differ. The files are listed in docs/experiments.md, section 8.
 
 Example usage:
     scripts/results/export_e2e.py --out /path/to/data/dir

@@ -1,16 +1,8 @@
 #!/usr/bin/env python3
-"""Read every ablation.json of a batch from scripts/batch_ablation.sh and print the
-error decomposition: per benchmark (and all together), model and ablation row, the
-mean and median absolute T_GPU error and speedup error, and how many kernels had
-ITILP or ITMLP at a cap (where ILP or MLP can't change the prediction). --records
-prints every record instead. Only GASPerf by default; --model picks another model,
-or all.
+"""Print the error decomposition of an ablation batch, per benchmark, model and row.
 
-The speedup columns leave out each config's reference kernel, whose speedup is 1
-by definition. A kernel run that an earlier config (in name order) already ran, and a
-speedup comparison an earlier config already made, are counted once (mark_duplicates);
---records prints them all, marked in duplicate_run and duplicate_speedup. Every row
-carries the GPU, so the CSVs of several batches (one per GPU) can be concatenated.
+References are left out of the speedup columns, and repeated runs and comparisons are
+counted once (mark_duplicates). --records prints every record instead.
 
 Example usage:
     experiments/ablation/read_ablation.py experiments/results/ablation/rtx2080ti/batch_20261118_101500
@@ -65,7 +57,7 @@ TEXT_COLUMNS = {"gpu", "benchmark", "config", "row", "kernel", "model", "pico"}
 
 ALL_BENCHMARKS = "all"
 
-# the settings that define a kernel run: two kernels with the same values are the same run
+# kernels with equal values here are the same run
 RUN_FIELDS = ["file", "kernel", "grid_dim", "block_dim", "problem_size", "footprint", "reuse",
               "loop_iterations", "loop_counts", "params"]
 
@@ -98,14 +90,11 @@ def records_of(config_dir: str, doc: dict, only_model: str | None) -> list[dict]
 
 
 def mark_duplicates(batch: Path, records: list[dict]) -> None:
-    """Add run_key, duplicate_run and duplicate_speedup to each record of a batch.
+    """Mark each record's run_key, duplicate_run and duplicate_speedup.
 
-    Some configs repeat a kernel run of another config (same RUN_FIELDS, from the configs'
-    result.json); mm.toml and n1024_b16x16.toml both run basic and tiled at 1024, 16x16.
-    Going through the configs in name order, a run is a duplicate if an earlier config
-    already ran it, and a speedup is a duplicate if an earlier config compared the same
-    kernel run with the same reference run. A config without a readable result.json
-    gives no duplicates."""
+    A run or comparison is a duplicate if an earlier config (in name order) has the same
+    RUN_FIELDS, e.g. mm.toml and n1024_b16x16.toml both run basic and tiled.
+    """
     keys: dict[tuple[str, str], str] = {}
     order: list[tuple[str, list[str], str]] = []
     for config_dir in sorted(p for p in batch.iterdir() if p.is_dir()):
@@ -152,8 +141,7 @@ def median(values: list[float]) -> float | None:
 
 
 def summarize(records: list[dict], row_order: list[str]) -> list[dict]:
-    """One summary row per (benchmark, model, ablation row), plus the same over
-    all benchmarks. Rows keep the order of the ablation's ROWS."""
+    """One row per (benchmark, model, ablation row), plus one over all benchmarks."""
     groups: dict[tuple[str, str, str, str], list[dict]] = {}
     for r in records:
         for benchmark in (r["benchmark"], ALL_BENCHMARKS):
@@ -220,9 +208,7 @@ def print_table(columns: list[str], rows: list[dict]) -> None:
 def load_batch(
     batch_dir: Path, only_model: str | None
 ) -> tuple[list[dict], list[str], list[str]]:
-    """The records of every ablation.json in a batch, marked by mark_duplicates, the
-    configs that left none (as "<config>: <error>"), and the ablation rows in the order
-    the batch ran them."""
+    """Return the batch's records (duplicates marked), its failed configs, and its rows in run order."""
     records, missing, row_order = [], [], []
     for config_dir in sorted(p for p in batch_dir.iterdir() if p.is_dir()):
         path = config_dir / "ablation.json"

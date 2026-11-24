@@ -30,7 +30,7 @@ class KernelParameters:
 class OccupancyParams:
     """All these inputs are from the occupancy / simulation module"""
 
-    active_warps: int  # N — active warps per SM
+    active_warps: int  # N: active warps per SM
     active_sms: int  # SMs that receive at least one block
     total_warps: int  # grid_size * warps_per_block
     warps_per_block: int  # ceil(block_size / warp_size)

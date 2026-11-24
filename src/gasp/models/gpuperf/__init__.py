@@ -1,4 +1,4 @@
-# This module contains the GPUPerf formula for execution time (Sim et al.)
+# GPUPerf execution-time model (Sim et al.)
 from gasp.logger import Logger
 from gasp.models.inputs import WORD_BYTES, ModelInputs
 from gasp.occupancy import OccupancyOutput
@@ -13,8 +13,7 @@ from .types import (
 
 
 def non_sfu_inst_count(total_inst_count: float, sfu_inst_count: float) -> float:
-    """GPUPerf's #insts: instructions per warp excluding SFU ones (Table 1).
-    SFU cost enters only through O_SFU (Eq. 9)."""
+    """GPUPerf's #insts (Table 1): instructions per warp excluding SFU ones."""
     return max(total_inst_count - sfu_inst_count, 0.0)
 
 
@@ -29,9 +28,7 @@ def amat(
     l2_hit_ratio: float,
     average_trans_warp: float,
 ) -> float:
-    """Eq. 12 over two cache levels. Every latency is end-to-end, so a miss
-    costs the next level's latency with no lookup added on top: all misses
-    gives exactly the average DRAM latency."""
+    """Eq. 12 over two cache levels, with end-to-end latencies (a miss costs the next level's)."""
     dram = average_dram_latency(h, average_trans_warp)
     l1_miss_latency = l2_hit_ratio * h.l2_hit_latency + (1 - l2_hit_ratio) * dram
     return l1_hit_ratio * h.l1_hit_latency + (1 - l1_hit_ratio) * l1_miss_latency
@@ -63,8 +60,7 @@ class GPUPerf:
         k = self.k
         h = self.h
         o = self.o
-        # divergent instructions are part of total_inst_count; charged in O_CFdiv
-        # instead of W_parallel, at the same cost per instruction
+        # divergent instructions are charged in O_CFdiv instead of W_parallel
         insts = non_sfu_inst_count(k.total_inst_count, k.sfu_inst_count)
         divergent = min(k.divergent_inst_count, insts)
         effective_throughput = k.average_inst_latency / o.itilp
@@ -94,8 +90,7 @@ class GPUPerf:
         o_cfdiv = ((divergent * o.total_warps) / o.active_sms) * effective_throughput
         self.o_cfdiv = o_cfdiv
         self.issue_time = w_parallel + o_cfdiv
-        # Pico's count is per warp (extra shared accesses, N - 1 for an N-way
-        # conflict), so it scales by warps per SM like the other W_serial terms.
+        # Pico's count is per warp, so scale by warps per SM
         o_bank = (
             (k.bank_conflict_count * o.total_warps) / o.active_sms
         ) * h.bank_penalty

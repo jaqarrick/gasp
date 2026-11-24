@@ -1,11 +1,7 @@
-"""Shared by the export_*.py scripts here: the final ablation batches, one per GPU,
-and the command line every script takes.
+"""The final ablation batches (one per GPU) and the command line shared by the exporters.
 
-The all-static row of each ablation batch is its end-to-end result, so these four
-batches hold every result the report plots. The list matches BATCHES in the Makefile.
-
-Every export counts a kernel run, and a speedup comparison, once: read_ablation.load_batch
-marks the records that repeat another config's run (read_ablation.mark_duplicates)."""
+The list matches BATCHES in the Makefile.
+"""
 
 import argparse
 import sys
@@ -28,8 +24,7 @@ def gpu_of(batch: Path) -> str:
 
 
 def parse_args(description: str, batches: bool) -> argparse.Namespace:
-    """--out DIR (where the CSVs go, such as the report's data folder) and, for the
-    scripts that read the batches, the batch folders (default: FINAL_BATCHES)."""
+    """Parse --out and, if batches is set, the batch folders (default: FINAL_BATCHES)."""
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--out", type=Path, required=True, help="folder the CSVs are written to")
     if batches:

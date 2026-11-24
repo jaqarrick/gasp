@@ -1,4 +1,4 @@
-"""Tests for gasp.hardware — HardwareProfile loading and validation."""
+"""Tests for gasp.hardware: HardwareProfile loading and validation."""
 
 import dataclasses
 import json
@@ -209,7 +209,7 @@ class TestLoadHardwareProfile:
             assert getattr(hp, field) == value, f"profiled.{field} mismatch"
 
     def test_missing_json_field_raises(self, tmp_path, monkeypatch, logger):
-        """JSON missing a profiled key → error and exit."""
+        """JSON missing a profiled key -> error and exit."""
         bad = json.loads(json.dumps(VALID_PROFILE))
         del bad["profiled"]["dram_latency_cycles"]
 
@@ -222,7 +222,7 @@ class TestLoadHardwareProfile:
         logger.error.assert_called_once()
 
     def test_extra_json_field_raises(self, tmp_path, monkeypatch, logger):
-        """Extra unexpected key in JSON → error and exit."""
+        """Extra unexpected key in JSON -> error and exit."""
         bad = json.loads(json.dumps(VALID_PROFILE))
         bad["profiled"]["turbo_boost_factor"] = 1.5
 
@@ -251,7 +251,7 @@ class TestLoadHardwareProfile:
         logger.error.assert_called_once()
 
     def test_flattening_merges_correctly(self, monkeypatch, profile_file, logger):
-        """spec and profiled are merged into a flat namespace — no collisions."""
+        """spec and profiled are merged into a flat namespace: no collisions."""
         monkeypatch.setitem(GPU_PROFILES, "a100", profile_file)
         hp = load_hardware_profile("a100", logger)
 

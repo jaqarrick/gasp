@@ -1,8 +1,4 @@
-"""The metrics file: the ncu measurements of a --run, saved as JSON so they can
-be replayed without a GPU (--metrics) and feed profiled overrides.
-
-Only raw ncu values are stored. Model inputs are worked out from them on load
-(gasp.overrides), so changing a conversion doesn't need a new profile."""
+"""The metrics file: raw ncu values from a --run, saved as JSON for replay (--metrics) and profiled overrides."""
 
 import json
 import statistics
@@ -109,8 +105,7 @@ def load_metrics(path: str) -> SavedMetrics:
 def check_matches(
     saved: SavedMetrics, gpu: str, arch: str, specs: list[Launched]
 ) -> None:
-    """The file must be a profile of these kernels, on this GPU, with these
-    launches: profiled values are per warp of the launch that was measured."""
+    """Check the metrics file profiles these kernels, on this GPU, with these launches."""
     if (saved.gpu, saved.arch) != (gpu, arch):
         raise MetricsFileError(
             f"the metrics file was profiled on {saved.gpu} ({saved.arch}), "

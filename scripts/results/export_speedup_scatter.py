@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-"""Write speedup_<gpu>.csv for the report's speedup scatter (fig:scatter): one row per
-compared kernel (every kernel but its config's reference, and each comparison once, see
-read_ablation.mark_duplicates), all-static row, with the measured speedup and both models'
-predicted speedups. export_mm.py and export_bars.py
-read these files, so run this first (make report-data does).
+"""Write speedup_<gpu>.csv: measured and predicted speedup per compared kernel.
+
+export_mm.py and export_bars.py read these files, so run this first.
 
 Example usage:
     scripts/results/export_speedup_scatter.py --out /to/some/dir

@@ -187,8 +187,7 @@ def specs_from_inputs(
 
 
 def load_config(path: str) -> list[KernelSpec]:
-    """Kernels from a TOML file. An entry's settings win over [defaults], and an
-    entry's params are merged name by name over those in [defaults]."""
+    """Kernels from a TOML file; entry settings and params override [defaults]."""
     try:
         with open(path, "rb") as f:
             config = tomllib.load(f)

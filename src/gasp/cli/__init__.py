@@ -76,9 +76,7 @@ from .utils import (
 
 @dataclass
 class PreparedKernel:
-    """One kernel's static analysis: everything predict() needs, computed once.
-    predict_kernel can then be called on it again for each model and each set
-    of overrides."""
+    """One kernel's static analysis, computed once and reused for every model and override set."""
 
     spec: KernelSpec
     kernel_name: str  # mangled
@@ -488,8 +486,7 @@ def prepare_kernel(
     warn_shared_program: bool,
     logger: Logger,
 ) -> PreparedKernel:
-    """The static analysis of one kernel: nvcc, CFG, occupancy, Pico, SASS
-    parser and dependency analysis. The slow part, done once per kernel."""
+    """Run the static analysis of one kernel (nvcc, CFG, occupancy, Pico, SASS, dependencies)."""
     name = spec.name
     logger.trace("config", f"=== kernel {name} ===")
     logger.table(
@@ -713,11 +710,10 @@ def predict_kernel(
     logger: Logger,
     model: str = DEFAULT_MODEL,
 ) -> KernelResult:
-    """Run one model on a prepared kernel, with the chosen overrides.
+    """Run one model on a prepared kernel with the chosen overrides.
 
-    choices: {group: source} from parse_overrides, empty for all static.
-    saved: the metrics file, needed when a source is profiled.
-    model: one of models.MODELS."""
+    choices: {group: source} from parse_overrides; saved: the metrics file, for profiled sources.
+    """
     spec = prepared.spec
     name = spec.name
     label = format_overrides(choices)
@@ -798,8 +794,7 @@ def predict_all_models(
     logger: Logger,
     models: Iterable[str] = tuple(MODELS),
 ) -> list[KernelResult]:
-    """Every kernel under each of models (default: all), once each: kernel by
-    kernel, models in models.MODELS order."""
+    """Predict every kernel under each of models (default: all), in models.MODELS order."""
     chosen = [model for model in MODELS if model in models]
     return [
         predict_kernel(p, choices, saved, logger, model)

@@ -22,7 +22,7 @@ cd "$REPO"
 
 FAIAL_COST="$REPO/.faial-bin/faial-cost"
 
-# run the following from an interactive jupyter notebook before submitting batch script:
+# one-time setup, before submitting:
 #   curl -LsSf https://astral.sh/uv/install.sh | sh
 #   singularity exec "$IMG" bash -c 'export PATH="$HOME/.local/bin:$PATH"; unset VIRTUAL_ENV; uv venv .venv --python /usr/bin/python3 && uv pip install --python .venv/bin/python -r requirements.txt'
 #   singularity exec "$IMG" env FAIAL_MODE=native FAIAL_PREFIX="$PWD/.faial" BIN_DIR="$PWD/.faial-bin" bash scripts/install_faial.sh   # only if .faial-bin/faial-cost isn't there yet

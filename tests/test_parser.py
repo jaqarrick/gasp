@@ -1,4 +1,4 @@
-"""Tests for gasp.parser — SASS instruction parsing against nvdisasm fixtures."""
+"""Tests for gasp.parser: SASS instruction parsing against nvdisasm fixtures."""
 
 import re
 from pathlib import Path
@@ -19,9 +19,7 @@ SASS_DIR = FIXTURES / "sass"
 CFG_DIR = FIXTURES / "cfg"
 SGEMM = "parboil/sgemm"
 
-# one instruction per match: "/*0040*/   IMAD R6, R6, c[0x0][0x0], R3 ;"
-# single-line only, and must start with a predicate or opcode, so data-section
-# lines like "/*0010*/  .byte 0xff, ..." are skipped
+# one instruction per match, e.g. "/*0040*/   IMAD R6, R6, c[0x0][0x0], R3 ;" (skips .byte lines)
 _SASS_LINE = re.compile(r"/\*[0-9a-f]{4,}\*/[ \t]+(?P<instr>[@A-Z][^;\n]*?)[ \t]*;")
 
 
@@ -74,9 +72,7 @@ def make_parser(arch, logger, cfg=None):
     return get_parser(cfg=cfg, kernel_name="kernel", arch=arch, logger=logger)
 
 
-# ---------------------------------------------------------------------------
 # get_parser
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -113,9 +109,7 @@ def test_get_parser_rejects_unsupported_arch(arch, logger):
     logger.error.assert_called_once()
 
 
-# ---------------------------------------------------------------------------
-# _parse_instruction — lines taken from the fixtures
-# ---------------------------------------------------------------------------
+# _parse_instruction: lines taken from the fixtures
 
 BRACKET_CASES = [
     pytest.param(
@@ -369,9 +363,7 @@ def test_srz_is_not_a_register(logger):
     logger.warning.assert_not_called()
 
 
-# ---------------------------------------------------------------------------
-# register widths — operands that cover more than one 32-bit register
-# ---------------------------------------------------------------------------
+# register widths: operands that cover more than one 32-bit register
 
 WIDTH_CASES = [
     pytest.param(
@@ -562,10 +554,7 @@ def test_wide_addend_skips_carry_predicates(logger):
     assert not {"R6", "R10"} & parsed.src_registers
 
 
-# ---------------------------------------------------------------------------
-# carry predicates — carry-out right after the destination is written,
-# carry-in at the end is read (sm_100 sgemm epilogue address chains)
-# ---------------------------------------------------------------------------
+# carry predicates: carry-out after the destination is written, carry-in at the end is read
 
 CARRY_CASES = [
     pytest.param(
@@ -644,9 +633,7 @@ def test_unknown_opcode_is_categorized_unknown(logger):
     logger.warning.assert_called()
 
 
-# ---------------------------------------------------------------------------
-# address_base_register / address_offset — arch-dependent address syntax
-# ---------------------------------------------------------------------------
+# address_base_register / address_offset: arch-dependent address syntax
 
 NOT_GLOBAL = (None, None)
 
@@ -683,9 +670,7 @@ def test_descriptor_address(arch, line, expected, logger):
     assert (parsed.address_base_register, parsed.address_offset) == expected
 
 
-# ---------------------------------------------------------------------------
 # every instruction in the .sass fixtures
-# ---------------------------------------------------------------------------
 
 SASS_FIXTURES = [
     pytest.param(arch, SASS_DIR / name, id=name)
@@ -717,9 +702,7 @@ def test_fixture_instructions_parse_cleanly(arch, path, logger):
     logger.warning.assert_not_called()
 
 
-# ---------------------------------------------------------------------------
 # parse() over a whole CFG
-# ---------------------------------------------------------------------------
 
 
 def test_parse_vecadd_cfg(logger):
@@ -775,9 +758,7 @@ def test_parse_sgemm_cfg(arch, logger):
     logger.warning.assert_not_called()
 
 
-# ---------------------------------------------------------------------------
-# _trim_raw_instruction — DOT record ports
-# ---------------------------------------------------------------------------
+# _trim_raw_instruction: DOT record ports
 
 TRIM_CASES = [
     pytest.param(

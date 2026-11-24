@@ -1,33 +1,8 @@
 #!/bin/bash
-# Run the ablation for every config in benchmarks/*/configs/*.toml on one GPU.
-# Each config is first measured end to end (scripts/run_e2e_accuracy_experiment.sh:
-# predict, then --run --save-metrics under ncu), then experiments/ablation/run_ablation.py
-# replays its metrics.json through every ablation row and saves ablation.json.
-# Benchmark names after the GPU limit the run to those benchmarks.
-# --profile <path> uses that hardware profile (such as one from make microbenchmarks)
-# instead of the built-in one for <gpu>; <gpu> then only names the results folder.
-# A failed config doesn't stop the others. Needs the GPU, nvcc and ncu (no dry run:
-# the ablation compares every row with the measurements).
-#
-# --replay <e2e batch dir> skips the measuring: it runs the ablation on the metrics.json
-# each config of that batch (from scripts/batch_experiment.sh, not a dry run) already
-# saved, and copies its metrics.json and result.json into the new batch. No GPU or ncu,
-# only nvcc. <gpu> has to be the GPU the batch was measured on.
-#
-# Before it starts, it asks for a short description of the experiment and saves it,
-# with the date, GPU, profile, code version and configs, in experiment.txt.
-# --description "<text>" gives it without the prompt (needed without a terminal).
-#
-# Results go in one folder per batch, a subfolder per config, and two text files:
-#   experiments/results/ablation/<gpu>/batch_<timestamp>/<benchmark>_<config>/
-#       metrics.json, result.json, ablation.json, run.log, ablation.log, traces.log
-#   experiments/results/ablation/<gpu>/batch_<timestamp>/experiment.txt
-#   experiments/results/ablation/<gpu>/batch_<timestamp>/summary.txt
-# Under Slurm the folder is batch_<timestamp>_<job id>, so parallel jobs that start in the
-# same second get their own folders. If the folder already exists, the run stops.
-# summary.txt holds the pass/fail list and the error decomposition from
-# experiments/ablation/read_ablation.py (GASPerf only); it is printed at the end of the run.
-# experiments/ablation/read_ablation.py <batch dir> (make ablation-results) reads them.
+# Run the ablation for every config (or the named benchmarks) on one GPU.
+# Each config is measured end to end, then replayed through every ablation row.
+# --replay <e2e batch dir> reuses that batch's measurements instead (no GPU needed).
+# Output layout: docs/experiments.md, section 6.
 #
 # Example usage:
 #   scripts/batch_ablation.sh [--profile <path>] [--replay <e2e batch dir>] [--description <text>] <gpu> [benchmark ...]
@@ -130,7 +105,7 @@ if ! ./scripts/check_requirements.sh > /dev/null; then
     make install
 fi
 
-# ask before creating anything, so Ctrl-C here leaves no batch folder behind
+# ask before creating the batch folder
 if [ -z "$DESCRIPTION" ]; then
     if [ ! -t 0 ]; then
         echo "error: no terminal to ask for a description; pass --description \"<text>\"" >&2
@@ -158,7 +133,7 @@ BATCH_DIR="$BATCH_PARENT/batch_$(date +%Y%m%d_%H%M%S)${SLURM_JOB_ID:+_$SLURM_JOB
 mkdir -p "$BATCH_PARENT"
 mkdir "$BATCH_DIR" || { echo "error: $BATCH_DIR already exists" >&2; exit 1; }
 
-# what was run, where and with what, so the batch can be told apart and repeated later
+# record what was run, for experiment.txt
 {
     echo "description: $DESCRIPTION"
     echo
@@ -213,7 +188,7 @@ for BMK in "${BMKS[@]}"; do
         NAME="$BMK/$(basename "$CONFIG" .toml)"
         OUT="$BATCH_DIR/${BMK}_$(basename "$CONFIG" .toml)"
         if [ -n "$REPLAY" ]; then
-            # the measurements from the e2e batch, copied so this batch stands on its own
+            # copy the e2e measurements into this batch
             SRC="$REPLAY/${BMK}_$(basename "$CONFIG" .toml)"
             if [ ! -f "$SRC/metrics.json" ]; then
                 echo "error: no $SRC/metrics.json (config failed in that batch, or it was a dry run)" >&2
@@ -248,7 +223,7 @@ done
     [ "${#FAILED[@]}" -eq 0 ] || printf '  failed: %s\n' "${FAILED[@]}"
     echo
     echo "error decomposition (GASPerf; make ablation-results BATCH=$BATCH_DIR ARGS='--model all' for every model):"
-    # read_ablation exits 1 when a config left no ablation.json; the FAILED list above already covers that
+    # failures are reported in the FAILED list above
     .venv/bin/python experiments/ablation/read_ablation.py "$BATCH_DIR" 2>&1 || true
 } > "$BATCH_DIR/summary.txt"
 

@@ -1,9 +1,7 @@
-"""The performance models. Each one is a module with run(), which takes the
-shared inputs (inputs.ModelInputs) to the model's derived parameters and times.
+"""The performance models, each a module whose run() takes inputs.ModelInputs.
 
-gpuperf: GPUPerf as published (Sim et al.), plus the SFU fix.
-gasperf: our model. It starts as a copy of GPUPerf and is ours to change.
-Only GASPerf adds launch overhead to T_exec for T_GPU."""
+gpuperf: GPUPerf as published (Sim et al.), plus the SFU fix. gasperf: our model.
+"""
 
 from . import gasperf, gpuperf
 

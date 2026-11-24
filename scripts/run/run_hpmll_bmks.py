@@ -55,15 +55,12 @@ TIMED_METRICS = ["gpc__cycles_elapsed.max", CLOCK_METRIC]
 
 WARP_LOAD_BYTES = 128  # one 32-bit load per lane of a warp
 SECTOR_BYTES = 32
-# mem_bw allocates six float arrays of ARRAY_SIZE (2^29, 2 GiB each: 12 GiB)
-#  On a GPU without the memory, it is built from a copy with a smaller power-of-two ARRAY_SIZE
+# mem_bw needs 12 GiB (six 2 GiB arrays); smaller GPUs get a smaller power-of-two ARRAY_SIZE
 MEM_BW_ARRAYS = 6
 MEM_BW_ARRAY_SIZE = 536870912
 MEM_BW_HEADROOM = 512 * 1024**2  # left free for the CUDA context
 MEM_BW_MIN_L2_MULTIPLE = 8  # a smaller array must still be at least 8x the L2
-# we need to increase this because hpmll only uses 8 trips. since one of those is the first
-# l1 load (i.e. the first DRAM trip), the average is brought down. Increasing this iteration count
-# Makes 256 trips
+# hpmll's 8 trips include the cold first load, which skews the average; use 256
 L1_LAT_ITERS = 1048576
 
 

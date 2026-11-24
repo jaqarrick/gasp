@@ -1,4 +1,4 @@
-"""Tests for gasp.kernels — kernel names and selection."""
+"""Tests for gasp.kernels: kernel names and selection."""
 
 import pytest
 

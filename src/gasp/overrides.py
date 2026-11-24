@@ -1,10 +1,7 @@
-"""Overrides: replace a group of the model's static inputs with profiled (ncu)
-or crude values, for the ablation study.
+"""Replace groups of static model inputs with profiled (ncu) or crude values, for the ablation.
 
-    --override cache=profiled --override coalescing=crude
-
-Each group names the model inputs it replaces. ModelOverrides has one optional
-field per replaceable input; predict() applies it in a single place."""
+--override cache=profiled --override coalescing=crude
+"""
 
 from dataclasses import dataclass
 
@@ -172,8 +169,7 @@ def _counts(metrics: dict[str, float], total_warps: int) -> dict[str, float]:
 
 
 def profiled_values(metrics: dict[str, float], total_warps: int) -> dict[str, float]:
-    """Every ModelOverrides field ncu measured, the same values `profiled` uses.
-    A group whose metrics are missing is left out."""
+    """Every ModelOverrides field ncu measured; groups with missing metrics are left out."""
     values: dict[str, float] = {}
     for compute in (
         _cache,
@@ -198,10 +194,7 @@ CRUDE_VALUES: dict[str, dict[str, float]] = {
 def build_overrides(
     choices: dict[str, str], metrics: dict[str, float] | None, total_warps: int
 ) -> ModelOverrides:
-    """The values each chosen group replaces, for one kernel.
-
-    metrics: the kernel's ncu metrics (one value each), needed for `profiled`.
-    total_warps turns whole-kernel counts into per-warp ones."""
+    """The values each chosen group replaces for one kernel; metrics are needed for `profiled`."""
     profiled = {
         "cache": _cache,
         "coalescing": _coalescing,

@@ -177,9 +177,7 @@ class SASSParser(ABC):
 
     def _split_address(self, inner: str) -> tuple[str | None, int]:
         """Base register and immediate offset of an address's contents:
-        R2.64+0x10 -> (R2, 16), R2+-0x4 -> (R2, -4), R2.64+UR4 -> (R2, 0).
-        The base is one name, not the register pair a .64 address reads.
-        Register offsets (UR4) are not part of the offset."""
+        R2.64+0x10 -> (R2, 16), R2+-0x4 -> (R2, -4), R2.64+UR4 -> (R2, 0)."""
         tokens = [t.strip() for t in inner.split("+") if t.strip()]
         base = None
         if tokens:

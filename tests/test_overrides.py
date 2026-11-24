@@ -1,4 +1,4 @@
-"""Tests for gasp.overrides — parsing --override and building the values."""
+"""Tests for gasp.overrides: parsing --override and building the values."""
 
 import pytest
 

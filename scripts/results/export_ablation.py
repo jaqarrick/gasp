@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
-"""Write ablation_<gpu>.csv for the report's profiled-input heatmap (fig:ablation), one
-file per ablation batch: one row per (ablation row, benchmark) cell, ablation rows
-in ROWS order and benchmarks in BENCHMARKS order within each, with x and y indices,
-GASP's median absolute speedup error in that cell and its change from all-static
-(delta, percentage points).
+"""Write ablation_<gpu>.csv for the profiled-input heatmap, one file per batch.
 
-The numbers come from read_ablation.summarize, the same code as make ablation-results,
-with each speedup comparison counted once (read_ablation.mark_duplicates).
+Each cell is GASP's median absolute speedup error and its change from all-static,
+from read_ablation.summarize (the same as make ablation-results).
 
 Example usage:
     scripts/results/export_ablation.py --out /some/directory

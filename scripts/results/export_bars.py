@@ -1,14 +1,7 @@
 #!/usr/bin/env python3
-"""Write the report's bar-chart data for the non-mm benchmarks (fig:bars, fig:bank-l1): for each
-comparison, the median over its configs of the measured speedup over the config's
-reference kernel and of each model's predicted speedup, and each model's median absolute
-speedup error.
+"""Write the bar-chart CSVs (bars_, bank_, l1_<gpu>.csv) for the non-mm benchmarks.
 
-    bars_<gpu>.csv   vecadd, divergence, SFU, transpose, L2
-    bank_<gpu>.csv   bank-conflict degrees (both bank_conflict configs)
-    l1_<gpu>.csv     L1 line patterns
-
-Reads every speedup_<gpu>.csv in --out (from export_speedup_scatter.py).
+Reads the speedup_<gpu>.csv files in --out (from export_speedup_scatter.py).
 
 Example usage:
     scripts/results/export_bars.py --out /to/some/dir

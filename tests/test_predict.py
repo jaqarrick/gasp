@@ -1,4 +1,4 @@
-"""Tests for gasp.predict — Pico counts → average_trans_warp, T_GPU."""
+"""Tests for gasp.predict: Pico counts -> average_trans_warp, T_GPU."""
 
 from dataclasses import replace
 from types import SimpleNamespace
@@ -211,9 +211,7 @@ def test_predict_more_memory_instructions_raise_t_mem():
     assert more.t_mem > fewer.t_mem
 
 
-# ---------------------------------------------------------------------------
 # two-level AMAT (each latency end-to-end, so no lookup is added on a miss)
-# ---------------------------------------------------------------------------
 
 L1_LAT, L2_LAT, DRAM_LAT, DELTA = 30, 200, 300, 6
 
@@ -250,9 +248,7 @@ def test_amat_uncoalesced_term_only_on_dram():
     assert amat(1.0, 0.0, average_trans_warp=3.0) == pytest.approx(L1_LAT)
 
 
-# ---------------------------------------------------------------------------
 # working set -> hit ratios
-# ---------------------------------------------------------------------------
 
 
 def vecadd_input(accesses: int, reusable: int) -> PredictionInput:
@@ -310,9 +306,7 @@ def test_predict_traces_cache_line():
     )
 
 
-# ---------------------------------------------------------------------------
 # footprint: whole-kernel reuse
-# ---------------------------------------------------------------------------
 
 THREADS = 256 * 40  # prediction_input's block_size x grid_size
 
@@ -367,9 +361,7 @@ def test_no_footprint_falls_back_to_per_thread_reuse():
     assert p.reuse_fraction == 0.0  # reusable=0 from the per-thread count
 
 
-# ---------------------------------------------------------------------------
 # --reuse: L1 hit ratio given
-# ---------------------------------------------------------------------------
 
 
 def test_reuse_sets_l1_hit_ratio():
@@ -406,9 +398,7 @@ def test_reuse_shows_in_trace():
     assert "h1 0.250" in cache_trace
 
 
-# ---------------------------------------------------------------------------
 # L1 size: what the shared-memory carveout leaves of the array
-# ---------------------------------------------------------------------------
 
 
 def test_l1_size_without_shared_memory_keeps_smallest_carveout():
@@ -528,9 +518,7 @@ def test_each_override_is_traced():
     logger.trace.assert_any_call("predict", "override average_trans_warp: static 8 → 1")
 
 
-# ---------------------------------------------------------------------------
 # SFU instructions: left out of #insts, charged only in O_SFU (Eq. 9)
-# ---------------------------------------------------------------------------
 
 FP_LAT, SFU_LAT = 4, 15
 
@@ -664,9 +652,7 @@ def test_counts_override_subtracts_sfu_inside_the_model():
     assert p.t_comp == pytest.approx(8 * 320 / 10)
 
 
-# ---------------------------------------------------------------------------
 # models: GASPerf starts as a copy of GPUPerf
-# ---------------------------------------------------------------------------
 
 
 def test_models_are_gpuperf_then_gasperf():
@@ -690,10 +676,7 @@ def test_prediction_names_its_model():
     ],
 )
 def test_gasperf_matches_gpuperf(build):
-    """Holds for kernels without shared-memory or FP64 accesses, with SFU under
-    GPUPerf's threshold, whose L1 time is under T_mem and whose data fits in L2
-    either way. GASPerf reports its L1 and SFU pipe times, which GPUPerf leaves
-    at 0; its launch overhead term is off by default."""
+    """Holds for kernels without shared-memory, FP64 or heavy SFU use whose data fits in L2."""
     gpuperf = build()
     gasperf = build()
     gasperf.model = "GASPerf"
@@ -716,9 +699,7 @@ def test_gasperf_matches_gpuperf(build):
     )
 
 
-# ---------------------------------------------------------------------------
 # GASPerf: shared-memory pipe limit
-# ---------------------------------------------------------------------------
 
 
 def shared_input(loads: int, stores: int = 0, model: str = "GASPerf"):
@@ -778,9 +759,7 @@ def test_gpuperf_ignores_shared_counts():
     assert p.smem_pipe_time == 0
 
 
-# ---------------------------------------------------------------------------
 # GASPerf: FP64 pipe limit in T_comp
-# ---------------------------------------------------------------------------
 
 ISSUE_TIME = 10 * 320 / 10  # the fixture's W_parallel: 10 insts x 32 warps/SM
 
@@ -844,9 +823,7 @@ def test_gpuperf_ignores_fp64_counts():
     assert p.fp64_pipe_time == 0
 
 
-# ---------------------------------------------------------------------------
 # GASPerf: SFU pipe limit in T_comp
-# ---------------------------------------------------------------------------
 
 
 def gasperf_sfu_input(total: int, sfu: int) -> PredictionInput:
@@ -881,9 +858,7 @@ def test_gpuperf_reports_no_sfu_pipe_time():
     assert p.sfu_pipe_time == 0
 
 
-# ---------------------------------------------------------------------------
 # GASPerf: L1 throughput limit on T_mem
-# ---------------------------------------------------------------------------
 
 
 def l1_input(
@@ -962,9 +937,7 @@ def test_l1_single_line_request_costs_one_line():
     assert p.l1_time == pytest.approx(64 * 8.0)
 
 
-# ---------------------------------------------------------------------------
 # GASPerf: L2 throughput limit on T_mem
-# ---------------------------------------------------------------------------
 
 
 def l2_input(l2_bandwidth: float, l1_hit_ratio: float = 0.0, model="GASPerf"):
@@ -1005,9 +978,7 @@ def test_gpuperf_has_no_l2_limit():
     assert p.t_mem < 8192
 
 
-# ---------------------------------------------------------------------------
 # GASPerf: DRAM bandwidth as a floor on T_mem, not a cap on ITMLP
-# ---------------------------------------------------------------------------
 
 
 def dram_input(
@@ -1063,9 +1034,7 @@ def test_dram_floor_counts_only_l2_misses():
     assert p.dram_time == pytest.approx(64 * 128 * 0.25 / 4.5)
 
 
-# ---------------------------------------------------------------------------
 # GASPerf: L2 hit ratio against the blocks resident at the same time
-# ---------------------------------------------------------------------------
 
 L2_BYTES = 4 * 1024 * 1024
 

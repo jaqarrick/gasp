@@ -24,7 +24,7 @@ class KernelParameters:
 class OccupancyParams:
     """All these inputs are from the occupancy / simulation module"""
 
-    active_warps: int  # N — active warps per SM
+    active_warps: int  # N: active warps per SM
     active_sms: int  # SMs that receive at least one block
     total_warps: int  # grid_size * warps_per_block
     warps_per_block: int  # ceil(block_size / warp_size)
@@ -54,8 +54,7 @@ class HardwareParameters:
     sfu_width: int
     fp64_width: int
     departure_delay: float
-    # Γ, dimensionless. GPUPerf used 64 "based on microarchitecture simulations";
-    # hardware/microbenchmarks/sync_cost.cu measures it per GPU
+    # Gamma; GPUPerf used 64, sync_cost.cu measures it per GPU
     sync_factor: float
     dram_latency: float
     # end-to-end latencies, like dram_latency: a hit costs only its own latency
@@ -69,14 +68,12 @@ class HardwareParameters:
     dram_bandwidth: float  # bytes per cycle, whole GPU
     # SM cycles per warp shared access with the pipe saturated (GASPerf only)
     shared_mem_throughput: float
-    # L1 cost per global request: max(cycles per request, sectors / sectors per
-    # cycle), from l1_throughput.cu (GASPerf only)
+    # L1 cycles per global request, from l1_throughput.cu (GASPerf only)
     l1_cycles_per_request: float
     l1_sectors_per_cycle: float
     # bytes per cycle, whole GPU (GASPerf only)
     l2_bandwidth: float
-    # extra L1 cycles per global request that misses L1, from l1_miss_cost.cu
-    # (GASPerf only)
+    # extra L1 cycles per request that misses L1, from l1_miss_cost.cu (GASPerf only)
     l1_miss_cycles_per_request: float
     # optional in the profile; used only if INCLUDE_LAUNCH_OVERHEAD (GASPerf)
     launch_overhead_base: float | None = None  # cycles per launch

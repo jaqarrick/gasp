@@ -1,9 +1,5 @@
 #!/bin/bash
-# Remove the faial bundle and wrappers installed by scripts/install_faial.sh.
-#
-# Env overrides (must match what install_faial.sh was run with):
-#   FAIAL_PREFIX  where the bundle was extracted (default ~/.local/share/faial)
-#   BIN_DIR       where the wrappers were put    (default ~/.local/bin)
+# Remove what scripts/install_faial.sh installed (same FAIAL_PREFIX and BIN_DIR).
 set -euo pipefail
 
 FAIAL_PREFIX="${FAIAL_PREFIX:-$HOME/.local/share/faial}"
@@ -12,7 +8,7 @@ TOOLS=(faial-cost faial-drf)
 
 removed=0
 
-# Only touch wrappers we generated, never a faial-cost installed some other way
+# only remove wrappers this installer generated
 for tool in "${TOOLS[@]}"; do
   wrapper="$BIN_DIR/$tool"
   [ -e "$wrapper" ] || continue
@@ -25,7 +21,7 @@ for tool in "${TOOLS[@]}"; do
   fi
 done
 
-# Sanity-check the prefix before rm -rf so a misset FAIAL_PREFIX can't wipe an unrelated directory
+# sanity-check the prefix before rm -rf
 if [ -d "$FAIAL_PREFIX" ]; then
   if { [ -x "$FAIAL_PREFIX/bin/faial-cost" ] && [ -d "$FAIAL_PREFIX/lib" ]; } \
     || [ -f "$FAIAL_PREFIX/faial-tools.sif" ]; then

@@ -1,16 +1,11 @@
 """scripts/run/run_gpu_benches.py: measure the profile's DRAM bandwidth with gpu-benches'
 gpu-stream (RRZE-HPC), and compare it with other profiles.
 
-gpu-stream is built and run as published, without ncu: it times from the host, which
-ncu's replay would distort. The value is the highest read-kernel GB/s over its
-occupancy sweep, divided by the base profile's clock_rate_ghz. A DRAM-bound kernel's
-GB/s does not depend on the SM clock, so this is exact without a clock lock.
-
-The value is written as a run JSON where gasp-bm's run_all.py reads it, and
-run_all.py calls this script for dram_bandwidth_bytes_per_cycle, so
-`make microbenchmarks` builds the whole profile. Run on its own
-(`make microbenchmarks-gpu-benches`) it also prints a comparison with the base
-profile and this version's gasp-bm and HPMLL profiles.
+gpu-stream runs without ncu, timed from the host. The value is the highest read-kernel
+GB/s divided by the base profile's clock_rate_ghz; DRAM-bound GB/s doesn't depend on the
+SM clock, so no clock lock is needed. run_all.py calls this for
+dram_bandwidth_bytes_per_cycle (`make microbenchmarks`); run on its own
+(`make microbenchmarks-gpu-benches`) it also prints the comparison.
 
 Output, for `--gpu rtx2080ti --version 1.2`:
 
@@ -112,8 +107,7 @@ def pct_diff(value: float, reference: float) -> float | None:
 
 
 def run_sampling_clock(command: list[str], log_path: Path, clock_path: Path, cwd: Path) -> list[float]:
-    """Run command (output to log_path) while nvidia-smi samples the SM clock; the
-    samples in MHz (recorded for reference: the value does not use them)."""
+    """Run command (output to log_path) while nvidia-smi samples the SM clock; return the samples in MHz."""
     with clock_path.open("w") as clock_out:
         sampler = subprocess.Popen(
             [

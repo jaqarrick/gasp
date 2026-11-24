@@ -1,16 +1,6 @@
 #!/bin/bash
-# Run every experiment on one GPU: the ablation batch (scripts/batch_ablation.sh) on
-# mm, bank_conflict, transpose and l2, then the e2e batch on every benchmark
-# (scripts/batch_experiment.sh). mm is the main ablation target; bank_conflict, transpose
-# and l2 exercise the bank-conflict, coalescing and cache inputs that mm barely varies.
-# --ablation-benchmarks "<names>" replaces that list.
-#
-# Both descriptions are asked for here, before anything runs, and passed to the batches,
-# so the run never stops halfway to wait for input. --ablation-description and
-# --e2e-description give them up front instead (needed without a terminal, e.g. nohup).
-# --profile <path> goes to both batches.
-#
-# If the ablation batch fails (any config), the e2e batch doesn't start.
+# Run the ablation batch (mm, bank_conflict, transpose, l2 by default), then the
+# e2e batch, on one GPU. The e2e batch is skipped if the ablation fails.
 #
 # Example usage:
 #   scripts/all_experiments.sh [--profile <path>] [--ablation-benchmarks "<names>"] [--ablation-description <text>] [--e2e-description <text>] <gpu>

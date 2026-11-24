@@ -40,11 +40,7 @@ def _listing(kernels: Collection[str]) -> str:
 
 
 def resolve_kernel(selector: str | None, kernels: Collection[str]) -> str:
-    """Mangled name of the kernel a selector picks out of a compiled file.
-
-    The selector is a mangled name or a source name. None is only accepted when
-    the file holds a single kernel.
-    """
+    """Mangled name of the kernel a selector (mangled or source name, or None for a single kernel) picks."""
     if not kernels:
         raise KernelSelectionError("no kernels found in the compiled file")
 

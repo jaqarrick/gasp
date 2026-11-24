@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-"""Write mm_<gpu>.csv for the report's matrix-multiplication figure (fig:mm): for each
-mm variant, the median over its configs of the measured speedup over `basic` and of each
-model's predicted speedup, plus the median absolute speedup error of each model.
+"""Write mm_<gpu>.csv: median speedup over `basic` per mm variant, measured and predicted.
 
-Reads every speedup_<gpu>.csv in --out (from export_speedup_scatter.py).
+Reads the speedup_<gpu>.csv files in --out (from export_speedup_scatter.py).
 
 Example usage:
     scripts/results/export_mm.py --out /to/some/dir

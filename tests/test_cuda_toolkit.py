@@ -1,4 +1,4 @@
-"""Tests for gasp.cuda_toolkit — reading nvdisasm output, and the setup hint."""
+"""Tests for gasp.cuda_toolkit: reading nvdisasm output, and the setup hint."""
 
 from pathlib import Path
 

@@ -1,4 +1,4 @@
-"""Tests for gasp.cli.config — kernel specs from the command line and TOML."""
+"""Tests for gasp.cli.config: kernel specs from the command line and TOML."""
 
 import pytest
 

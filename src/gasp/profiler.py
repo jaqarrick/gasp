@@ -282,8 +282,7 @@ def measure(i: ProfileInput, exe: str, trace: bool) -> KernelMeasurement:
         if required not in metrics:
             i.logger.error(f"ncu did not report {required} for {i.name}")
             sys.exit(1)
-    # a program that ignores the GASP_* macros launches its own config. ncu reports
-    # totals, so a different shape with the same totals isn't caught
+    # catches programs that ignore the GASP_* launch macros (same totals pass)
     launched_grid = int(metrics[GRID_SIZE_METRIC])
     launched_block = int(metrics[BLOCK_SIZE_METRIC])
     if (launched_grid, launched_block) != (i.grid_size, i.block_size):

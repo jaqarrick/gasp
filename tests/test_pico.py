@@ -1,4 +1,4 @@
-"""Tests for gasp.pico — per-kernel costs and the fallback."""
+"""Tests for gasp.pico: per-kernel costs and the fallback."""
 
 import json
 from unittest.mock import MagicMock, patch

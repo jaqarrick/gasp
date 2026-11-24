@@ -1,17 +1,11 @@
 #!/usr/bin/env bash
 # Check a hardware profile's spec fields against the GPU this runs on.
+# Needs nvcc and python3. simd_width, sfu_width and the shared-memory sizes can't be
+# queried from CUDA; check those against the whitepaper.
 #
 #   scripts/check_gpu_spec.sh hardware/profiles/titanv.json
 #   scripts/check_gpu_spec.sh            # just print what the GPU reports
-#   scripts/check_gpu_spec.sh --output spec.txt [profile]   # write to spec.txt instead
-#
-# Needs nvcc (module load cuda-12.4 on the cuda machines) and python3.
-# simd_width, sfu_width, l1_shared_array_bytes and shared_mem_carveouts_bytes are
-# not queryable from CUDA; check those against the tuning guide / whitepaper.
-# The max SM clock is printed for reference: the profile's clock_rate_ghz is the
-# base clock, which a microbenchmark run reports as "SM clock: median".
-# It first prints the machine it runs on (host, OS, CPU, driver, CUDA, nvcc, ncu,
-# clocks, power limit); a tool that is missing shows as "unknown".
+#   scripts/check_gpu_spec.sh --output spec.txt [profile]
 set -euo pipefail
 
 profile=""

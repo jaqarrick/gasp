@@ -1,7 +1,6 @@
 import re
 
-# organize CFG into Nodes and Edges (based on the structure of the DOT file
-# in tests/fixtures/cfg/vecadd.bbcfg.dot).
+# CFG nodes and edges, parsed from nvdisasm bbcfg DOT output
 from dataclasses import dataclass
 
 
@@ -30,8 +29,7 @@ class ControlFlowGraph:
     edges: list[CFGEdge]
 
 
-# this parser is scoped to the raw cfg input in tests/fixtures/cfg/vecadd.bbcfg.dot
-# structure per node (specifically bbcfgs): NodeID \l label \l edges
+# bbcfg node format: NodeID \l label \l edges
 
 # regexes the raw bbcfg input
 _GRAPH_START = re.compile(r"^\s*digraph\b.*\{\s*$")
@@ -149,11 +147,7 @@ def gen_cfg_from_raw(raw_cfg: str) -> ControlFlowGraph:
 
 
 def filter_cfg(cfg: ControlFlowGraph, kernel: str) -> ControlFlowGraph:
-    """The part of a multi-function graph that belongs to one kernel.
-
-    The kernel's own nodes come first, so the first node is its entry. Subroutines
-    of the kernel stay in the graph; nvdisasm names their clusters $kernel$callee.
-    """
+    """The part of a multi-function graph that belongs to one kernel, its entry node first."""
     callee_prefix = f"${kernel}$"
     own = {k: n for k, n in cfg.nodes.items() if n.function == kernel}
     if not own:
